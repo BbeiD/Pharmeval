@@ -904,6 +904,85 @@
   /* ---- Indicateur discret de synchronisation (Sprint 4) ---- */
   .results-sync-status { font-size: 12px; color: var(--text2); text-align: center; margin-top: 8px; min-height: 16px; }
 
+  /* ---- Centre de progression "Mes evaluations" (Sprint 5) ---- */
+  #history-view { max-width: 780px; margin: 0 auto; padding: 24px 0; }
+  #history-view h2 { margin: 0 0 16px 0; font-size: 22px; font-weight: 700; }
+
+  .history-toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    justify-content: space-between; margin-bottom: 18px;
+  }
+  .history-search-input {
+    flex: 1; min-width: 180px; padding: 9px 12px; border-radius: var(--radius);
+    border: 1.5px solid var(--border2); background: var(--surface);
+    font-size: 13px; box-sizing: border-box;
+  }
+  .history-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .history-filter-btn {
+    padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid var(--border2); background: var(--surface); color: var(--text2);
+    cursor: pointer; transition: all .15s;
+  }
+  .history-filter-btn:hover { border-color: var(--green); }
+  .history-filter-btn.active { background: var(--green); border-color: var(--green); color: #fff; }
+
+  .history-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .history-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .history-card-date { font-size: 12px; color: var(--text2); font-weight: 600; }
+  .history-card-space { font-size: 13px; font-weight: 700; }
+  .history-card-pct { font-size: 26px; font-weight: 700; color: var(--green); margin-top: 4px; }
+  .history-card-frac { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+  .history-card-detail-btn { align-self: flex-start; padding: 6px 12px; font-size: 12px; }
+
+  .history-empty-state {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 48px 16px; text-align: center; color: var(--text2);
+  }
+  .history-empty-icon { font-size: 40px; }
+  .history-error, .history-no-match {
+    grid-column: 1 / -1; text-align: center; color: var(--text2); font-size: 13px; padding: 24px 0;
+  }
+
+  #history-detail-section { padding-top: 8px; }
+  .history-detail-summary {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 20px; margin: 16px 0; text-align: center;
+  }
+  .history-detail-date { font-size: 13px; color: var(--text2); font-weight: 600; }
+  .history-detail-space { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .history-detail-pct { font-size: 34px; font-weight: 700; color: var(--green); margin-top: 8px; }
+  .history-detail-frac { font-size: 13px; color: var(--text2); }
+  .history-detail-params {
+    display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--text2);
+    margin-bottom: 16px;
+  }
+  .history-detail-params strong { color: var(--text); }
+
+  .history-detail-questions { display: flex; flex-direction: column; gap: 10px; }
+  .history-question-row {
+    background: var(--surface); border: 1.5px solid var(--border2); border-left: 4px solid var(--border2);
+    border-radius: var(--radius); padding: 12px 14px; font-size: 13px;
+  }
+  .history-question-row.is-correct { border-left-color: var(--green); }
+  .history-question-row.is-incorrect { border-left-color: #E24B4A; }
+  .history-question-num { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
+  .history-question-text { font-weight: 600; margin-bottom: 6px; }
+  .history-question-answer, .history-question-correct { color: var(--text2); margin-bottom: 2px; }
+  .history-question-result { font-weight: 700; margin-top: 6px; }
+  .history-question-row.is-correct .history-question-result { color: var(--green); }
+  .history-question-row.is-incorrect .history-question-result { color: #E24B4A; }
+
   /* ---- Assistant de premiere connexion (Sprint 2) ----
      Meme identite graphique que l'ecran d'authentification (fond degrade
      sombre, carte semi-transparente), pour une transition visuelle coherente

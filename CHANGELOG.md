@@ -4,6 +4,46 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v1.6.0 — Sprint 5 (Centre de progression & historique des évaluations)
+
+### Fonctionnalités ajoutées
+- Nouvel espace **« Mes évaluations »**, accessible depuis l'en-tête pour tout utilisateur connecté.
+- Historique paginé (20 évaluations par page, `loadMoreHistory()` pour la suite), lu exclusivement depuis Firestore (`users/{uid}/evaluations`) — le localStorage n'est plus utilisé pour cette vue.
+- Cartes d'évaluation (date, espace, score %, fraction bonnes réponses/total), triées de la plus récente à la plus ancienne.
+- Détail complet d'une évaluation : paramètres de sélection, et pour chaque question, l'énoncé, la réponse donnée, la bonne réponse et le résultat (correct/incorrect) — l'énoncé et la bonne réponse sont retrouvés localement dans la banque de questions déjà chargée, jamais dupliqués dans Firestore.
+- Recherche libre et filtres (Tous/Pharmacien/Étudiant), avec une architecture prévue pour ajouter facilement période/difficulté/thème.
+- État vide avec bouton « Commencer une évaluation ».
+- Nouveau service `js/services/history-service.js`, centralisant toute lecture Firestore de l'historique — aucun appel Firestore ailleurs dans l'interface.
+- Décision d'architecture appliquée : aucun calcul (moyenne, progression...) n'est fait dans cette vue ; elle affiche uniquement les données déjà enregistrées, préparant un futur `statistics-service.js` (Sprint 6) sans qu'il faille modifier l'historique.
+
+### Fichiers modifiés
+- `js/app.js` — un seul ajout isolé (`window.PharmevalQDB = QDB;`) pour permettre la résolution locale des questions dans le détail d'une évaluation.
+- `index.html` — bouton « Mes évaluations » et vue `#history-view` complète.
+- `css/styles.css` — styles du centre de progression, réutilisant strictement la palette et les composants existants.
+
+### Fichiers créés
+- `js/services/history-service.js`
+- `js/history.js`
+
+### Migration nécessaire
+Aucune. Cette vue lit les évaluations déjà synchronisées par le Sprint 4 ; aucune donnée existante n'est modifiée.
+
+### Actions Firebase nécessaires
+Aucune action immédiate obligatoire. À surveiller si l'usage augmente significativement : des index Firestore composites (ex. `space` + `completedAt`) pourraient devenir nécessaires pour un filtrage réellement côté serveur (non créés dans ce sprint, voir `RAPPORT_SPRINT5.md`).
+
+### Règles Firestore à publier
+Aucune nouvelle règle proposée dans ce sprint (lecture seule, déjà couverte par les règles proposées au Sprint 4 pour `users/{userId}/evaluations/{evaluationId}`).
+
+### Tests à effectuer
+Voir `RAPPORT_SPRINT5.md`, section « Non testé dans cet environnement » : validation manuelle contre le vrai projet Firebase (pagination réelle, rendu visuel dans un navigateur).
+
+### Limites connues
+- Recherche et filtres ne portent que sur les évaluations déjà chargées (pas sur toute la collection Firestore).
+- Le détail d'une évaluation ne peut afficher l'énoncé/la bonne réponse que si la question existe encore sous la même forme dans `data/questions.js`.
+- `answerGiven` reste simplifié pour les formats Relier/Arbre décisionnel/Flux/Cas évolutif (limite déjà documentée au Sprint 4).
+
+---
+
 ## v1.5.0 — Sprint 4 (Synchronisation des résultats et historique Firestore)
 
 ### Fonctionnalités ajoutées

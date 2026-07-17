@@ -1322,4 +1322,14 @@ function changeSpace() {
 // Le rendu reel (renderCats / updateStatsDisplay / comptage) demarre
 // uniquement apres le choix explicite d'un profil via selectProfile().
 
+// Sprint 5 : expose la banque de questions deja chargee en memoire, pour que
+// js/services/history-service.js (module ES, sans acces aux variables
+// globales de ce script classique) puisse retrouver l'enonce et la bonne
+// reponse d'une question a partir de son questionId - uniquement lorsque
+// l'utilisateur ouvre le detail d'une evaluation dans "Mes evaluations",
+// jamais pour la liste des cartes. Ne modifie ni QDB ni son contenu.
+if (typeof window !== 'undefined') {
+  window.PharmevalQDB = QDB;
+}
+
 
