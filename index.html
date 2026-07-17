@@ -301,6 +301,15 @@
     <div id="history-list-section">
       <h2>Mes évaluations</h2>
 
+      <!-- VOS RECOMMANDATIONS (Sprint 7) : lecture Firestore partagee avec
+           l'Analyse de progression ci-dessous (voir js/history.js,
+           loadStatisticsAndRecommendations). Le moteur propose, explique et
+           laisse toujours le choix - voir js/services/recommendation-service.js. -->
+      <div id="recommendations-section" class="reco-section">
+        <h3>Vos recommandations</h3>
+        <div id="recommendations-body"></div>
+      </div>
+
       <!-- ANALYSE DE PROGRESSION (Sprint 6) : lecture Firestore independante
            de la liste ci-dessous (voir js/statistics.js). Aucune erreur ici
            ne bloque l'historique, et inversement. -->

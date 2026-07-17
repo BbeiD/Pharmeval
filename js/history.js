@@ -8,10 +8,11 @@
 // js/services/statistics-service.js (Sprint 6) fera ces calculs a partir des
 // memes donnees, sans que ce fichier n'ait besoin d'etre modifie.
 
-import { getEvaluationsPage, findQuestionByQuestionId, getCorrectAnswerLabel } from "./services/history-service.js";
+import { getEvaluationsPage, getEvaluationsForStatistics, findQuestionByQuestionId, getCorrectAnswerLabel } from "./services/history-service.js";
 import { formatDateFr } from "./services/date-utils.js";
 import { getScoreClass } from "./services/score-utils.js";
-import { loadAndRenderStatistics } from "./statistics.js";
+import { renderStatisticsFromData, renderError as renderStatisticsError, renderLoading as renderStatisticsLoading } from "./statistics.js";
+import { renderRecommendationsFromData, renderRecommendationsError, renderRecommendationsLoading } from "./recommendation.js";
 
 const PAGE_SIZE = 20;
 
@@ -49,12 +50,28 @@ export function openHistoryView() {
   // terminee depuis la derniere consultation de cet ecran durant la session.
   loadFirstPage();
 
-  // Sprint 6 : declenche le chargement de l'Analyse de progression en
-  // parallele. Lecture Firestore totalement independante de celle de la
-  // liste (voir getEvaluationsForStatistics dans history-service.js) : une
-  // erreur ici n'affecte jamais l'affichage de la liste ci-dessous, et
-  // inversement.
-  loadAndRenderStatistics();
+  // Sprint 7 : une SEULE lecture Firestore (getEvaluationsForStatistics,
+  // deja plafonnee a 100 evaluations depuis le Sprint 6) alimente a la fois
+  // l'Analyse de progression ET les recommandations, conformement au
+  // principe "ne jamais relire plusieurs fois les memes evaluations" et a la
+  // chaine Firestore -> history-service -> statistics-service ->
+  // recommendation-service demandee pour ce sprint. Cette lecture est
+  // totalement independante de celle de la liste ci-dessus : une erreur ici
+  // n'affecte jamais l'affichage de la liste, et inversement.
+  loadStatisticsAndRecommendations();
+}
+
+async function loadStatisticsAndRecommendations() {
+  renderStatisticsLoading();
+  renderRecommendationsLoading();
+  const result = await getEvaluationsForStatistics();
+  if (result.error) {
+    renderStatisticsError();
+    renderRecommendationsError();
+    return;
+  }
+  renderStatisticsFromData(result.items, result.truncated);
+  renderRecommendationsFromData(result.items);
 }
 
 export function closeHistoryView() {

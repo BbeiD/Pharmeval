@@ -22,7 +22,7 @@ import { getCurrentUserContext } from "./services/app-context.js";
 // Version affichee dans la zone d'administration. Mise a jour manuellement a
 // chaque nouvelle version (coherent avec VERSION.md) ; ce sprint ne met pas
 // en place de lecture automatique de version, jugee hors perimetre ici.
-const APP_VERSION = 'Pharmeval v1.7.0';
+const APP_VERSION = 'Pharmeval v1.8.0';
 
 /**
  * A appeler apres chaque connexion (voir js/auth.js -> revealApp()) pour

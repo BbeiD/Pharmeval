@@ -248,6 +248,81 @@ export function hasReliableThemeData(evaluations) {
   return Object.keys(byTheme).some(function(theme) { return byTheme[theme].count >= THEME_MIN_EVALUATIONS; });
 }
 
+// ---------------------------------------------------------------------------
+// Ajouts Sprint 7 (moteur de recommandations) : purement additifs, aucune
+// fonction existante ci-dessus n'a ete modifiee. Ces deux fonctions restent
+// des STATISTIQUES au sens large (recence par theme, rythme recent) - elles
+// vivent ici plutot que d'etre dupliquees dans recommendation-service.js,
+// qui se contente de les consommer.
+// ---------------------------------------------------------------------------
+
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Pour chaque theme rencontre (y compris "Thème non renseigné"), calcule le
+ * nombre de jours ecoules depuis la derniere evaluation de ce theme.
+ * Utilise par recommendation-service.js pour la regle "theme oublie".
+ *
+ * @param {Array<object>} evaluations
+ * @param {Date} [now] - injectable pour les tests, defaut : instant present
+ * @returns {Object<string, {daysSinceLastPracticed:number, lastPracticedAt:number}>}
+ */
+export function getThemeRecency(evaluations, now) {
+  const list = evaluations || [];
+  const nowMs = (now instanceof Date ? now : new Date()).getTime();
+  const mostRecentByTheme = {};
+
+  list.forEach(function(ev) {
+    const key = themeKeyOf(ev);
+    const ms = toMillis(ev.completedAt);
+    if (!mostRecentByTheme[key] || ms > mostRecentByTheme[key]) {
+      mostRecentByTheme[key] = ms;
+    }
+  });
+
+  const result = {};
+  Object.keys(mostRecentByTheme).forEach(function(theme) {
+    const lastMs = mostRecentByTheme[theme];
+    result[theme] = {
+      daysSinceLastPracticed: lastMs > 0 ? Math.floor((nowMs - lastMs) / MILLISECONDS_PER_DAY) : null,
+      lastPracticedAt: lastMs,
+    };
+  });
+  return result;
+}
+
+/**
+ * Metriques de rythme global (toutes evaluations confondues, tous themes) :
+ * nombre de jours depuis la derniere evaluation, et nombre d'evaluations
+ * realisees au cours des 7 derniers jours. Utilise par
+ * recommendation-service.js pour la regle "regularite".
+ *
+ * @param {Array<object>} evaluations
+ * @param {Date} [now] - injectable pour les tests
+ * @returns {{daysSinceLastEvaluation:(number|null), evaluationsInLast7Days:number}}
+ */
+export function calculateActivityMetrics(evaluations, now) {
+  const list = evaluations || [];
+  const nowMs = (now instanceof Date ? now : new Date()).getTime();
+
+  if (list.length === 0) {
+    return { daysSinceLastEvaluation: null, evaluationsInLast7Days: 0 };
+  }
+
+  let mostRecentMs = 0;
+  let count7Days = 0;
+  list.forEach(function(ev) {
+    const ms = toMillis(ev.completedAt);
+    if (ms > mostRecentMs) mostRecentMs = ms;
+    if (ms > 0 && (nowMs - ms) <= 7 * MILLISECONDS_PER_DAY) count7Days++;
+  });
+
+  return {
+    daysSinceLastEvaluation: mostRecentMs > 0 ? Math.floor((nowMs - mostRecentMs) / MILLISECONDS_PER_DAY) : null,
+    evaluationsInLast7Days: count7Days,
+  };
+}
+
 // Exposees pour permettre a l'interface (ou aux tests) de reference les
 // seuils sans les redefinir ailleurs.
 export const STATISTICS_THRESHOLDS = Object.freeze({

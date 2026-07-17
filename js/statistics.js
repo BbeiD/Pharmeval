@@ -31,9 +31,12 @@ function pctLabel(value) {
 }
 
 /**
- * Point d'entree, appele par js/history.js a l'ouverture du Centre de
- * progression. Effectue UNE seule lecture Firestore (voir
- * getEvaluationsForStatistics) qui alimente tous les indicateurs.
+ * Point d'entree autonome (fetch + rendu), conserve tel quel pour la
+ * compatibilite et les tests existants. Depuis le Sprint 7, l'ouverture du
+ * Centre de progression n'appelle plus cette fonction directement : elle
+ * effectue desormais UNE lecture partagee (voir js/history.js) et appelle
+ * `renderStatisticsFromData` ci-dessous pour a la fois l'analyse et les
+ * recommandations, evitant une deuxieme lecture Firestore redondante.
  */
 export async function loadAndRenderStatistics() {
   const container = document.getElementById('statistics-section');
@@ -47,15 +50,27 @@ export async function loadAndRenderStatistics() {
     return;
   }
 
-  render(result.items, result.truncated);
+  renderStatisticsFromData(result.items, result.truncated);
 }
 
-function renderLoading() {
+/**
+ * Rendu pur a partir d'une liste d'evaluations deja chargee (aucun acces
+ * Firestore ici). Utilisee par js/history.js depuis le Sprint 7 pour
+ * partager une seule lecture entre l'analyse et les recommandations.
+ *
+ * @param {Array<object>} evaluations
+ * @param {boolean} truncated
+ */
+export function renderStatisticsFromData(evaluations, truncated) {
+  render(evaluations, truncated);
+}
+
+export function renderLoading() {
   const container = document.getElementById('statistics-body');
   if (container) container.innerHTML = '<div class="stats-loading">Chargement de votre analyse…</div>';
 }
 
-function renderError() {
+export function renderError() {
   // Message convivial uniquement : jamais de detail Firebase brut. Ne
   // bloque jamais la liste de l'historique, qui utilise une lecture et un
   // rendu totalement independants (voir js/history.js).

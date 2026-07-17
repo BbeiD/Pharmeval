@@ -1117,4 +1117,30 @@
   .stats-theme-bar.score-weak { background: #E24B4A; }
   .stats-theme-bar.score-unknown { background: var(--border2); }
   .stats-theme-pct { flex: 0 0 auto; font-weight: 700; min-width: 40px; text-align: right; }
+
+  /* ---- Vos recommandations (Sprint 7) ---- */
+  .reco-section { margin-bottom: 24px; }
+  .reco-section h3 { margin: 0 0 12px 0; font-size: 16px; font-weight: 700; }
+
+  .reco-loading, .reco-error, .reco-empty {
+    padding: 20px; text-align: center; color: var(--text2); font-size: 13px;
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+  }
+  .reco-empty p { margin: 2px 0; }
+
+  .reco-card {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 16px; margin-bottom: 12px;
+  }
+  .reco-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .reco-card-icon { font-size: 20px; }
+  .reco-card-title { font-size: 14px; font-weight: 700; }
+  .reco-card-description { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.4; }
+  .reco-card-confidence { font-size: 11px; color: var(--text2); margin-bottom: 10px; }
+  .reco-card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .reco-action-btn, .reco-ignore-btn { padding: 8px 14px; font-size: 12px; }
+  .reco-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .reco-why { font-size: 11px; color: var(--text2); }
+  .reco-why summary { cursor: pointer; font-weight: 600; }
+  .reco-why p { margin: 6px 0 0 0; }
   

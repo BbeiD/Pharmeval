@@ -4,6 +4,46 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v1.8.0 — Sprint 7 (Moteur de recommandations intelligentes)
+
+### Fonctionnalités ajoutées
+- Nouvelle section **« Vos recommandations »**, affichée au-dessus de l'Analyse de progression dans le Centre de progression.
+- Moteur de recommandations entièrement basé sur des règles explicites (aucune IA, aucun apprentissage automatique), couvrant 6 types : faiblesse identifiée sur un thème, thème oublié, progression, régression, régularité (bon rythme / inactivité), réussite exceptionnelle.
+- Chaque recommandation porte un **champ de transparence « Pourquoi cette recommandation ? »**, expliquant concrètement les chiffres à l'origine de la suggestion.
+- Priorisation automatique : seules les 3 recommandations les plus pertinentes sont affichées, triées par priorité décroissante.
+- Indicateur de confiance (0-100 %) sur chaque recommandation, qui ne prétend jamais à une certitude non justifiée par le volume de données disponible.
+- Cas des données insuffisantes (moins de 5 évaluations) : aucune recommandation inventée, message adapté à la place.
+- Boutons d'action prévus proprement pour l'évolutivité future (« Voir mes erreurs », « Essayer un niveau plus difficile », actuellement désactivés).
+
+### Fichiers modifiés
+- `js/services/statistics-service.js` — ajout de 2 fonctions purement additives (`getThemeRecency`, `calculateActivityMetrics`), aucune fonction existante modifiée.
+- `js/statistics.js` — refactor pour exposer `renderStatisticsFromData()`, permettant de partager une seule lecture Firestore entre l'analyse de progression et les recommandations (aucun changement de comportement visible).
+- `js/history.js` — une seule lecture Firestore alimente désormais à la fois l'analyse de progression et les recommandations (au lieu d'une lecture dédiée par section).
+- `index.html` — section « Vos recommandations » ajoutée.
+- `css/styles.css` — styles des cartes de recommandation.
+- `js/admin.js` — version affichée mise à jour vers v1.8.0.
+
+### Fichiers créés
+- `js/services/recommendation-service.js`
+- `js/recommendation.js`
+
+### Règles et seuils
+Voir `RAPPORT_SPRINT7.md` pour le détail complet des 6 règles, des 11 seuils centralisés (`RECOMMENDATION_THRESHOLDS`), des formules de priorité et de confiance.
+
+### Limites connues
+- Une seule recommandation par type de règle (jamais plusieurs thèmes faibles simultanément).
+- Le bouton « Ignorer » n'est pas persistant (réapparaît à la prochaine ouverture si la condition est toujours vraie).
+- Actions « Voir mes erreurs » et « Essayer un niveau plus difficile » prévues mais non implémentées (désactivées proprement).
+- Analyse plafonnée aux 100 évaluations les plus récentes (héritée du Sprint 6).
+
+### Migration nécessaire
+Aucune. Le moteur calcule tout à la demande côté client à partir des évaluations déjà existantes ; aucune nouvelle collection Firestore, aucune donnée de recommandation persistée.
+
+### Tests effectués
+339 vérifications automatisées (moteur de règles, interface, non-régression complète de l'historique, de l'analyse de progression et de tout le reste du projet) — voir `RAPPORT_SPRINT7.md` pour le détail complet.
+
+---
+
 ## v1.7.0 — Sprint 6 (Analyse de progression personnelle)
 
 ### Fonctionnalités ajoutées
