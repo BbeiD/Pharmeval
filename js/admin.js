@@ -312,24 +312,30 @@ export function openUserDetail(uid) {
 
   html += '<div class="admin-detail-actions">';
   if (isSelf) {
-    html += '<p class="admin-detail-self-note">Vous ne pouvez pas modifier votre propre rôle.</p>';
-  } else if (role === ROLES.ADMIN) {
-    html += '<button class="btn-secondary" onclick="requestRoleChange(\'revoke\')">Retirer le rôle administrateur</button>';
+    // Correctif v1.9.1 : ni le role, ni le statut du compte actuellement
+    // connecte ne peuvent etre modifies depuis sa propre fiche - aucun
+    // bouton de l'un ou l'autre type n'est affiche, remplaces par une
+    // mention discrete unique.
+    html += '<p class="admin-detail-self-note">Vous ne pouvez pas modifier votre propre rôle ou votre propre statut.</p>';
   } else {
-    html += '<button class="btn-primary" onclick="requestRoleChange(\'promote\')">Promouvoir administrateur</button>';
-  }
+    if (role === ROLES.ADMIN) {
+      html += '<button class="btn-secondary" onclick="requestRoleChange(\'revoke\')">Retirer le rôle administrateur</button>';
+    } else {
+      html += '<button class="btn-primary" onclick="requestRoleChange(\'promote\')">Promouvoir administrateur</button>';
+    }
 
-  html += '<div class="admin-status-actions">';
-  if (status !== STATUSES.ACTIVE) {
-    html += '<button class="btn-secondary" onclick="requestStatusChange(\'active\')">Activer</button>';
+    html += '<div class="admin-status-actions">';
+    if (status !== STATUSES.ACTIVE) {
+      html += '<button class="btn-secondary" onclick="requestStatusChange(\'active\')">Activer</button>';
+    }
+    if (status !== STATUSES.SUSPENDED) {
+      html += '<button class="btn-secondary" onclick="requestStatusChange(\'suspended\')">Suspendre</button>';
+    }
+    if (status === STATUSES.SUSPENDED) {
+      html += '<button class="btn-secondary" onclick="requestStatusChange(\'active\')">Réactiver</button>';
+    }
+    html += '</div>';
   }
-  if (status !== STATUSES.SUSPENDED) {
-    html += '<button class="btn-secondary" onclick="requestStatusChange(\'suspended\')">Suspendre</button>';
-  }
-  if (status === STATUSES.SUSPENDED) {
-    html += '<button class="btn-secondary" onclick="requestStatusChange(\'active\')">Réactiver</button>';
-  }
-  html += '</div>';
   html += '</div>';
 
   body.innerHTML = html;

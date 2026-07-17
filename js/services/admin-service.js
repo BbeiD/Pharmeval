@@ -8,10 +8,16 @@
 //
 // Regles metier centrales, imposees ICI (pas seulement par les regles
 // Firestore, voir "Securite" ci-dessous) :
-//   1. Un administrateur ne peut JAMAIS modifier son propre role.
+//   1. Un administrateur ne peut JAMAIS modifier son propre role NI son
+//      propre statut (correctif v1.9.1 - voir RAPPORT_CORRECTIF_1.9.1.md :
+//      cette regle couvrait auparavant uniquement le role, pas le statut).
 //   2. Il y a toujours au moins un administrateur actif : impossible de
 //      retrograder OU de suspendre le dernier administrateur actif restant
-//      (voir countActiveAdmins() dans user-management-service.js).
+//      (voir countActiveAdmins() dans user-management-service.js). Cette
+//      protection reste appliquee UNIQUEMENT au niveau applicatif (voir
+//      "Limite connue" dans RAPPORT_CORRECTIF_1.9.1.md) : une protection
+//      serveur plus robuste (Cloud Function, operation transactionnelle)
+//      devra etre mise en place ulterieurement.
 // js/admin.js (interface) ne fait qu'appeler les fonctions ci-dessous ;
 // aucune logique metier ne doit etre dupliquee dans l'interface.
 //
@@ -39,6 +45,11 @@ import { ROLES, STATUSES, PERMISSIONS, hasPermission } from "./authorization-ser
 import { getCurrentUserContext } from "./app-context.js";
 import { updateUserRole, updateUserStatus, getRequestingAdminIdentity, countActiveAdmins } from "./user-management-service.js";
 import { logAction } from "./audit-service.js";
+
+// Message unique reutilise pour toute tentative d'auto-modification (role
+// OU statut), correctif v1.9.1. Centralise ici pour ne jamais le dupliquer
+// entre changeRole() et changeUserStatus().
+const SELF_MODIFICATION_MESSAGE = 'Vous ne pouvez pas modifier votre propre rôle ou votre propre statut.';
 
 /**
  * Resultat standard renvoye par toutes les actions ci-dessous, pour un
@@ -96,7 +107,7 @@ async function changeRole(targetUser, newRole) {
   }
   if (targetUser.uid === ctx.uid) {
     // Regle absolue, verifiee ici independamment des regles Firestore.
-    return denied('Vous ne pouvez pas modifier votre propre rôle.');
+    return denied(SELF_MODIFICATION_MESSAGE);
   }
 
   const oldRole = targetUser.role || ROLES.USER;
@@ -147,9 +158,13 @@ async function changeRole(targetUser, newRole) {
 
 /**
  * Change le statut d'un utilisateur cible (activer / suspendre /
- * reactiver). Un administrateur peut modifier son propre statut (aucune
- * regle equivalente a l'auto-modification de role n'est demandee pour le
- * statut), mais l'action reste journalisee comme toute autre.
+ * reactiver).
+ *
+ * CORRECTIF v1.9.1 : un administrateur ne peut plus modifier son PROPRE
+ * statut (ce comportement etait auparavant autorise depuis le Sprint 8 -
+ * voir RAPPORT_CORRECTIF_1.9.1.md pour le detail du changement). La regle
+ * est desormais symetrique a celle du role : ni le role, ni le statut d'un
+ * administrateur ne peuvent etre modifies par lui-meme.
  *
  * @param {{uid:string, email:string, status:string}} targetUser
  * @param {string} newStatus - une valeur de STATUSES
@@ -165,6 +180,11 @@ export async function changeUserStatus(targetUser, newStatus) {
   }
   if (!targetUser || !targetUser.uid) {
     return errorResult('Utilisateur cible introuvable.');
+  }
+  if (targetUser.uid === ctx.uid) {
+    // Regle absolue (correctif v1.9.1), verifiee ici independamment des
+    // regles Firestore - symetrique a celle de changeRole() ci-dessus.
+    return denied(SELF_MODIFICATION_MESSAGE);
   }
   const validStatuses = Object.values(STATUSES);
   if (validStatuses.indexOf(newStatus) === -1) {
