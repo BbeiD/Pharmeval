@@ -456,6 +456,12 @@ function answerCasEvolutif(btn, origIdx, r_idx, q, etapeIdx, a_arr) {
   const correct = origIdx === r_idx;
   if (correct) { quiz.score++; btn.classList.add('correct'); }
   else { btn.classList.add('wrong'); }
+  // Sprint 4 : trace minimale pour l'historique (voir answer() ci-dessus).
+  // Un cas evolutif comporte plusieurs etapes ; par simplicite, seule la
+  // derniere etape rencontree est retenue comme reponse/correction globale
+  // de la question pour l'historique (limite documentee dans RAPPORT_SPRINT4.md).
+  q._evalAnswerGiven = 'Étape ' + (etapeIdx + 1) + (a_arr && a_arr[origIdx] ? ' : ' + a_arr[origIdx] : '');
+  q._evalCorrect = correct;
 
   document.querySelectorAll('.ans-btn').forEach((b, pos) => {
     b.disabled = true;
@@ -606,6 +612,9 @@ function answerArbre(btn, key, q, nodeOui, nodeNon, qkEl) {
   const correct = key === q.bonne_reponse;
   if (correct) { quiz.score++; btn.classList.add('correct'); }
   else { btn.classList.add('wrong'); }
+  // Sprint 4 : trace minimale pour l'historique (voir answer() ci-dessus).
+  q._evalAnswerGiven = key;
+  q._evalCorrect = correct;
 
   // Révéler la bonne réponse dans les boutons
   document.querySelectorAll('.ans-btn').forEach((b, pos) => {
@@ -769,6 +778,9 @@ function onRelierClick(side, idx, q, el) {
       quiz.answeredCount++;
       const allCorrect = state.score === q.gauche.length;
       if (allCorrect) quiz.score++;
+      // Sprint 4 : trace minimale pour l'historique (voir answer() ci-dessus).
+      q._evalAnswerGiven = state.score + '/' + q.gauche.length + ' associations correctes';
+      q._evalCorrect = allCorrect;
 
       // Stats
       stats.total++; if (allCorrect) stats.correct++;
@@ -872,6 +884,9 @@ function answerFlux(btn, key, q) {
   const correct = key === q.bonne_reponse;
   if (correct) { quiz.score++; btn.classList.add('correct'); }
   else { btn.classList.add('wrong'); }
+  // Sprint 4 : trace minimale pour l'historique (voir answer() ci-dessus).
+  q._evalAnswerGiven = key;
+  q._evalCorrect = correct;
 
   // Révéler la bonne réponse
   document.querySelectorAll('.ans-btn').forEach((b, pos) => {
@@ -924,6 +939,11 @@ function answer(btn, origIdx, q) {
   const correct = origIdx === q.r;
   if (correct) { quiz.score++; btn.classList.add('correct'); }
   else { btn.classList.add('wrong'); }
+  // Sprint 4 : trace minimale de la reponse donnee, utilisee uniquement par
+  // js/services/evaluation-service.js pour construire l'historique. N'affecte
+  // ni le score ni l'affichage existants.
+  q._evalAnswerGiven = q.a[origIdx];
+  q._evalCorrect = correct;
 
   // Highlight correct answer
   document.querySelectorAll('.ans-btn').forEach((b, pos) => {
@@ -980,6 +1000,31 @@ function showResults() {
   document.getElementById('res-msg').textContent = msg;
   document.getElementById('res-detail').textContent =
     `${quiz.score} bonne${quiz.score>1?'s':''} réponse${quiz.score>1?'s':''} sur ${quiz.questions.length} questions`;
+
+  // Sprint 4 — synchronisation Firestore (voir js/services/evaluation-service.js).
+  // Le score est deja affiche ci-dessus avant cet appel : un echec de
+  // synchronisation ne peut donc jamais empecher l'utilisateur de voir son
+  // resultat. Appel defensif (verifie l'existence de la fonction) pour ne
+  // jamais faire echouer showResults() si le service n'est pas charge.
+  var syncStatusEl = document.getElementById('res-sync-status');
+  if (syncStatusEl) syncStatusEl.textContent = '';
+  if (window.PharmevalEvaluationSync && typeof window.PharmevalEvaluationSync.recordCompletedEvaluation === 'function') {
+    window.PharmevalEvaluationSync.recordCompletedEvaluation({
+      questions: quiz.questions,
+      score: quiz.score,
+      totalQuestions: quiz.questions.length,
+      profile: currentProfile,
+      theme: activeTheme,
+      difficulty: selectedDiff,
+    }).then(function(status) {
+      if (!syncStatusEl) return;
+      syncStatusEl.textContent = (status === 'synced')
+        ? '✓ Résultat sauvegardé'
+        : '✓ Résultat sauvegardé localement — synchronisation en attente';
+    }).catch(function() {
+      if (syncStatusEl) syncStatusEl.textContent = '✓ Résultat sauvegardé localement — synchronisation en attente';
+    });
+  }
 }
 
 function goHome() {

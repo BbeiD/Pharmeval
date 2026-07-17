@@ -901,6 +901,9 @@
   .admin-info-row { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
   .admin-info-row strong { margin-right: 6px; }
 
+  /* ---- Indicateur discret de synchronisation (Sprint 4) ---- */
+  .results-sync-status { font-size: 12px; color: var(--text2); text-align: center; margin-top: 8px; min-height: 16px; }
+
   /* ---- Assistant de premiere connexion (Sprint 2) ----
      Meme identite graphique que l'ecran d'authentification (fond degrade
      sombre, carte semi-transparente), pour une transition visuelle coherente
