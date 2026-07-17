@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Évaluation des connaissances officinales (Étudiant / Pharmacien)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ECRAN DE CHARGEMENT (verification de l'etat d'authentification Firebase) -->
+<div id="auth-loading">Vérification de la connexion…</div>
+
+<!-- ECRAN D'AUTHENTIFICATION (Sprint 1 - Firebase Authentication) -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <h2 id="auth-title">Connexion</h2>
+    <p class="auth-sub">Accédez à Pharmeval avec votre compte</p>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-field">
+      <label for="auth-email">Adresse e-mail</label>
+      <input type="email" id="auth-email" placeholder="vous@exemple.com" autocomplete="email">
+    </div>
+    <div class="auth-field">
+      <label for="auth-password">Mot de passe</label>
+      <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="auth-btn-primary" id="auth-submit-btn" onclick="handleAuthSubmit()">Se connecter</button>
+    <button class="auth-btn-google" onclick="doGoogleSignIn()">
+      <span>🔵</span> Continuer avec Google
+    </button>
+    <div class="auth-switch">
+      <span id="auth-switch-text">Pas encore de compte ?</span>
+      <a id="auth-switch-link" onclick="toggleAuthMode()">Créer un compte</a>
+    </div>
+  </div>
+</div>
+
+<!-- CONTENU PROTEGE : masque par defaut, revele uniquement apres confirmation
+     Firebase qu'un utilisateur est bien connecte (voir onAuthStateChanged). -->
+<div id="app-root" style="display:none;">
+
+<!-- SELECTEUR DE PROFIL (provisoire ; sera remplace plus tard par une gestion de roles Firebase) -->
+<div id="profile-selector">
+  <h2>Choisir votre espace</h2>
+  <div class="profile-choice-row">
+    <button class="profile-choice-btn" onclick="selectProfile('student')">
+      <span class="profile-choice-icon">🎓</span>
+      Etudiant
+    </button>
+    <button class="profile-choice-btn" onclick="selectProfile('pharmacist')">
+      <span class="profile-choice-icon">💊</span>
+      Pharmacien
+    </button>
+  </div>
+</div>
+
+
+<div class="site-header">
+  <div class="logo">Fp</div>
+  <h1>Pharmeval <span style="font-size:12px;font-weight:400;color:var(--text2);margin-left:6px;">Évaluation des connaissances officinales</span><span id="active-profile-badge"></span></h1>
+  <button class="btn-secondary" id="btn-change-space" onclick="changeSpace()" style="padding:7px 14px;font-size:12px;margin-left:14px;">
+    <i class="ti ti-repeat"></i> Changer d'espace
+  </button>
+  <button class="btn-secondary" id="btn-logout" onclick="doSignOut()" style="padding:7px 14px;font-size:12px;margin-left:8px;">
+    <i class="ti ti-logout"></i> Déconnexion
+  </button>
+  <span id="user-email-display"></span>
+  <div class="header-stats">
+    <div class="hstat">
+      <div class="hstat-num" id="stat-bank-total">–</div>
+      <div class="hstat-lbl">disponibles</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num" id="stat-total">0</div>
+      <div class="hstat-lbl">répondues</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-num" id="stat-pct">–</div>
+      <div class="hstat-lbl">réussite</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- HOME -->
+  <div id="home-view">
+    <div class="section-label">Difficulté</div>
+    <div class="diff-row">
+      <button class="diff-btn active" id="diff-all" onclick="setDiff('all')">Toutes</button>
+      <button class="diff-btn" id="diff-essentiel" onclick="setDiff('essentiel')">⭐ Essentiel</button>
+      <button class="diff-btn" id="diff-approfondi" onclick="setDiff('approfondi')">🔬 Approfondi</button>
+    </div>
+
+    <div class="section-label">Thème</div>
+    <div class="theme-groups">
+
+      <!-- FAMILIA -->
+      <div class="theme-group">
+        <div class="theme-group-header">
+          <span class="theme-group-icon">🏪</span>
+          <span class="theme-group-name">Familia</span>
+          <span class="theme-group-count" id="groupcount-familia">–</span>
+        </div>
+        <div class="theme-tabs">
+          <div class="theme-tab active" id="tab-conseil" onclick="setTheme('conseil')">
+            <div class="theme-tab-icon">🩺</div>
+            <div class="theme-tab-name">Conseil</div>
+            <div class="theme-tab-desc">Pathologies & soins</div>
+            <span class="theme-tab-count" id="count-conseil">–</span>
+          </div>
+          <div class="theme-tab" id="tab-dermo" onclick="setTheme('dermo')">
+            <div class="theme-tab-icon">🧴</div>
+            <div class="theme-tab-name">Dermo-cosmétiques</div>
+            <div class="theme-tab-desc">Marques · gammes</div>
+            <span class="theme-tab-count" id="count-dermo">–</span>
+          </div>
+          <div class="theme-tab" id="tab-procedures" onclick="setTheme('procedures')">
+            <div class="theme-tab-icon">⚙️</div>
+            <div class="theme-tab-name">Procédures</div>
+            <div class="theme-tab-desc">Logiciels · processus</div>
+            <span class="theme-tab-count" id="count-procedures">–</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RÉFÉRENTIELS -->
+      <div class="theme-group">
+        <div class="theme-group-header">
+          <span class="theme-group-icon">📚</span>
+          <span class="theme-group-name">Référentiels</span>
+          <span class="theme-group-count" id="groupcount-referentiels">–</span>
+        </div>
+        <div class="theme-tabs">
+          <div class="theme-tab" id="tab-medicaments" onclick="setTheme('medicaments')">
+            <div class="theme-tab-icon">💊</div>
+            <div class="theme-tab-name">Médicaments</div>
+            <div class="theme-tab-desc">CBIP · classes · spécialités</div>
+            <span class="theme-tab-count" id="count-medicaments">–</span>
+          </div>
+          <div class="theme-tab" id="tab-bppo" onclick="setTheme('bppo')">
+            <div class="theme-tab-icon">📋</div>
+            <div class="theme-tab-name">BPP Officinales</div>
+            <div class="theme-tab-desc">AR 2009 · qualité · soins</div>
+            <span class="theme-tab-count" id="count-bppo">–</span>
+          </div>
+          <div class="theme-tab" id="tab-ftm" onclick="setTheme('ftm')">
+            <div class="theme-tab-icon">⚗️</div>
+            <div class="theme-tab-name">Préparations</div>
+            <div class="theme-tab-desc">FTM · étiquetage · validité</div>
+            <span class="theme-tab-count" id="count-ftm">–</span>
+          </div>
+          <div class="theme-tab" id="tab-deon" onclick="setTheme('deon')">
+            <div class="theme-tab-icon">⚖️</div>
+            <div class="theme-tab-name">Déontologie</div>
+            <div class="theme-tab-desc">Code · éthique · pratique</div>
+            <span class="theme-tab-count" id="count-deon">–</span>
+          </div>
+          <div class="theme-tab" id="tab-bapcoc" onclick="setTheme('bapcoc')">
+            <div class="theme-tab-icon">🦠</div>
+            <div class="theme-tab-name">BAPCOC</div>
+            <div class="theme-tab-desc">Antibiothérapie raisonnée</div>
+            <span class="theme-tab-count" id="count-bapcoc">–</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- COURS / ETUDIANT (groupe fusionne - libelle dynamique selon profil,
+           voir applyProfileVisibility(). Un seul tab-etudiant, aucune duplication
+           de banque : le meme noeud DOM est reutilise pour les deux profils. -->
+      <div class="theme-group">
+        <div class="theme-group-header">
+          <span class="theme-group-icon" id="cours-group-icon">📘</span>
+          <span class="theme-group-name" id="cours-group-name">Cours</span>
+          <span class="theme-group-count" id="groupcount-cours">–</span>
+        </div>
+        <div class="theme-tabs">
+          <div class="theme-tab" id="tab-etudiant" onclick="setTheme('etudiant')">
+            <div class="theme-tab-icon">🫁</div>
+            <div class="theme-tab-name">Pharmacothérapie</div>
+            <div class="theme-tab-desc">Pathologies respiratoires · 2026</div>
+            <span class="theme-tab-count" id="count-etudiant">–</span>
+          </div>
+          <div class="theme-tab" id="tab-legislation" onclick="setTheme('legislation')">
+            <div class="theme-tab-icon">⚖️</div>
+            <div class="theme-tab-name">Législation</div>
+            <div class="theme-tab-desc">Droit pharmaceutique · INAMI · Ordre</div>
+            <span class="theme-tab-count" id="count-legislation">–</span>
+          </div>
+          <div class="theme-tab" id="tab-galenique" onclick="setTheme('galenique')">
+            <div class="theme-tab-icon">🧴</div>
+            <div class="theme-tab-name">Galénique</div>
+            <div class="theme-tab-desc">Formes pharmaceutiques · Technologie</div>
+            <span class="theme-tab-count" id="count-galenique">–</span>
+          </div>
+          <div class="theme-tab" id="tab-adm" onclick="setTheme('adm')">
+            <div class="theme-tab-icon">🔬</div>
+            <div class="theme-tab-name">ADM</div>
+            <div class="theme-tab-desc">Analyse des médicaments</div>
+            <span class="theme-tab-count" id="count-adm">–</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="section-label">
+      <div class="subtheme-header">
+        <span id="subtheme-label">Pathologies</span>
+        <button class="select-all-btn" onclick="selectAllVisible()">Tout sélectionner</button>
+      </div>
+    </div>
+    <div class="cats-grid" id="cats-grid"></div>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="startQuiz('all')"><i class="ti ti-play"></i> Tout le quiz</button>
+      <button class="btn-secondary" onclick="startQuiz('selected')"><i class="ti ti-check"></i> Sélection uniquement</button>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz-view">
+    <div class="quiz-topbar">
+      <button class="btn-secondary" onclick="goHome()" style="padding:7px 14px;font-size:13px;"><i class="ti ti-arrow-left"></i> Accueil</button>
+      <span class="q-counter" id="q-counter">Question 1/10</span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:10%"></div></div>
+    <div class="question-card">
+      <div class="q-meta">
+        <span class="q-badge" id="q-theme-badge">Thème</span>
+        <span class="q-diff-badge" id="q-diff-badge"></span>
+      </div>
+      <div id="cas-progress" class="cas-progress" style="display:none"></div>
+      <div id="cas-etape-header" class="cas-etape-header" style="display:none"></div>
+      <div class="q-text" id="q-text">Question...</div>
+    </div>
+    <div class="answers-grid" id="answers-grid"></div>
+    <div class="explanation" id="explanation"></div>
+    <div class="nav-row">
+      <button class="btn-primary" id="next-btn" onclick="nextQuestion()" style="display:none">Question suivante <i class="ti ti-arrow-right"></i></button>
+      <button class="btn-report" id="btn-report" onclick="openReportModal()">🚩 Signaler la question</button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-view">
+    <div class="score-circle">
+      <div class="score-pct" id="res-pct">0%</div>
+      <div class="score-sub" id="res-frac"></div>
+    </div>
+    <div class="results-msg" id="res-msg">Résultat</div>
+    <div class="results-detail" id="res-detail"></div>
+    <div class="btn-row" style="justify-content:center">
+      <button class="btn-primary" onclick="startQuiz('last')">Rejouer</button>
+      <button class="btn-secondary" onclick="goHome()">Choisir un thème</button>
+    </div>
+  </div>
+
+</div>
+</div><!-- /#app-root -->
+
+<script src="data/questions.js"></script>
+<script src="data/fiche-images.js"></script>
+<script src="data/proc2-images.js"></script>
+<script src="js/app.js"></script>
+<script type="module" src="js/firebase-config.js"></script>
+<script type="module" src="js/auth.js"></script>
+
+
+
+
+
+<!-- REPORT MODAL -->
+<div class="report-modal-overlay" id="report-overlay" onclick="closeReportModal(event)">
+  <div class="report-modal">
+    <div class="report-modal-title">🚩 Signaler cette question</div>
+    <div class="report-modal-sub" id="report-q-preview"></div>
+    <div class="report-options" id="report-options">
+      <button class="report-option" onclick="selectReportOption(this,'obsolete')">
+        <span class="opt-icon">📅</span> Plus d'actualité / obsolète
+      </button>
+      <button class="report-option" onclick="selectReportOption(this,'wrong')">
+        <span class="opt-icon">❌</span> Réponse erronée
+      </button>
+      <button class="report-option" onclick="selectReportOption(this,'incoherent')">
+        <span class="opt-icon">🔀</span> Incohérente ou confuse
+      </button>
+      <button class="report-option" onclick="selectReportOption(this,'duplicate')">
+        <span class="opt-icon">📋</span> Doublon avec une autre question
+      </button>
+      <button class="report-option" onclick="selectReportOption(this,'other')">
+        <span class="opt-icon">💬</span> Autre
+      </button>
+    </div>
+    <textarea class="report-textarea" id="report-textarea" placeholder="Précisez le problème..." oninput="onReportTextInput()"></textarea>
+    <div class="report-success" id="report-success">
+      <div class="check">✅</div>
+      <p>Merci pour le signalement !<br>Il sera traité lors de la prochaine révision.</p>
+    </div>
+    <div class="report-modal-actions" id="report-actions">
+      <button class="btn-report-cancel" onclick="closeReportModal()">Annuler</button>
+      <button class="btn-report-send" id="btn-report-send" onclick="submitReport()">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<div id="fim-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:20px;" onclick="if(event.target===this)closeFicheImgModal()">
+  <button onclick="closeFicheImgModal()" style="position:absolute;top:16px;right:20px;background:white;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;line-height:1;z-index:1;">✕</button>
+  <div id="fim-ctx" style="color:white;font-size:13px;font-weight:600;max-width:90vw;text-align:center;background:rgba(255,255,255,0.12);padding:6px 16px;border-radius:20px;min-height:28px;"></div>
+  <img id="fim-img" style="max-width:92vw;max-height:82vh;border-radius:10px;box-shadow:0 4px 32px rgba(0,0,0,0.6);cursor:zoom-out;" onclick="closeFicheImgModal()" src="" alt="">
+</div>
+
+
+
+</body>
+</html>
