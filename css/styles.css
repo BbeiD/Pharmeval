@@ -1128,6 +1128,11 @@
   }
   .reco-empty p { margin: 2px 0; }
 
+  /* ---- Correction : etat generique "Continuez vos evaluations" - carte
+     plus compacte (evite une impression de vide) avec une petite icone. ---- */
+  .reco-empty-compact { padding: 14px 20px; }
+  .reco-empty-icon { display: block; font-size: 22px; margin-bottom: 4px; }
+
   .reco-card {
     background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
     padding: 16px; margin-bottom: 12px;

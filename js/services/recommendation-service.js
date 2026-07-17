@@ -23,6 +23,7 @@ import {
   calculateActivityMetrics,
 } from "./statistics-service.js";
 import { toMillis } from "./date-utils.js";
+import { formatThemeLabel } from "./theme-utils.js";
 
 // ---------------------------------------------------------------------------
 // Seuils centralises - AUCUNE valeur magique ailleurs dans ce fichier.
@@ -44,48 +45,10 @@ export const RECOMMENDATION_THRESHOLDS = Object.freeze({
 
 const T = RECOMMENDATION_THRESHOLDS;
 
-// ---------------------------------------------------------------------------
-// Libelles humains des themes (correction post-livraison) : evaluation.
-// selection.theme contient l'identifiant technique brut du theme (ex.
-// "legislation", "ftm"), pas un libelle affichable. Cette table reprend
-// exactement les libelles deja utilises ailleurs dans l'interface (voir les
-// onglets de themes dans index.html) ; elle ne modifie aucune donnee, elle
-// ne fait que formater le texte affiche dans les recommandations.
-const THEME_LABELS = {
-  conseil: 'Conseil',
-  dermo: 'Dermo-cosmétiques',
-  procedures: 'Procédures',
-  medicaments: 'Médicaments',
-  bppo: 'BPP Officinales',
-  ftm: 'Préparations',
-  deon: 'Déontologie',
-  bapcoc: 'BAPCOC',
-  etudiant: 'Pharmacothérapie',
-  legislation: 'Législation',
-  galenique: 'Galénique',
-  adm: 'ADM',
-};
-
-/**
- * Retourne un libelle humain pour un identifiant de theme. Utilise la table
- * ci-dessus si connue ; sinon, formate legerement l'identifiant technique
- * brut (tirets/underscores remplaces par des espaces, premiere lettre en
- * majuscule) plutot que de l'afficher tel quel. Ne modifie jamais la
- * donnee source (evaluation.selection.theme) : formatage d'affichage
- * uniquement.
- *
- * @param {string} theme
- * @returns {string}
- */
-function formatThemeLabel(theme) {
-  if (!theme) return theme;
-  if (THEME_LABELS[theme]) return THEME_LABELS[theme];
-  return theme
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/^\p{L}/u, function(c) { return c.toUpperCase(); });
-}
+// La table des libelles de themes et la fonction formatThemeLabel() sont
+// desormais centralisees dans js/services/theme-utils.js (reutilisable dans
+// toute l'application, notamment js/statistics.js), afin de ne jamais
+// dupliquer cette logique.
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));

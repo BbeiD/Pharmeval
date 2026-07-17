@@ -38,7 +38,8 @@ export function renderRecommendationsFromData(evaluations) {
 
   if (result.insufficientData) {
     container.innerHTML =
-      '<div class="reco-empty">' +
+      '<div class="reco-empty reco-empty-compact">' +
+        '<span class="reco-empty-icon">💡</span>' +
         '<p>Continuez vos évaluations.</p>' +
         '<p>Nous construirons bientôt votre profil d\u2019apprentissage.</p>' +
       '</div>';

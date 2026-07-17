@@ -18,6 +18,7 @@ import {
   STATISTICS_THRESHOLDS,
 } from "./services/statistics-service.js";
 import { getScoreLevel } from "./services/score-utils.js";
+import { formatThemeLabel } from "./services/theme-utils.js";
 
 function escapeHtml(s) {
   return (s || '').toString().replace(/[&<>"']/g, function(c) {
@@ -162,7 +163,7 @@ function trendHtml(trend) {
 
   return (
     '<div class="stats-trend ' + trendClass + '">' +
-      '<div class="stats-section-title">Tendance</div>' +
+      '<div class="stats-section-title">Progression</div>' +
       '<div class="stats-trend-message">' + escapeHtml(message) + '</div>' +
     '</div>'
   );
@@ -202,9 +203,21 @@ function performanceBySpaceHtml(bySpace) {
 function themesHtml(strongThemes, weakThemes, themeDataReliable) {
   let html = '<div class="stats-themes">';
 
-  if (!themeDataReliable) {
+  // Correction : une comparaison forts/a-retravailler n'est fiable que s'il
+  // existe au moins un theme distinct de chaque cote, ET que le meilleur et
+  // le moins bon theme ne sont pas le meme (ce qui se produirait avec un
+  // seul theme eligible, ou par chevauchement des deux classements sur un
+  // trop petit nombre de themes distincts). Sans cette verification, un
+  // meme theme pouvait apparaitre a la fois comme "fort" et "a
+  // retravailler" avec peu de donnees - une analyse trompeuse.
+  const strongNames = strongThemes.map(function(t) { return t.theme; });
+  const weakNames = weakThemes.map(function(t) { return t.theme; });
+  const overlap = strongNames.some(function(name) { return weakNames.indexOf(name) !== -1; });
+  const comparisonReliable = themeDataReliable && strongThemes.length > 0 && weakThemes.length > 0 && !overlap;
+
+  if (!comparisonReliable) {
     html += '<div class="stats-section-title">Thèmes</div>';
-    html += '<div class="stats-themes-insufficient">Pas encore assez de données pour identifier vos thèmes forts et vos thèmes à retravailler.</div>';
+    html += '<div class="stats-themes-insufficient">Pas encore assez de données pour identifier vos points forts et vos axes d\u2019amélioration.</div>';
     html += '</div>';
     return html;
   }
@@ -213,16 +226,12 @@ function themesHtml(strongThemes, weakThemes, themeDataReliable) {
 
   html += '<div class="stats-theme-column">';
   html += '<div class="stats-section-title">Thèmes forts</div>';
-  html += strongThemes.length
-    ? strongThemes.map(themeRowHtml).join('')
-    : '<div class="stats-themes-none">Pas encore de thème suffisamment renseigné.</div>';
+  html += strongThemes.map(themeRowHtml).join('');
   html += '</div>';
 
   html += '<div class="stats-theme-column">';
   html += '<div class="stats-section-title">À retravailler</div>';
-  html += weakThemes.length
-    ? weakThemes.map(themeRowHtml).join('')
-    : '<div class="stats-themes-none">Pas encore de thème suffisamment renseigné.</div>';
+  html += weakThemes.map(themeRowHtml).join('');
   html += '</div>';
 
   html += '</div></div>';
@@ -233,7 +242,7 @@ function themeRowHtml(t) {
   const level = getScoreLevel(t.averageScore);
   return (
     '<div class="stats-theme-row">' +
-      '<div class="stats-theme-name">' + escapeHtml(t.theme) + '</div>' +
+      '<div class="stats-theme-name">' + escapeHtml(formatThemeLabel(t.theme)) + '</div>' +
       '<div class="stats-theme-bar-wrap"><div class="stats-theme-bar ' + escapeHtml(level.className) + '" style="width:' + Math.max(0, Math.min(100, t.averageScore)) + '%;"></div></div>' +
       '<div class="stats-theme-pct ' + escapeHtml(level.className) + '">' + pctLabel(t.averageScore) + '</div>' +
     '</div>'
