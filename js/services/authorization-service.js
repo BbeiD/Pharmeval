@@ -29,6 +29,51 @@ import { getCurrentUserContext } from "./app-context.js";
 export const ROLES = Object.freeze({
   USER: 'user',
   ADMIN: 'admin',
+  // Reserves pour une activation future (voir "Preparer l'avenir" dans
+  // RAPPORT_SPRINT8.md) : definis des maintenant comme de vraies constantes
+  // (pas de simples commentaires), pour que la matrice de permissions
+  // ci-dessous soit deja complete et testable. Ces roles NE SONT PAS
+  // attribuables aujourd'hui : aucun bouton ni filtre de l'interface (voir
+  // js/admin.js) ne permet de les assigner - seule la fondation
+  // architecturale est posee, comme demande explicitement.
+  EDITOR: 'editor',           // futur : gestion des questions
+  TEACHER: 'teacher',         // futur : gestion des groupes et campagnes
+  SUPER_ADMIN: 'super_admin', // futur : gestion complete de la plateforme
+});
+
+/**
+ * Libelles humains des roles, centralises ici pour ne jamais etre repetes
+ * dans plusieurs fichiers (Sprint 8, section "Aucune chaine de caracteres
+ * ne doit etre repetee dans plusieurs fichiers"). Utilise par
+ * js/admin.js pour l'affichage du tableau des utilisateurs.
+ */
+export const ROLE_LABELS = Object.freeze({
+  user: 'Utilisateur',
+  admin: 'Administrateur',
+  editor: 'Éditeur',
+  teacher: 'Enseignant',
+  super_admin: 'Super administrateur',
+});
+
+/**
+ * Statuts de compte connus par Pharmeval (Sprint 8). Comme pour ROLES,
+ * objet extensible : un statut futur ne demanderait qu'une ligne ici.
+ * A ce stade, tous les comptes existants et nouveaux restent "active"
+ * (voir js/services/user-service.js, inchange par ce sprint) : ces statuts
+ * ne sont utilises que par le Centre d'administration pour preparer les
+ * evolutions futures, comme demande.
+ */
+export const STATUSES = Object.freeze({
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  SUSPENDED: 'suspended',
+});
+
+/** Libelles humains des statuts, memes principes que ROLE_LABELS. */
+export const STATUS_LABELS = Object.freeze({
+  pending: 'En attente',
+  active: 'Actif',
+  suspended: 'Suspendu',
 });
 
 const DEFAULT_ROLE = ROLES.USER;
@@ -69,17 +114,79 @@ export function isAdmin() {
 }
 
 /**
- * Point d'extension pour les sprints futurs : verification d'une permission
- * nommee plutot que d'un role brut (ex. "manage_users", "validate_reports",
- * "manage_campaigns"). Pour l'instant, toute permission est simplement
- * reservee aux administrateurs ; cette fonction existe pour que le reste du
- * code (boutons, gardes d'acces) puisse deja s'ecrire en termes de
- * permissions plutot que de roles, sans devoir etre reecrit quand une
- * matrice de permissions plus fine sera introduite.
+ * Permissions nommees connues par Pharmeval. Le code appelant (interface,
+ * services) doit toujours raisonner en termes de PERMISSION plutot que de
+ * ROLE brut des qu'une action pourrait un jour etre accordee a plus d'un
+ * role (ex. gerer les utilisateurs sera, demain, accessible a la fois a
+ * ADMIN et a SUPER_ADMIN - voir ROLE_PERMISSIONS ci-dessous).
+ */
+export const PERMISSIONS = Object.freeze({
+  MANAGE_USERS: 'manage_users',         // Administrateur (aujourd'hui), Super administrateur (futur)
+  MANAGE_QUESTIONS: 'manage_questions', // futur : Editeur
+  MANAGE_CAMPAIGNS: 'manage_campaigns', // futur : Enseignant
+  MANAGE_PLATFORM: 'manage_platform',   // futur : Super administrateur (acces complet)
+});
+
+/**
+ * Matrice role -> permissions accordees. C'EST LE SEUL ENDROIT de toute
+ * l'application ou un role est associe a ce qu'il a le droit de faire.
+ * Ajouter un futur role pleinement operationnel (Editeur, Enseignant,
+ * Super administrateur) ne demande donc, cote logique d'autorisation, QUE
+ * de completer cette matrice - aucune fonction ci-dessous, ni aucun service
+ * consommateur (admin-service.js, etc.), n'a besoin d'etre modifie : ils
+ * appellent tous hasPermission(), jamais une comparaison de role en dur.
  *
- * @param {string} _permission - reserve pour une evolution future
+ * Les roles EDITOR/TEACHER/SUPER_ADMIN possedent deja leurs permissions
+ * ici (matrice complete et testee des ce sprint), meme si aucun ecran ne
+ * permet encore de les attribuer a un utilisateur reel - voir
+ * RAPPORT_SPRINT8.md, "Preparer l'avenir".
+ */
+const ROLE_PERMISSIONS = Object.freeze({
+  user: Object.freeze([]),
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS]),
+  editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]),
+  teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
+  super_admin: Object.freeze([
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.MANAGE_QUESTIONS,
+    PERMISSIONS.MANAGE_CAMPAIGNS,
+    PERMISSIONS.MANAGE_PLATFORM,
+  ]),
+});
+
+/**
+ * L'utilisateur connecte possede-t-il la permission nommee donnee ?
+ * Remplace l'ancien raccourci "toute permission = isAdmin()" par une
+ * vraie verification via ROLE_PERMISSIONS, de facon totalement
+ * retrocompatible (aujourd'hui, seul ADMIN possede MANAGE_USERS, donc le
+ * comportement observable est identique a avant ce sprint).
+ *
+ * @param {string} permission - une valeur de PERMISSIONS
  * @returns {boolean}
  */
-export function hasPermission(_permission) {
-  return isAdmin();
+export function hasPermission(permission) {
+  const role = getCurrentRole();
+  const granted = ROLE_PERMISSIONS[role] || [];
+  return granted.indexOf(permission) !== -1;
+}
+
+/**
+ * Statut de compte de l'utilisateur actuellement connecte (Sprint 8), ou
+ * "active" par defaut si le contexte n'est pas encore charge - coherent
+ * avec le comportement de creation de compte (voir user-service.js).
+ *
+ * @returns {string}
+ */
+export function getCurrentStatus() {
+  const ctx = getCurrentUserContext();
+  return (ctx && ctx.status) || STATUSES.ACTIVE;
+}
+
+/**
+ * L'utilisateur connecte a-t-il exactement ce statut ?
+ * @param {string} status
+ * @returns {boolean}
+ */
+export function hasStatus(status) {
+  return getCurrentStatus() === status;
 }

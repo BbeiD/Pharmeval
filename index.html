@@ -277,17 +277,87 @@
     </div>
   </div>
 
-  <!-- ADMINISTRATION (Sprint 3 - base minimale) : masquee par defaut, ne
-       s'affiche que via openAdminZone(), qui revalide elle-meme le role
-       administrateur cote logique metier avant tout affichage. -->
+  <!-- ADMINISTRATION (Sprint 3 - base minimale, Sprint 8 - Centre
+       d'administration complet) : masquee par defaut, ne s'affiche que via
+       openAdminZone(), qui revalide elle-meme le role administrateur cote
+       logique metier avant tout affichage. -->
   <div id="admin-view" style="display:none;">
     <h2>Administration</h2>
     <p>Bienvenue dans l'espace d'administration de Pharmeval.</p>
     <div class="admin-info-row"><strong>Version actuelle :</strong> <span id="admin-version"></span></div>
     <div class="admin-info-row"><strong>Utilisateur connecté :</strong> <span id="admin-current-user"></span></div>
     <div class="admin-info-row"><strong>Rôle :</strong> <span id="admin-current-role"></span></div>
+
+    <div id="admin-message" class="admin-message" style="display:none;"></div>
+
+    <!-- GESTION DES UTILISATEURS (Sprint 8) -->
+    <div class="admin-users-section">
+      <h3>Utilisateurs</h3>
+
+      <div id="admin-users-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
+
+      <div class="admin-users-toolbar">
+        <input type="text" id="admin-users-search" class="admin-users-search-input"
+               placeholder="Rechercher (nom, e-mail, organisation)..." oninput="onAdminUsersSearchInput()">
+        <div class="admin-filters">
+          <span class="admin-filter-label">Rôle :</span>
+          <button class="admin-role-filter-btn active" data-role="all" onclick="setAdminRoleFilter('all')">Tous</button>
+          <button class="admin-role-filter-btn" data-role="user" onclick="setAdminRoleFilter('user')">Utilisateur</button>
+          <button class="admin-role-filter-btn" data-role="admin" onclick="setAdminRoleFilter('admin')">Administrateur</button>
+        </div>
+        <div class="admin-filters">
+          <span class="admin-filter-label">Statut :</span>
+          <button class="admin-status-filter-btn active" data-status="all" onclick="setAdminStatusFilter('all')">Tous</button>
+          <button class="admin-status-filter-btn" data-status="active" onclick="setAdminStatusFilter('active')">Actif</button>
+          <button class="admin-status-filter-btn" data-status="pending" onclick="setAdminStatusFilter('pending')">En attente</button>
+          <button class="admin-status-filter-btn" data-status="suspended" onclick="setAdminStatusFilter('suspended')">Suspendu</button>
+        </div>
+      </div>
+
+      <div class="admin-users-table-wrap">
+        <table class="admin-users-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Email</th>
+              <th>Profession</th>
+              <th>Organisation</th>
+              <th>Rôle</th>
+              <th>Statut</th>
+              <th>Inscription</th>
+              <th>Dernière connexion</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users-table-body"></tbody>
+        </table>
+      </div>
+      <div id="admin-users-empty" class="admin-users-empty" style="display:none;"></div>
+      <div id="admin-users-pagination" class="admin-users-pagination"></div>
+    </div>
+
     <div class="btn-row">
       <button class="btn-secondary" onclick="closeAdminZone()">Retour à l'accueil</button>
+    </div>
+  </div>
+
+  <!-- FICHE UTILISATEUR DETAILLEE (Sprint 8) -->
+  <div id="admin-user-detail-overlay" class="admin-modal-overlay" style="display:none;" onclick="if(event.target===this)closeUserDetail()">
+    <div class="admin-modal">
+      <button class="admin-modal-close" onclick="closeUserDetail()">✕</button>
+      <h3>Fiche utilisateur</h3>
+      <div id="admin-user-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION AVANT ACTION SENSIBLE (Sprint 8) -->
+  <div id="admin-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+    <div class="admin-modal admin-confirm-modal">
+      <h3>Confirmation</h3>
+      <p id="admin-confirm-message"></p>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="cancelPendingAction()">Annuler</button>
+        <button class="btn-primary" onclick="confirmPendingAction()">Confirmer</button>
+      </div>
     </div>
   </div>
 

@@ -1148,4 +1148,76 @@
   .reco-why { font-size: 11px; color: var(--text2); }
   .reco-why summary { cursor: pointer; font-weight: 600; }
   .reco-why p { margin: 6px 0 0 0; }
+
+  /* ---- Centre d'administration - gestion des utilisateurs (Sprint 8) ---- */
+  #admin-view { max-width: 960px; }
+  .admin-message {
+    padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin: 12px 0;
+  }
+  .admin-message-success { background: rgba(29,158,117,.12); border: 1px solid var(--green); color: var(--green-dark); }
+  .admin-message-error { background: rgba(226,75,74,0.12); border: 1px solid #E24B4A; color: #b33332; }
+  .admin-message-denied { background: rgba(184,114,10,0.12); border: 1px solid #B8720A; color: #8a5608; }
+
+  .admin-users-section { margin-top: 20px; }
+  .admin-users-section h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: 700; }
+  .admin-users-disclaimer { font-size: 11px; color: var(--text2); font-style: italic; margin-bottom: 8px; }
+
+  .admin-users-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .admin-users-search-input {
+    flex: 1; min-width: 200px; padding: 9px 12px; border-radius: var(--radius);
+    border: 1.5px solid var(--border2); background: var(--surface); font-size: 13px; box-sizing: border-box;
+  }
+  .admin-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .admin-filter-label { font-size: 11px; color: var(--text2); font-weight: 700; margin-right: 2px; }
+  .admin-role-filter-btn, .admin-status-filter-btn {
+    padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    border: 1.5px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer;
+  }
+  .admin-role-filter-btn:hover, .admin-status-filter-btn:hover { border-color: var(--green); }
+  .admin-role-filter-btn.active, .admin-status-filter-btn.active { background: var(--green); border-color: var(--green); color: #fff; }
+
+  .admin-users-table-wrap { overflow-x: auto; border: 1.5px solid var(--border2); border-radius: var(--radius-lg); }
+  .admin-users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .admin-users-table th {
+    text-align: left; padding: 10px 12px; background: var(--surface2); font-size: 11px;
+    text-transform: uppercase; color: var(--text2); border-bottom: 1.5px solid var(--border2); white-space: nowrap;
+  }
+  .admin-users-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .admin-user-row { cursor: pointer; }
+  .admin-user-row:hover { background: var(--green-light); }
+  .admin-users-loading, .admin-users-empty { padding: 20px; text-align: center; color: var(--text2); font-size: 13px; }
+
+  .admin-badge {
+    display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .admin-badge-role-user { background: var(--surface2); color: var(--text2); }
+  .admin-badge-role-admin { background: rgba(29,158,117,.15); color: var(--green-dark); }
+  .admin-badge-status-active { background: rgba(29,158,117,.15); color: var(--green-dark); }
+  .admin-badge-status-pending { background: rgba(184,114,10,.15); color: #8a5608; }
+  .admin-badge-status-suspended { background: rgba(226,75,74,.15); color: #b33332; }
+
+  .admin-users-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+  .admin-pagination-label { font-size: 12px; color: var(--text2); }
+
+  /* ---- Modales (fiche utilisateur / confirmation) - Sprint 8 ---- */
+  .admin-modal-overlay {
+    position: fixed; inset: 0; z-index: 16000;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .admin-modal {
+    background: var(--surface); border-radius: var(--radius-lg); padding: 24px;
+    width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; position: relative;
+  }
+  .admin-modal h3 { margin: 0 0 14px 0; font-size: 17px; font-weight: 700; }
+  .admin-modal-close {
+    position: absolute; top: 14px; right: 14px; background: var(--surface2); border: none;
+    border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px;
+  }
+  .admin-detail-row { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .admin-detail-row strong { margin-right: 4px; }
+  .admin-detail-actions { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .admin-detail-self-note { font-size: 12px; color: var(--text2); font-style: italic; margin: 0; }
+  .admin-status-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .admin-confirm-modal p { font-size: 13px; line-height: 1.5; }
   

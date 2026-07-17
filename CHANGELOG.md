@@ -4,6 +4,44 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v1.9.0 — Sprint 8 (Centre d'administration)
+
+### Fonctionnalités ajoutées
+- **Tableau des utilisateurs** dans le Centre d'administration : nom, email, profession, organisation, rôle, statut, date d'inscription, dernière connexion.
+- **Recherche instantanée** (nom, e-mail, organisation) et **filtres** (rôle : Tous/Utilisateur/Administrateur ; statut : Tous/Actif/En attente/Suspendu), avec pagination (20 par page).
+- **Fiche utilisateur détaillée**, avec gestion des rôles (promouvoir/retirer administrateur) et des statuts (activer/suspendre/réactiver), toujours précédée d'une confirmation explicite.
+- **Règle absolue implémentée à trois niveaux** (interface, logique métier, règles Firestore proposées) : un administrateur ne peut jamais modifier son propre rôle.
+- **Journal d'audit** (`js/services/audit-service.js`, collection Firestore `audit_logs/`) : chaque changement de rôle ou de statut est journalisé (qui, sur qui, quoi, ancienne/nouvelle valeur, date).
+- Nouvelles constantes centralisées `STATUSES`/`STATUS_LABELS` (statuts `pending`/`active`/`suspended`), aux côtés de `ROLES`/`ROLE_LABELS` déjà existants — architecture explicitement conçue pour accueillir de futurs rôles (Éditeur, Enseignant, Super administrateur) sans refonte.
+
+### Fichiers modifiés
+- `js/services/authorization-service.js` — ajout purement additif de `ROLE_LABELS`, `STATUSES`, `STATUS_LABELS`, `getCurrentStatus()`, `hasStatus()`.
+- `js/admin.js` — extension substantielle : tableau, recherche, filtres, fiche détaillée, confirmation, messages. Correctif mineur au passage : masque désormais aussi l'historique en arrière-plan à l'ouverture de l'administration.
+- `index.html` — ajout du tableau, des filtres, de la fiche détaillée et de la modale de confirmation.
+- `css/styles.css` — styles du Centre d'administration.
+
+### Fichiers créés
+- `js/services/user-management-service.js`
+- `js/services/admin-service.js`
+- `js/services/audit-service.js`
+- `firestore.rules` (règles consolidées et mises à jour, proposées, non déployées)
+
+### Sécurité
+Trois niveaux de protection contre l'auto-modification de rôle (interface, logique métier, règles Firestore). Nouvelle règle Firestore permettant à un administrateur de modifier le rôle/statut d'un **autre** utilisateur (jamais le sien), fondée sur la relecture du rôle de l'auteur de la requête — jamais sur celui de la cible. Journal d'audit immuable (aucune modification ni suppression possible, y compris par un administrateur).
+
+### Limites connues
+- Recherche/filtres/pagination du tableau utilisateurs sont côté client, sur un lot plafonné à 500 comptes.
+- Aucune interface de consultation du journal d'audit (la lecture existe, non exposée à l'écran ce sprint).
+- Les statuts `pending`/`suspended` ne sont pas encore exploités par la garde d'authentification : un compte suspendu peut toujours se connecter aujourd'hui (préparation uniquement, comme demandé).
+
+### Migration nécessaire
+Aucune. Le fonctionnement d'inscription n'a pas été modifié (tout nouveau compte reste `active` comme avant).
+
+### Tests effectués
+418 vérifications automatisées (règles métier du service d'administration, lecture/écriture Firestore simulées, interface complète, non-régression complète de tout le reste du projet) — voir `RAPPORT_SPRINT8.md` pour le détail complet.
+
+---
+
 ## v1.8.0 — Sprint 7 (Moteur de recommandations intelligentes)
 
 ### Fonctionnalités ajoutées
