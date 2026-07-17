@@ -78,6 +78,9 @@
   <button class="btn-secondary" id="btn-logout" onclick="doSignOut()" style="padding:7px 14px;font-size:12px;margin-left:8px;">
     <i class="ti ti-logout"></i> Déconnexion
   </button>
+  <button class="btn-secondary" id="btn-admin-zone" onclick="openAdminZone()" style="padding:7px 14px;font-size:12px;margin-left:8px;display:none;">
+    <i class="ti ti-shield-lock"></i> Administration
+  </button>
   <span id="user-email-display"></span>
   <div class="header-stats">
     <div class="hstat">
@@ -267,6 +270,20 @@
     <div class="btn-row" style="justify-content:center">
       <button class="btn-primary" onclick="startQuiz('last')">Rejouer</button>
       <button class="btn-secondary" onclick="goHome()">Choisir un thème</button>
+    </div>
+  </div>
+
+  <!-- ADMINISTRATION (Sprint 3 - base minimale) : masquee par defaut, ne
+       s'affiche que via openAdminZone(), qui revalide elle-meme le role
+       administrateur cote logique metier avant tout affichage. -->
+  <div id="admin-view" style="display:none;">
+    <h2>Administration</h2>
+    <p>Bienvenue dans l'espace d'administration de Pharmeval.</p>
+    <div class="admin-info-row"><strong>Version actuelle :</strong> <span id="admin-version"></span></div>
+    <div class="admin-info-row"><strong>Utilisateur connecté :</strong> <span id="admin-current-user"></span></div>
+    <div class="admin-info-row"><strong>Rôle :</strong> <span id="admin-current-role"></span></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="closeAdminZone()">Retour à l'accueil</button>
     </div>
   </div>
 

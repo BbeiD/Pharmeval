@@ -895,6 +895,12 @@
   }
   #user-email-display { font-size: 11px; color: var(--text2); margin-left: 10px; }
 
+  /* ---- Zone d'administration (Sprint 3, base minimale) ---- */
+  #admin-view { max-width: 640px; margin: 0 auto; padding: 24px 0; }
+  #admin-view h2 { margin: 0 0 8px 0; font-size: 22px; font-weight: 700; }
+  .admin-info-row { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .admin-info-row strong { margin-right: 6px; }
+
   /* ---- Assistant de premiere connexion (Sprint 2) ----
      Meme identite graphique que l'ecran d'authentification (fond degrade
      sombre, carte semi-transparente), pour une transition visuelle coherente

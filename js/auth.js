@@ -17,7 +17,9 @@ import {
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
+import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { startOnboarding } from "./onboarding.js";
+import { updateAdminUI } from "./admin.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
 
@@ -152,6 +154,10 @@ function revealApp(user) {
   if (appEl) appEl.style.display = 'block';
   var emailEl = document.getElementById('user-email-display');
   if (emailEl) emailEl.textContent = (user && user.email) || '';
+  // Sprint 3 : le bouton d'acces a la zone d'administration n'est revele
+  // que si le contexte (deja peuple par setCurrentUserContext ci-dessous)
+  // indique un role administrateur.
+  updateAdminUI();
 }
 
 // Point central de la garde d'authentification : tant que Firebase n'a pas
@@ -166,6 +172,7 @@ onAuthStateChanged(auth, async function(user) {
   var appEl = document.getElementById('app-root');
 
   if (!user) {
+    clearCurrentUserContext();
     if (loadingEl) loadingEl.style.display = 'none';
     if (appEl) appEl.style.display = 'none';
     if (authEl) authEl.style.display = 'flex';
@@ -176,6 +183,13 @@ onAuthStateChanged(auth, async function(user) {
 
   try {
     var userData = await ensureUserDocument(user);
+    // Peuple le contexte utilisateur en memoire (une seule fois par
+    // connexion) : tous les autres modules (authorization-service.js,
+    // admin.js, et les services futurs) liront desormais le role, le
+    // statut et le profil depuis ce contexte plutot que de relire
+    // Firestore chacun de leur cote.
+    setCurrentUserContext(user, userData);
+
     if (userData && userData.profileCompleted === false) {
       if (loadingEl) loadingEl.style.display = 'none';
       if (authEl) authEl.style.display = 'none';
