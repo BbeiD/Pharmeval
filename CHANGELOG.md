@@ -4,6 +4,47 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v1.7.0 — Sprint 6 (Analyse de progression personnelle)
+
+### Fonctionnalités ajoutées
+- Nouvelle section **« Analyse de progression »**, affichée au-dessus de la liste dans le Centre de progression : nombre d'évaluations, score moyen, meilleur score, dernier score, tendance récente, performance par espace (Étudiant/Pharmacien), thèmes forts et thèmes à retravailler.
+- Couleurs des scores dans l'historique : vert (80-100 %), orange (60-79 %), rouge (moins de 60 %) — appliquées uniquement au pourcentage affiché, jamais à toute la carte, avec un libellé textuel disponible en complément de la couleur.
+- Nouveaux services purs et réutilisables : `js/services/statistics-service.js` (tout le calcul), `js/services/date-utils.js` et `js/services/score-utils.js` (utilitaires partagés, éliminant une duplication de code entre l'historique et l'analyse).
+
+### Fichiers modifiés
+- `js/history.js` — délègue désormais le format de date à `date-utils.js`, colore le pourcentage des cartes/détail via `score-utils.js`, déclenche le chargement de l'analyse à l'ouverture du Centre de progression (lecture Firestore indépendante de la liste).
+- `js/services/history-service.js` — ajout d'une fonction dédiée, `getEvaluationsForStatistics()` (lecture unique, plafonnée à 100 évaluations, alimentant tous les indicateurs).
+- `index.html` — section « Analyse de progression » ajoutée dans le Centre de progression.
+- `css/styles.css` — styles de l'analyse et classes de couleur de score.
+- `js/admin.js` — version affichée mise à jour vers v1.7.0.
+
+### Fichiers créés
+- `js/services/statistics-service.js`
+- `js/services/date-utils.js`
+- `js/services/score-utils.js`
+- `js/statistics.js`
+
+### Méthodes de calcul
+- **Score moyen** : moyenne arithmétique de `score.percentage` déjà enregistré (jamais recalculé question par question).
+- **Tendance** : nécessite au moins 10 évaluations ; compare la moyenne des 5 plus récentes à la moyenne des 5 précédentes, avec une marge de stabilité de ±2 points. En-deçà de 10 évaluations, messages adaptés (« pas encore assez de données », ou message dédié pour une seule évaluation).
+- **Thèmes forts/à retravailler** : minimum 2 évaluations par thème pour être classé, maximum 3 thèmes par catégorie, tri par moyenne. Thème absent → « Thème non renseigné », jamais inventé.
+
+### Seuils de couleurs
+80-100 % vert (« Très bon ») · 60-79 % orange (« À consolider ») · 0-59 % rouge (« À retravailler ») · valeur manquante : neutre. Centralisés dans `js/services/score-utils.js`.
+
+### Limites statistiques
+- Analyse plafonnée à 100 évaluations les plus récentes (Option B, documentée à l'écran par un message explicite si l'historique est plus long).
+- Deux lectures Firestore indépendantes à l'ouverture (liste paginée à 20, lot dédié aux statistiques à 100) plutôt qu'une lecture partagée, par prudence vis-à-vis de la pagination déjà stable du Sprint 5.
+- Aucun filtre temporel (7/30/90 jours) dans ce sprint — architecture prête à les accueillir sans modification des fonctions de calcul.
+
+### Migration nécessaire
+Aucune. Aucune nouvelle collection Firestore, aucune statistique écrite en base — tout est calculé à la demande côté client à partir des évaluations déjà existantes.
+
+### Tests effectués
+257 vérifications automatisées (calcul statistique, seuils de couleur, utilitaire de dates, rendu de l'interface, non-régression complète de l'historique et de tout le reste du projet) — voir `RAPPORT_SPRINT6.md` pour le détail complet, y compris ce qui n'a pas pu être testé dans cet environnement (lecture réelle contre Firebase, rendu visuel réel).
+
+---
+
 ## v1.6.0 — Sprint 5 (Centre de progression & historique des évaluations)
 
 ### Fonctionnalités ajoutées

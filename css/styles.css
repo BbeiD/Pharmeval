@@ -1050,4 +1050,71 @@
     color: #ffb4b3; padding: 8px 12px; border-radius: 8px; font-size: 12px;
     margin-top: 12px; display: none;
   }
+
+  /* ---- Niveaux de score partages (Sprint 6) : couleur + libelle, jamais
+     la couleur seule (voir js/services/score-utils.js). ---- */
+  .score-good   { color: var(--green); }
+  .score-medium { color: #B8720A; }
+  .score-weak   { color: #E24B4A; }
+  .score-unknown { color: var(--text2); }
+
+  /* ---- Analyse de progression (Sprint 6) ---- */
+  .stats-section { margin-bottom: 28px; }
+  .stats-section h3 { margin: 0 0 12px 0; font-size: 16px; font-weight: 700; }
+  .stats-section-title { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; margin-bottom: 8px; }
+
+  .stats-loading, .stats-error, .stats-empty {
+    padding: 20px; text-align: center; color: var(--text2); font-size: 13px;
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+  }
+  .stats-disclaimer { font-size: 11px; color: var(--text2); margin-bottom: 10px; font-style: italic; }
+
+  .stats-overview-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .stats-card {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 14px; text-align: center;
+  }
+  .stats-card-value { font-size: 24px; font-weight: 700; }
+  .stats-card-value.stat-neutral { color: var(--text); }
+  .stats-card-label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  .stats-trend {
+    background: var(--surface); border: 1.5px solid var(--border2); border-left: 4px solid var(--border2);
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
+  }
+  .stats-trend.trend-up { border-left-color: var(--green); }
+  .stats-trend.trend-down { border-left-color: #E24B4A; }
+  .stats-trend-message { font-size: 14px; font-weight: 600; }
+  .stats-trend.trend-up .stats-trend-message { color: var(--green); }
+  .stats-trend.trend-down .stats-trend-message { color: #E24B4A; }
+
+  .stats-space-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;
+  }
+  .stats-space-card {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stats-space-name { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 2px; }
+  .stats-space-pct { font-size: 22px; font-weight: 700; }
+  .stats-space-detail { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .stats-by-space, .stats-themes { margin-bottom: 16px; }
+  .stats-themes-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .stats-theme-column { display: flex; flex-direction: column; gap: 6px; }
+  .stats-themes-none, .stats-themes-insufficient {
+    font-size: 12px; color: var(--text2); padding: 10px 0;
+  }
+  .stats-theme-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .stats-theme-name { flex: 0 0 auto; min-width: 90px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stats-theme-bar-wrap { flex: 1; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .stats-theme-bar { height: 100%; border-radius: 4px; }
+  .stats-theme-bar.score-good { background: var(--green); }
+  .stats-theme-bar.score-medium { background: #B8720A; }
+  .stats-theme-bar.score-weak { background: #E24B4A; }
+  .stats-theme-bar.score-unknown { background: var(--border2); }
+  .stats-theme-pct { flex: 0 0 auto; font-weight: 700; min-width: 40px; text-align: right; }
   

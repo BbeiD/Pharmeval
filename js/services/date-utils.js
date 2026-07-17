@@ -1,0 +1,75 @@
+// ===================== UTILITAIRE DE DATES (PARTAGE) =====================
+// Fonction unique de conversion/format de date, utilisee par js/history.js
+// (affichage des cartes) et js/services/statistics-service.js (tri
+// chronologique pour la tendance). Extraite ici pour ne jamais dupliquer
+// cette logique (Sprint 6, section 13 de la demande).
+//
+// Ce fichier n'effectue aucun appel Firestore : c'est un utilitaire pur,
+// pas un service au sens des autres fichiers de js/services/.
+
+/**
+ * Convertit une valeur de date, quel que soit son format d'origine, en
+ * objet Date natif. Gere explicitement :
+ *  - un Timestamp Firestore reel (methode .toDate()) ;
+ *  - un objet "brut" { seconds, nanoseconds } (Timestamp serialise) ;
+ *  - une chaine ISO ;
+ *  - un objet Date deja construit.
+ *
+ * Retourne `null` si la valeur est absente ou ne peut pas etre interpretee
+ * comme une date valide (jamais une Date invalide silencieuse).
+ *
+ * @param {*} value
+ * @returns {Date|null}
+ */
+export function toComparableDate(value) {
+  if (!value) return null;
+
+  let d = null;
+
+  if (typeof value === 'object' && typeof value.toDate === 'function') {
+    d = value.toDate();
+  } else if (typeof value === 'object' && typeof value.seconds === 'number') {
+    d = new Date(value.seconds * 1000 + Math.round((value.nanoseconds || 0) / 1e6));
+  } else if (value instanceof Date) {
+    d = value;
+  } else {
+    d = new Date(value);
+  }
+
+  if (!d || isNaN(d.getTime())) return null;
+  return d;
+}
+
+/**
+ * Formate une date (dans n'importe lequel des formats geres par
+ * toComparableDate) en francais lisible (ex. "17 juillet 2026"). Retourne
+ * toujours une chaine - jamais "Invalid Date" - meme pour une valeur
+ * absente ou non interpretable.
+ *
+ * @param {*} value
+ * @returns {string}
+ */
+export function formatDateFr(value) {
+  const d = toComparableDate(value);
+  if (!d) return '';
+  try {
+    return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Millisecondes depuis epoque pour une valeur de date quelconque, utile
+ * pour trier ou comparer des evaluations de facon fiable quel que soit le
+ * format de `completedAt` recu. Retourne 0 pour une valeur non
+ * interpretable (placee arbitrairement au debut du temps plutot que de
+ * provoquer un tri incoherent ou un crash).
+ *
+ * @param {*} value
+ * @returns {number}
+ */
+export function toMillis(value) {
+  const d = toComparableDate(value);
+  return d ? d.getTime() : 0;
+}

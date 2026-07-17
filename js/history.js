@@ -9,6 +9,9 @@
 // memes donnees, sans que ce fichier n'ait besoin d'etre modifie.
 
 import { getEvaluationsPage, findQuestionByQuestionId, getCorrectAnswerLabel } from "./services/history-service.js";
+import { formatDateFr } from "./services/date-utils.js";
+import { getScoreClass } from "./services/score-utils.js";
+import { loadAndRenderStatistics } from "./statistics.js";
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +48,13 @@ export function openHistoryView() {
   // reafficher un etat mis en cache) : une nouvelle evaluation a pu etre
   // terminee depuis la derniere consultation de cet ecran durant la session.
   loadFirstPage();
+
+  // Sprint 6 : declenche le chargement de l'Analyse de progression en
+  // parallele. Lecture Firestore totalement independante de celle de la
+  // liste (voir getEvaluationsForStatistics dans history-service.js) : une
+  // erreur ici n'affecte jamais l'affichage de la liste ci-dessous, et
+  // inversement.
+  loadAndRenderStatistics();
 }
 
 export function closeHistoryView() {
@@ -130,7 +140,7 @@ function matchesFilters(ev) {
     const haystack = [
       SPACE_LABELS[ev.space] || ev.space || '',
       (ev.selection && ev.selection.theme) || '',
-      formatDate(ev.completedAt),
+      formatDateFr(ev.completedAt),
     ].join(' ').toLowerCase();
     if (haystack.indexOf(state.searchText.toLowerCase()) === -1) return false;
   }
@@ -156,39 +166,9 @@ export function onHistorySearchInput() {
 // Rendu de la liste (cartes)
 // ---------------------------------------------------------------------------
 
-function formatDate(value) {
-  if (!value) return '';
-
-  let d = null;
-
-  if (typeof value === 'object' && typeof value.toDate === 'function') {
-    // Timestamp Firestore reel (instance du SDK, ex. lu directement depuis
-    // un document non serialise) : methode officielle de conversion.
-    d = value.toDate();
-  } else if (typeof value === 'object' && typeof value.seconds === 'number') {
-    // Forme "brute" d'un Timestamp Firestore (ex. apres une serialisation
-    // JSON qui a perdu le prototype du SDK) : { seconds, nanoseconds }.
-    d = new Date(value.seconds * 1000 + Math.round((value.nanoseconds || 0) / 1e6));
-  } else if (value instanceof Date) {
-    d = value;
-  } else {
-    // Chaine ISO (cas actuel produit par evaluation-service.js) ou toute
-    // autre valeur que le constructeur Date sait deja interpreter.
-    d = new Date(value);
-  }
-
-  if (!d || isNaN(d.getTime())) {
-    // Ne jamais afficher "Invalid Date" a l'utilisateur : mieux vaut un
-    // champ vide qu'un texte incomprehensible.
-    return '';
-  }
-
-  try {
-    return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch (e) {
-    return '';
-  }
-}
+// La conversion/format de date est desormais centralisee dans
+// js/services/date-utils.js (formatDateFr), pour ne jamais dupliquer cette
+// logique entre l'historique et l'analyse de progression (Sprint 6).
 
 function escapeHtml(s) {
   return (s || '').toString().replace(/[&<>"']/g, function(c) {
@@ -228,11 +208,12 @@ function cardHtml(ev) {
   const pct = (ev.score && typeof ev.score.percentage === 'number') ? ev.score.percentage : 0;
   const correct = ev.score ? ev.score.correctAnswers : 0;
   const total = ev.score ? ev.score.totalQuestions : 0;
+  const scoreClass = getScoreClass(pct);
   return (
     '<div class="history-card">' +
-      '<div class="history-card-date">' + escapeHtml(formatDate(ev.completedAt)) + '</div>' +
+      '<div class="history-card-date">' + escapeHtml(formatDateFr(ev.completedAt)) + '</div>' +
       '<div class="history-card-space">' + escapeHtml(spaceLabel) + '</div>' +
-      '<div class="history-card-pct">' + pct + ' %</div>' +
+      '<div class="history-card-pct ' + escapeHtml(scoreClass) + '">' + pct + ' %</div>' +
       '<div class="history-card-frac">' + correct + ' / ' + total + '</div>' +
       '<button class="btn-secondary history-card-detail-btn" onclick="openHistoryDetail(\'' + escapeHtml(ev.id) + '\')">Voir le détail</button>' +
     '</div>'
@@ -267,12 +248,13 @@ export function openHistoryDetail(evaluationId) {
   const total = ev.score ? ev.score.totalQuestions : 0;
   const difficulty = (ev.selection && ev.selection.difficulty) || 'all';
   const theme = (ev.selection && ev.selection.theme) || '';
+  const scoreClass = getScoreClass(pct);
 
   let html = '';
   html += '<div class="history-detail-summary">';
-  html += '<div class="history-detail-date">' + escapeHtml(formatDate(ev.completedAt)) + '</div>';
+  html += '<div class="history-detail-date">' + escapeHtml(formatDateFr(ev.completedAt)) + '</div>';
   html += '<div class="history-detail-space">' + escapeHtml(spaceLabel) + '</div>';
-  html += '<div class="history-detail-pct">' + pct + ' %</div>';
+  html += '<div class="history-detail-pct ' + escapeHtml(scoreClass) + '">' + pct + ' %</div>';
   html += '<div class="history-detail-frac">' + correct + ' / ' + total + ' bonnes réponses</div>';
   html += '</div>';
   html += '<div class="history-detail-params">';

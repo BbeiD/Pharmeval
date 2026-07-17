@@ -301,6 +301,14 @@
     <div id="history-list-section">
       <h2>Mes évaluations</h2>
 
+      <!-- ANALYSE DE PROGRESSION (Sprint 6) : lecture Firestore independante
+           de la liste ci-dessous (voir js/statistics.js). Aucune erreur ici
+           ne bloque l'historique, et inversement. -->
+      <div id="statistics-section" class="stats-section">
+        <h3>Analyse de progression</h3>
+        <div id="statistics-body"></div>
+      </div>
+
       <div class="history-toolbar">
         <input type="text" id="history-search" class="history-search-input"
                placeholder="Rechercher..." oninput="onHistorySearchInput()">

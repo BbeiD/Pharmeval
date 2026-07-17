@@ -24,6 +24,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const DEFAULT_PAGE_SIZE = 20;
+const STATISTICS_FETCH_LIMIT = 100;
 
 function logHistoryError(context, err) {
   const code = (err && err.code) || 'erreur-inconnue';
@@ -69,6 +70,47 @@ export async function getEvaluationsPage(options) {
   } catch (err) {
     logHistoryError('chargement d\'une page d\'historique', err);
     return { items: [], nextCursor: null, hasMore: false, error: true };
+  }
+}
+
+/**
+ * Charge, en UNE seule lecture Firestore, jusqu'a STATISTICS_FETCH_LIMIT
+ * (100) evaluations les plus recentes de l'utilisateur connecte, destinees
+ * a alimenter TOUS les indicateurs de l'Analyse de progression (Sprint 6) -
+ * jamais une requete separee par indicateur (apercu general, tendance,
+ * performance par espace, par theme, themes forts/faibles utilisent tous
+ * le meme resultat, voir js/statistics.js).
+ *
+ * Choix explicite documente dans RAPPORT_SPRINT6.md (Option B) : cette
+ * lecture est INDEPENDANTE de la pagination de la liste (getEvaluationsPage,
+ * toujours 20 par page, comportement inchange). Elle ne charge jamais toute
+ * la collection : si l'utilisateur possede plus de 100 evaluations,
+ * seules les 100 plus recentes sont analysees, et l'interface l'indique
+ * explicitement (voir le texte affiche dans js/statistics.js).
+ *
+ * @returns {Promise<{items:Array<object>, truncated:boolean, error:boolean}>}
+ */
+export async function getEvaluationsForStatistics() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) {
+    return { items: [], truncated: false, error: false };
+  }
+  try {
+    const colRef = collection(db, 'users', ctx.uid, 'evaluations');
+    // +1 pour detecter si la collection depasse la limite analysee, sans
+    // requete de comptage separee.
+    const q = query(colRef, orderBy('completedAt', 'desc'), limit(STATISTICS_FETCH_LIMIT + 1));
+    const snap = await getDocs(q);
+    const all = [];
+    snap.forEach(function(d) { all.push(d.data()); });
+
+    const truncated = all.length > STATISTICS_FETCH_LIMIT;
+    const items = all.slice(0, STATISTICS_FETCH_LIMIT);
+
+    return { items: items, truncated: truncated, error: false };
+  } catch (err) {
+    logHistoryError('chargement des evaluations pour l\'analyse de progression', err);
+    return { items: [], truncated: false, error: true };
   }
 }
 
