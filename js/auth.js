@@ -16,6 +16,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { ensureUserDocument } from "./services/user-service.js";
+import { startOnboarding } from "./onboarding.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
 
@@ -126,24 +128,68 @@ async function doSignOut() {
   }
 }
 
+/**
+ * Affiche l'application (masque le chargement/l'auth/l'onboarding, affiche
+ * #app-root et l'e-mail connecte). Exportee pour etre reutilisee par
+ * js/onboarding.js une fois l'assistant de premiere connexion termine, afin
+ * de ne pas dupliquer cette logique d'affichage a deux endroits.
+ *
+ * Remarque sur l'import circulaire avec onboarding.js : ce fichier importe
+ * startOnboarding() depuis onboarding.js, qui importe lui-meme revealApp()
+ * depuis ce fichier. C'est sans risque ici car aucune des deux fonctions
+ * n'est appelee au chargement du module (evaluation top-level) : elles ne
+ * sont invoquees que plus tard, depuis des callbacks asynchrones (Firebase),
+ * une fois que les deux modules ont fini de s'initialiser.
+ */
+function revealApp(user) {
+  var loadingEl = document.getElementById('auth-loading');
+  var authEl = document.getElementById('auth-screen');
+  var onboardingEl = document.getElementById('onboarding-screen');
+  var appEl = document.getElementById('app-root');
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (authEl) authEl.style.display = 'none';
+  if (onboardingEl) onboardingEl.style.display = 'none';
+  if (appEl) appEl.style.display = 'block';
+  var emailEl = document.getElementById('user-email-display');
+  if (emailEl) emailEl.textContent = (user && user.email) || '';
+}
+
 // Point central de la garde d'authentification : tant que Firebase n'a pas
 // confirme l'etat de connexion, seul l'ecran de chargement est visible.
-onAuthStateChanged(auth, function(user) {
+// Depuis le Sprint 2, une connexion reussie declenche egalement la creation
+// ou la mise a jour du document utilisateur Firestore (js/services/user-
+// service.js), puis l'assistant de premiere connexion si le profil n'est
+// pas encore complet.
+onAuthStateChanged(auth, async function(user) {
   var loadingEl = document.getElementById('auth-loading');
   var authEl = document.getElementById('auth-screen');
   var appEl = document.getElementById('app-root');
-  if (loadingEl) loadingEl.style.display = 'none';
 
-  if (user) {
-    if (authEl) authEl.style.display = 'none';
-    if (appEl) appEl.style.display = 'block';
-    var emailEl = document.getElementById('user-email-display');
-    if (emailEl) emailEl.textContent = user.email || '';
-  } else {
+  if (!user) {
+    if (loadingEl) loadingEl.style.display = 'none';
     if (appEl) appEl.style.display = 'none';
     if (authEl) authEl.style.display = 'flex';
     var emailEl2 = document.getElementById('user-email-display');
     if (emailEl2) emailEl2.textContent = '';
+    return;
+  }
+
+  try {
+    var userData = await ensureUserDocument(user);
+    if (userData && userData.profileCompleted === false) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (authEl) authEl.style.display = 'none';
+      startOnboarding(user);
+    } else {
+      revealApp(user);
+    }
+  } catch (err) {
+    // Si Firestore est momentanement indisponible, on ne bloque pas
+    // l'utilisateur hors de l'application pour autant : il retrouve
+    // Pharmeval normalement, et la creation/mise a jour du document sera
+    // retentee a la prochaine connexion.
+    console.error('Erreur lors de la creation/mise a jour du document utilisateur :', err);
+    revealApp(user);
   }
 });
 
@@ -153,3 +199,5 @@ window.toggleAuthMode = toggleAuthMode;
 window.handleAuthSubmit = handleAuthSubmit;
 window.doGoogleSignIn = doGoogleSignIn;
 window.doSignOut = doSignOut;
+
+export { revealApp };

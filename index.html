@@ -37,6 +37,18 @@
   </div>
 </div>
 
+<!-- ASSISTANT DE PREMIERE CONNEXION (Sprint 2) - affiche uniquement quand
+     profileCompleted === false pour l'utilisateur connecte (voir js/auth.js
+     et js/onboarding.js). Masque par defaut : ne s'affiche jamais avant que
+     Firebase ait confirme la necessite de completer le profil. -->
+<div id="onboarding-screen" style="display:none;">
+  <div class="onboarding-box">
+    <div class="onboarding-dots" id="onboarding-dots"></div>
+    <div id="onboarding-body"></div>
+    <div class="onboarding-error" id="onboarding-error"></div>
+  </div>
+</div>
+
 <!-- CONTENU PROTEGE : masque par defaut, revele uniquement apres confirmation
      Firebase qu'un utilisateur est bien connecte (voir onAuthStateChanged). -->
 <div id="app-root" style="display:none;">

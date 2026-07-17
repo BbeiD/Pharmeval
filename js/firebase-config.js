@@ -1,6 +1,7 @@
 // ===================== FIREBASE CONFIG =====================
 // Configuration et initialisation Firebase uniquement.
-// Ce fichier ne contient aucune logique d'authentification (voir auth.js).
+// Ce fichier ne contient aucune logique d'authentification (voir auth.js)
+// ni aucune logique metier Firestore (voir js/services/*.js).
 //
 // La configuration ci-dessous est PUBLIQUE : l'apiKey d'un projet Firebase
 // client n'est pas un secret (a ne pas confondre avec une cle privee ou un
@@ -16,6 +17,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyDNSZei3ZoflF1nrFqQkHDKcsXX-yz_p1I",
@@ -28,3 +30,4 @@ export const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);

@@ -894,4 +894,72 @@
     margin-bottom: 12px; display: none;
   }
   #user-email-display { font-size: 11px; color: var(--text2); margin-left: 10px; }
+
+  /* ---- Assistant de premiere connexion (Sprint 2) ----
+     Meme identite graphique que l'ecran d'authentification (fond degrade
+     sombre, carte semi-transparente), pour une transition visuelle coherente
+     entre connexion -> onboarding -> application. */
+  #onboarding-screen {
+    position: fixed; inset: 0; z-index: 14000;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .onboarding-box {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 460px;
+    color: #fff;
+  }
+  .onboarding-box h2 { margin: 0 0 10px 0; font-size: 20px; font-weight: 700; text-align: center; }
+  .onboarding-intro { font-size: 13px; color: #cbd5e1; text-align: center; line-height: 1.5; margin: 0 0 8px 0; }
+  .onboarding-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
+  .onboarding-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+  .onboarding-dot.active { background: var(--green, #1D9E75); }
+  .onboarding-field-label { font-size: 12px; color: #cbd5e1; margin-bottom: 8px; }
+  .onboarding-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .onboarding-choice {
+    padding: 9px 14px; border-radius: 20px; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.06); color: #fff; cursor: pointer;
+  }
+  .onboarding-choice:hover { background: rgba(255,255,255,0.14); }
+  .onboarding-choice.selected {
+    background: var(--green, #1D9E75); border-color: var(--green, #1D9E75); font-weight: 600;
+  }
+  .onboarding-field { margin-bottom: 14px; }
+  .onboarding-field label { display: block; font-size: 12px; margin-bottom: 4px; color: #cbd5e1; }
+  .onboarding-field input[type="text"] {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 14px;
+    box-sizing: border-box;
+  }
+  .onboarding-checkbox-row {
+    display: flex; align-items: flex-start; gap: 10px; font-size: 13px;
+    color: #e2e8f0; margin-bottom: 18px; cursor: pointer; line-height: 1.4;
+  }
+  .onboarding-checkbox-row input[type="checkbox"] { margin-top: 3px; }
+  .onboarding-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .onboarding-btn-primary {
+    flex: 1; padding: 11px; border-radius: 8px; border: none;
+    background: var(--green, #1D9E75); color: #fff; font-weight: 600;
+    font-size: 14px; cursor: pointer;
+  }
+  .onboarding-btn-primary:hover { opacity: 0.9; }
+  .onboarding-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .onboarding-btn-secondary {
+    padding: 11px 16px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: transparent; color: #fff; font-size: 14px; cursor: pointer;
+  }
+  .onboarding-btn-secondary:hover { background: rgba(255,255,255,0.08); }
+  .onboarding-error {
+    background: rgba(226,75,74,0.15); border: 1px solid rgba(226,75,74,0.4);
+    color: #ffb4b3; padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    margin-top: 12px; display: none;
+  }
   
