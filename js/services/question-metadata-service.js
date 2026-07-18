@@ -84,6 +84,22 @@ export function normalizeDifficulty(rawDifficulty) {
   return DIFFICULTY_NORMALIZATION_MAP[key] || DIFFICULTY_LEVELS.ESSENTIEL;
 }
 
+/**
+ * Liste des ecritures brutes de difficulte reconnues (cles de
+ * DIFFICULTY_NORMALIZATION_MAP, insensible a la casse). Utilisee par
+ * js/services/question-import-validator.js pour distinguer une variante
+ * connue (silencieusement normalisee) d'une valeur totalement inconnue
+ * (signalee comme erreur de validation plutot que de se replier
+ * silencieusement sur "essentiel" - un import doit etre explicite).
+ *
+ * @param {string} rawDifficulty
+ * @returns {boolean}
+ */
+export function isRecognizedDifficultyInput(rawDifficulty) {
+  const key = (rawDifficulty || '').toString().trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(DIFFICULTY_NORMALIZATION_MAP, key);
+}
+
 /** Types de question geres par le moteur (voir CHARTE_QUALITE_PHARMEVAL.md, section 8). */
 export const QUESTION_TYPES = Object.freeze({
   QCM: 'qcm',
@@ -266,7 +282,13 @@ export function completeMetadata(partial) {
     theme: p.theme || domain,
     subtheme: p.subtheme || null,
     tags: normalizeTagList(p.tags || []),
-    difficulty: p.difficulty || DIFFICULTY_LEVELS.ESSENTIEL,
+    // Correctif de coherence (Sprint 10) : applique la meme normalisation
+    // que getMetadata() ci-dessus, pour qu'une difficulte fournie sous une
+    // variante connue (ex. "Intermédiaire", voir la decouverte de
+    // compatibilite du Sprint 9) soit normalisee de la meme facon, que la
+    // metadonnee soit calculee pour une question existante OU completee
+    // pour une nouvelle question (ex. import - voir question-parser.js).
+    difficulty: p.difficulty ? normalizeDifficulty(p.difficulty) : DIFFICULTY_LEVELS.ESSENTIEL,
     questionType: questionType,
     source: p.source || null,
     sourceVersion: p.sourceVersion || null,

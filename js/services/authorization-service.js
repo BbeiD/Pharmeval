@@ -143,7 +143,15 @@ export const PERMISSIONS = Object.freeze({
  */
 const ROLE_PERMISSIONS = Object.freeze({
   user: Object.freeze([]),
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS]),
+  // Sprint 10 : MANAGE_QUESTIONS ajoutee a admin - "l'import de questions
+  // est exclusivement reservee aux administrateurs" (demande explicite du
+  // Sprint 10). Aujourd'hui, admin est le seul role reellement attribue et
+  // detient donc toutes les capacites operationnelles ; editor (reserve,
+  // non attribuable) possedera la MEME permission le jour ou ce role sera
+  // reellement implemente - une permission peut etre accordee a plusieurs
+  // roles a la fois, c'est precisement l'interet d'une matrice plutot que
+  // d'un lien direct role -> fonctionnalite.
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS]),
   editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]),
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
   super_admin: Object.freeze([

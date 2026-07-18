@@ -1,0 +1,262 @@
+// =============================================================================
+// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au correctif post-Sprint 10)
+// =============================================================================
+// Ce fichier est une PROPOSITION CONSOLIDEE. Il n'a pas ete deploye
+// automatiquement sur le projet Firebase (conformement a la consigne "les
+// regles Firestore restent la seule source de securite" + pratique deja
+// etablie depuis le Sprint 3 : proposer, documenter, ne jamais appliquer
+// automatiquement). A relire humainement avant toute publication,
+// conformement a CHARTE_DEVELOPPEMENT_PHARMEVAL.md, section 14.2.
+//
+// ⚠️ CE FICHIER DOIT ETRE (RE)PUBLIE MANUELLEMENT s'il n'est pas deja a
+// jour en production, en particulier pour les deux corrections suivantes :
+//   - Sprint 8 puis resserree au correctif v1.9.1 : mise a jour
+//     administrative de users/{userId} strictement limitee aux champs
+//     role/status (voir RAPPORT_CORRECTIF_1.9.1.md).
+//   - CORRECTIF (post-Sprint 10) : isRequesterAdmin() verifie desormais
+//     AUSSI le statut actif (voir la fonction elle-meme ci-dessous) - un
+//     administrateur suspendu perd immediatement tous ses droits
+//     administratifs sur TOUTES les collections de ce fichier, pas
+//     seulement une nouvelle regle isolee.
+//
+// Historique cumule de ce fichier (voir chaque rapport pour le detail) :
+//   - Sprints 3 et 4 : users/{userId} et ses evaluations.
+//   - Sprint 8 (+ correctif v1.9.1) : mise a jour administrative resserree
+//     de users/{userId}, audit_logs/ (journal des actions administrateur).
+//   - Sprint 10 : questions/ (catalogue global, identifiant = pedagogicalId)
+//     et importLogs/ (journal des imports).
+//   - CORRECTIF (post-Sprint 10, ce fichier) : isRequesterAdmin() renforcee
+//     (role ET statut actif) ; questions/ desormais implicitement protegee
+//     contre un administrateur suspendu par cette meme fonction partagee.
+// =============================================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // CORRECTIF (post-Sprint 10) : verifie desormais SIMULTANEMENT le role
+    // ET le statut. Un administrateur SUSPENDU (statut "suspended", voir
+    // Sprint 8) ne doit conserver AUCUN droit administratif, meme si son
+    // champ `role` vaut toujours "admin" - la suspension d'un compte doit
+    // etre immediatement effective cote regles de securite, pas seulement
+    // cote interface (js/admin.js masque deja les actions pour un compte
+    // suspendu, mais cette regle est la protection reelle, independante
+    // de toute discipline du code client).
+    function isRequesterAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // -------------------------------------------------------------------
+    // NOTE IMPORTANTE (garantie "toujours au moins un administrateur actif",
+    // reconfirmee au correctif v1.9.1) : Pharmeval empeche de retrograder ou
+    // de suspendre le dernier administrateur actif restant.
+    //
+    // Cette garantie est actuellement implementee et testee au niveau
+    // APPLICATIF UNIQUEMENT (js/services/admin-service.js, fonction
+    // countActiveAdmins() dans user-management-service.js), PAS au niveau
+    // de ces regles Firestore. Choix assume et deliberement NON change par
+    // ce correctif : simuler un comptage global d'administrateurs actifs
+    // directement dans une regle Firestore serait fragile (necessiterait
+    // une fonction d'agregation count() appliquee a une requete filtree,
+    // bien plus complexe et moins fiable ici qu'un simple get() sur un
+    // document unique, deja utilise ci-dessus pour isRequesterAdmin()).
+    //
+    // Consequence honnete a documenter : un administrateur techniquement
+    // capable de contourner entierement l'interface ET le service
+    // applicatif (ex. appel Firestore direct depuis la console du
+    // navigateur) pourrait aujourd'hui encore retrograder ou suspendre le
+    // dernier administrateur actif, malgre le refus systematique de
+    // l'application normale. Ce risque est juge acceptable pour l'instant
+    // (l'application normale l'empeche efficacement) ; une protection
+    // serveur plus robuste (Cloud Function declenchee sur ecriture, ou une
+    // operation serveur transactionnelle dediee) devra etre mise en place
+    // ulterieurement si ce risque devient une preoccupation reelle - voir
+    // RAPPORT_CORRECTIF_1.9.1.md, "Limite connue".
+    // -------------------------------------------------------------------
+
+    match /users/{userId} {
+
+      // --- Lecture (Sprint 3, inchangee + Sprint 8) ---
+      // Un utilisateur lit son propre document, OU un administrateur lit
+      // n'importe quel document (necessaire pour le tableau du Centre
+      // d'administration).
+      allow read: if request.auth != null &&
+                    (request.auth.uid == userId || isRequesterAdmin());
+
+      // --- Creation (Sprint 3, inchangee) ---
+      // Uniquement son propre document, avec les valeurs par defaut
+      // attendues (aucune auto-promotion possible des la creation du compte).
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == userId
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.status == 'active'
+                    && request.resource.data.profileCompleted == false;
+
+      // --- Mise a jour par le PROPRIETAIRE lui-meme (Sprint 3, inchangee) ---
+      // role/status/uid/createdAt restent strictement proteges : un
+      // utilisateur ne peut jamais modifier ces champs sur son propre
+      // document, meme s'il est administrateur (voir plus bas, regle
+      // separee et plus restrictive pour l'auto-modification).
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.createdAt == resource.data.createdAt;
+
+      // --- Mise a jour par un ADMINISTRATEUR, sur le document d'un AUTRE
+      // utilisateur uniquement (CORRECTIF v1.9.1 - regle resserree) ---
+      //
+      // Un administrateur peut modifier UNIQUEMENT les champs `role` et/ou
+      // `status` d'un autre utilisateur - jamais aucun autre champ (uid,
+      // email, createdAt, profileCompleted, profile, displayName,
+      // photoURL...). La condition `diff(...).affectedKeys().hasOnly([...])`
+      // exige que l'ENSEMBLE des champs reellement modifies par l'ecriture
+      // soit un sous-ensemble de ['role', 'status'] : toute tentative de
+      // modifier un champ de profil en meme temps (meme un seul, meme en
+      // accompagnement d'un changement de role legitime) fait echouer
+      // toute la regle, pas seulement le champ en trop.
+      //
+      // Les valeurs ecrites sont egalement validees explicitement : seuls
+      // 'user'/'admin' sont acceptes pour `role`, et 'pending'/'active'/
+      // 'suspended' pour `status`. Les roles futurs (EDITOR, TEACHER,
+      // SUPER_ADMIN - deja presents dans les constantes cote application,
+      // voir authorization-service.js) ne sont PAS encore autorises ici :
+      // tant qu'ils ne sont pas officiellement implementes (aucun ecran ne
+      // permet de les attribuer), Firestore les refuse explicitement.
+      //
+      // Le cas "un administrateur modifie SON PROPRE role/statut" reste
+      // explicitement exclu ici (request.auth.uid != userId) : meme un
+      // administrateur doit passer par la regle "PROPRIETAIRE" ci-dessus
+      // pour son propre document, qui protege deja strictement role/status
+      // - un administrateur ne peut donc jamais changer son propre role ou
+      // son propre statut, ni via l'interface (voir js/services/admin-
+      // service.js, correctif v1.9.1), ni en contournant l'interface.
+      allow update: if request.auth != null
+                    && isRequesterAdmin()
+                    && request.auth.uid != userId
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'status'])
+                    && request.resource.data.role in ['user', 'admin']
+                    && request.resource.data.status in ['pending', 'active', 'suspended'];
+
+      // --- Suppression (Sprint 3, inchangee) ---
+      allow delete: if false;
+
+      // --- Evaluations (Sprint 4, inchangees) ---
+      match /evaluations/{evaluationId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.userId == userId
+                      && request.resource.data.id == evaluationId;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.id == resource.data.id
+                      && request.resource.data.userId == resource.data.userId
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && request.resource.data.completedAt == resource.data.completedAt
+                      && request.resource.data.score == resource.data.score
+                      && request.resource.data.questions == resource.data.questions
+                      && request.resource.data.selection == resource.data.selection;
+
+        allow delete: if false;
+
+        // Piste pour un futur acces administrateur en lecture aux
+        // evaluations d'un utilisateur (ex. support, statistiques
+        // agregees globales) - NON activee ici, meme logique que ci-dessus :
+        // allow read: if request.auth != null && (request.auth.uid == userId || isRequesterAdmin());
+      }
+    }
+
+    // --- NOUVEAU (Sprint 8) : journal d'audit des actions administrateur ---
+    match /audit_logs/{logId} {
+      // Lecture reservee aux administrateurs (le journal peut contenir des
+      // informations sur n'importe quel utilisateur - jamais accessible a
+      // un utilisateur standard, meme sur ses propres entrees).
+      allow read: if isRequesterAdmin();
+
+      // Creation reservee aux administrateurs, et uniquement en s'auto-
+      // identifiant correctement comme auteur de l'action (empeche un
+      // administrateur d'usurper l'identite d'un autre administrateur dans
+      // le journal).
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.adminUid == request.auth.uid;
+
+      // Le journal d'audit est immuable une fois ecrit : ni modification,
+      // ni suppression, pour quiconque, y compris un administrateur. C'est
+      // une garantie d'integrite du journal, pas seulement une regle
+      // d'acces.
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 10) : catalogue global de questions (moteur d'import JSON)
+    // =========================================================================
+    // Collection GLOBALE, jamais sous users/{uid} - les questions sont
+    // communes a tous les utilisateurs (voir RAPPORT_SPRINT10.md,
+    // "Architecture"). L'IDENTIFIANT DE DOCUMENT est directement
+    // l'identifiant pedagogique (ex. "PHARM-BAP-000124"), jamais un
+    // identifiant Firestore genere aleatoirement.
+    //
+    // Acces reserve aux administrateurs pour l'instant (aucune interface ne
+    // consomme encore ce catalogue publiquement - "ne pas developper la
+    // publication" est un non-objectif explicite de ce sprint). A ELARGIR
+    // le jour ou un futur role EDITOR sera reellement attribuable (ajouter
+    // une fonction isRequesterEditorOrAdmin() equivalente a
+    // isRequesterAdmin() ci-dessus), et le jour ou la lecture publique des
+    // questions PUBLIEES sera necessaire pour alimenter le moteur de quiz
+    // depuis Firestore (hors perimetre de ce sprint).
+    match /questions/{pedagogicalId} {
+      allow read: if isRequesterAdmin();
+
+      // Creation : l'identifiant du document DOIT correspondre exactement
+      // au pedagogicalId contenu dans le document lui-meme (protege contre
+      // un import qui ecrirait un document sous un identifiant different
+      // de celui qu'il declare) ; le statut ecrit doit toujours etre
+      // "draft" (defense en profondeur, en plus de la regle deja imposee
+      // cote application par js/services/question-parser.js - "ne jamais
+      // publier automatiquement" ne doit pas reposer sur la seule
+      // discipline du code client).
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.pedagogicalId == pedagogicalId
+                    && request.resource.data.status == 'draft';
+
+      // Mise a jour : memes garanties, plus l'interdiction de changer
+      // l'identifiant pedagogique d'un document existant (il doit rester
+      // stable par definition - voir QUESTION_SCHEMA.md).
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && request.resource.data.status == 'draft';
+
+      // Aucune suppression pour l'instant (pas d'historique complexe a ce
+      // stade, comme demande - une question importee par erreur reste
+      // visible en administration plutot que d'etre supprimee
+      // silencieusement ; un futur sprint pourra introduire un statut
+      // "archived" gere via une simple mise a jour plutot qu'une suppression).
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 10, demande complementaire) : journal des imports
+    // =========================================================================
+    // Meme logique d'immuabilite que audit_logs/ (Sprint 8) : trace CHAQUE
+    // import (date, administrateur, fichier, comptages, duree), jamais
+    // modifiable ni supprimable, y compris par un administrateur.
+    match /importLogs/{logId} {
+      allow read: if isRequesterAdmin();
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.adminUid == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

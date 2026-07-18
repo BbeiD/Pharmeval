@@ -4,6 +4,66 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.1.1 — Correctif : sécurité et atomicité des imports (Sprint 10)
+
+### Corrections apportées
+- **Limite stricte de 500 questions par fichier d'import** (`MAX_QUESTIONS_PER_IMPORT`, `question-import-validator.js`) : au-delà, le fichier est refusé avant toute écriture, avec un message clair invitant à diviser le fichier. Élimine le risque d'import partiellement appliqué (l'atomicité Firestore n'étant garantie que par bloc de 500 opérations).
+- **Suppression du comportement multi-bloc** : `writeQuestionsBatch()` n'utilise plus qu'un seul `writeBatch()` ; `MAX_BATCH_SIZE` et `multiBatchWarning` supprimés (plus utiles).
+- **`isRequesterAdmin()` (firestore.rules) vérifie désormais aussi le statut actif** : un administrateur suspendu perd immédiatement tous ses droits administratifs sur toutes les collections protégées (`users/`, `audit_logs/`, `questions/`, `importLogs/`), une seule modification cascadant partout où la fonction est utilisée.
+
+### Fichiers modifiés
+- `js/services/question-import-validator.js`, `js/services/question-catalog-service.js`, `js/services/import-service.js`, `admin/import.js`, `firestore.rules`.
+
+### Tests
+179 nouvelles vérifications ciblées sur ce correctif, toutes réussies. Suite de régression complète rejouée sans exception. Voir `RAPPORT_CORRECTIF_SPRINT10.md`.
+
+---
+
+## v2.1.0 — Sprint 10 (Moteur d'import de contenu pédagogique JSON)
+
+### Fonctionnalités ajoutées
+- **Moteur d'import de questions au format JSON officiel** (voir `IMPORT_FORMAT.md`), workflow complet : sélection du fichier → validation → aperçu → import comme brouillons → rapport final.
+- **Nouvel écran d'administration séparé** (`admin/import.html` + `admin/import.js`), premier écran de Pharmeval à vivre en dehors d'`index.html`.
+- **Collection Firestore globale `questions`** (jamais sous `users/`), utilisant directement l'identifiant pédagogique (ex. `PHARM-BAP-000124`) comme identifiant de document — mises à jour, synchronisation et imports incrémentaux naturels.
+- **Validation robuste avant toute écriture** : schéma, version, champs obligatoires/inconnus, types, longueurs minimales, unicité des identifiants, index de bonne réponse. Une seule erreur invalide l'intégralité du fichier.
+- **Mode simulation** (« Simuler l'import ») : exécute toute la validation et produit le rapport complet, sans jamais écrire dans Firestore.
+- **Journal des imports** (`importLogs`), tracé à chaque import (y compris une simulation) : date, administrateur, fichier, comptages, durée.
+- Toute question importée reçoit le statut `draft` — jamais publiée automatiquement, y compris pour une mise à jour d'une question déjà publiée.
+- Préparation du futur catalogue : champ `visibility` (`isCatalogVisible`, `audiences`, `organizationIds`) présent dès l'import, non encore exploité par une interface.
+
+### Fichiers créés
+- `js/services/question-import-validator.js`
+- `js/services/question-parser.js`
+- `js/services/question-catalog-service.js`
+- `js/services/import-log-service.js`
+- `js/services/import-service.js`
+- `admin/import.html`, `admin/import.js`
+- `IMPORT_FORMAT.md`
+
+### Fichiers modifiés
+- `js/services/authorization-service.js` — `admin` reçoit désormais aussi `MANAGE_QUESTIONS` (une permission peut être accordée à plusieurs rôles).
+- `js/services/question-metadata-service.js` — correctif de cohérence : `completeMetadata()` applique désormais aussi `normalizeDifficulty()`, comme `getMetadata()`.
+- `index.html`, `css/styles.css` — lien de navigation et styles de l'écran d'import.
+- `firestore.rules` — règles pour les nouvelles collections `questions/` et `importLogs/`.
+
+### Bug détecté et corrigé avant livraison
+La lecture groupée des questions existantes masquait silencieusement une panne Firestore comme si toutes les questions étaient nouvelles. Corrigé : toute erreur individuelle fait désormais échouer l'ensemble de la lecture, jamais un résultat partiel présenté comme fiable.
+
+### Sécurité
+Accès à l'écran, lancement d'un import et écriture dans `questions` réservés aux administrateurs, à trois niveaux (interface, service, règles Firestore). Chaque écriture Firestore est doublement contrainte : identifiant de document = `pedagogicalId` du contenu, statut toujours `draft`.
+
+### Limites connues
+- Statut toujours forcé à `draft`, y compris pour une mise à jour d'une question déjà publiée (simplification délibérée).
+- Lecture des questions existantes par appel individuel, pas par requête groupée (suffisant aux volumes réalistes actuels).
+- Atomicité Firestore garantie par bloc de 500 questions, pas au-delà.
+- Seul le type de question `single-choice` est pris en charge par l'import ce sprint.
+- Aucune interface ne consomme encore la collection `questions` (choix délibéré, pas un oubli).
+
+### Tests
+767 vérifications automatisées (162 nouvelles ciblées sur le moteur d'import, 605 rejouées sans régression — dont une mise à jour intentionnelle d'un test reflétant l'octroi de `MANAGE_QUESTIONS` à `admin`). Voir `RAPPORT_SPRINT10.md`.
+
+---
+
 ## v2.0.0 — Sprint 9 (Architecture pédagogique)
 
 **Changement de modèle de données — évolution majeure d'architecture, d'où le passage en 2.0.**
