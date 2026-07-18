@@ -37,6 +37,54 @@ export const PARCOURS_STATUSES = Object.freeze({
 const ID_PREFIX_PARCOURS = 'PARC';
 const ID_PREFIX_COMPETENCY = 'COMP';
 
+/**
+ * CORRECTIF (avant validation du Sprint 12) : palette FERMEE de 6
+ * couleurs, remplaçant la saisie manuelle d'un code couleur libre.
+ * L'interface affiche des pastilles cliquables portant ces valeurs
+ * TECHNIQUES (ex. "vert") ; la couleur reelle affichee (code hexadecimal)
+ * est resolue via PARCOURS_COLOR_HEX ci-dessous - jamais l'inverse, pour
+ * ne jamais stocker une valeur dependante d'un theme visuel qui pourrait
+ * changer plus tard.
+ */
+export const PARCOURS_COLORS = Object.freeze({
+  VERT: 'vert',
+  BLEU: 'bleu',
+  ORANGE: 'orange',
+  VIOLET: 'violet',
+  ROUGE: 'rouge',
+  GRIS: 'gris',
+});
+
+/** Code hexadecimal reellement affiche pour chaque couleur de la palette
+ * fermee. Seul point de verite pour la correspondance valeur technique ->
+ * rendu visuel (voir admin/parcours.js, qui l'utilise pour peindre les
+ * pastilles cliquables et l'apercu de la couleur choisie). */
+export const PARCOURS_COLOR_HEX = Object.freeze({
+  vert: '#2E7D32',
+  bleu: '#1565C0',
+  orange: '#E65100',
+  violet: '#6A1B9A',
+  rouge: '#C62828',
+  gris: '#616161',
+});
+
+/**
+ * Resout la couleur reellement affichable (code hexadecimal CSS valide)
+ * pour une valeur de couleur donnee. COMPATIBILITE ASCENDANTE (demandee
+ * explicitement) : un parcours cree AVANT ce correctif peut porter un
+ * ancien code hexadecimal libre (ex. "#2E7D32") plutot qu'une des 6
+ * valeurs de la palette fermee - dans ce cas, la valeur est utilisee
+ * TELLE QUELLE (elle est deja un code CSS valide), sans jamais forcer une
+ * migration ni faire disparaitre la couleur choisie a l'epoque.
+ *
+ * @param {string} colorValue - une valeur de PARCOURS_COLORS, un ancien code hex libre, ou null/vide
+ * @returns {string|null}
+ */
+export function resolveParcoursColorHex(colorValue) {
+  if (!colorValue) return null;
+  return PARCOURS_COLOR_HEX[colorValue] || colorValue;
+}
+
 function randomIdSuffix() {
   // 8 caracteres hexadecimaux, suffisant pour une collision quasi-nulle a
   // l'echelle du nombre de parcours/competences realistement crees par
@@ -138,6 +186,14 @@ export function validateParcoursMetadata(metadata) {
   }
   if (!m.name || m.name.toString().trim().length < MIN_NAME_LENGTH) {
     errors.push('Le nom du parcours doit contenir au moins ' + MIN_NAME_LENGTH + ' caractères.');
+  }
+  // CORRECTIF : la couleur doit desormais appartenir a la palette fermee
+  // (voir PARCOURS_COLORS ci-dessus). Uniquement applique ici (validation
+  // a la CREATION) - ne revalide jamais un parcours deja existant, pour
+  // ne jamais faire echouer une lecture/edition d'un parcours portant un
+  // ancien code couleur libre (compatibilite ascendante demandee).
+  if (m.color && Object.values(PARCOURS_COLORS).indexOf(m.color) === -1) {
+    errors.push('Couleur invalide : "' + m.color + '" (attendu : ' + Object.values(PARCOURS_COLORS).join(', ') + ', ou aucune).');
   }
   if (!Array.isArray(m.competencies)) {
     errors.push('Le champ "competencies" doit être un tableau.');

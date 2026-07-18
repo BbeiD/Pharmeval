@@ -23,6 +23,7 @@ import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import {
   PARCOURS_STATUSES,
+  PARCOURS_COLORS,
   completeParcoursMetadata,
   completeCompetency,
   validateParcoursMetadata,
@@ -304,7 +305,18 @@ export async function editParcoursMetadata(parcours, fields) {
   }
   if (Object.prototype.hasOwnProperty.call(f, 'description')) payload.description = (f.description || '').toString().trim();
   if (Object.prototype.hasOwnProperty.call(f, 'targetAudience')) payload.targetAudience = (f.targetAudience || '').toString().trim();
-  if (Object.prototype.hasOwnProperty.call(f, 'color')) payload.color = (f.color || '').toString().trim() || null;
+  if (Object.prototype.hasOwnProperty.call(f, 'color')) {
+    const trimmedColor = (f.color || '').toString().trim() || null;
+    // CORRECTIF : toute nouvelle valeur de couleur doit desormais
+    // appartenir a la palette fermee (voir PARCOURS_COLORS,
+    // parcours-metadata-service.js) - une pastille cliquable de
+    // l'interface ne peut de toute facon jamais envoyer autre chose,
+    // mais cette validation reste une defense en profondeur cote service.
+    if (trimmedColor && Object.values(PARCOURS_COLORS).indexOf(trimmedColor) === -1) {
+      return errorResult('Couleur invalide : "' + trimmedColor + '" (attendu : ' + Object.values(PARCOURS_COLORS).join(', ') + ', ou aucune).');
+    }
+    payload.color = trimmedColor;
+  }
   if (Object.prototype.hasOwnProperty.call(f, 'icon')) payload.icon = (f.icon || '').toString().trim() || null;
 
   if (Object.keys(payload).length === 0) {
@@ -366,6 +378,89 @@ export async function addCompetency(parcours, fields) {
   }).catch(function() {});
 
   return success('Compétence ajoutée avec succès.', { competencies: updated });
+}
+
+// ---------------------------------------------------------------------------
+// CORRECTIF : ajout multiple de competences ("coller une liste, une
+// competence par ligne"). L'ajout unitaire ci-dessus est conserve tel quel.
+// ---------------------------------------------------------------------------
+
+/**
+ * Analyse un texte colle (une competence par ligne) SANS RIEN ECRIRE dans
+ * Firestore - fonction pure, utilisee pour construire le recapitulatif
+ * demande avant tout enregistrement. Regles appliquees, dans l'ordre :
+ *   - lignes vides ignorees ;
+ *   - espaces superflus supprimes (debut/fin de chaque ligne) ;
+ *   - doublons empeches, a la fois par rapport aux competences DEJA
+ *     presentes dans le parcours et entre les lignes collees elles-memes
+ *     (comparaison insensible a la casse) ;
+ *   - ordre des lignes conserve pour les competences retenues.
+ *
+ * @param {object} parcours - le parcours cible (pour comparer aux competences existantes)
+ * @param {string} rawText - le texte colle par l'administrateur
+ * @returns {{toAdd:Array<string>, duplicates:Array<string>, emptyLinesIgnored:number, totalLines:number}}
+ */
+export function previewBulkCompetencyNames(parcours, rawText) {
+  const existing = (parcours && Array.isArray(parcours.competencies)) ? parcours.competencies : [];
+  const allLines = (rawText || '').split('\n');
+  const trimmedLines = allLines.map(function(l) { return l.trim(); });
+  const nonEmptyLines = trimmedLines.filter(function(l) { return l.length > 0; });
+  const emptyLinesIgnored = allLines.length - nonEmptyLines.length;
+
+  const seenLower = new Set(existing.map(function(c) { return c.name.toLowerCase(); }));
+  const toAdd = [];
+  const duplicates = [];
+
+  nonEmptyLines.forEach(function(line) {
+    const lower = line.toLowerCase();
+    if (seenLower.has(lower)) {
+      duplicates.push(line);
+    } else {
+      seenLower.add(lower);
+      toAdd.push(line); // ordre des lignes conserve
+    }
+  });
+
+  return { toAdd: toAdd, duplicates: duplicates, emptyLinesIgnored: emptyLinesIgnored, totalLines: nonEmptyLines.length };
+}
+
+/**
+ * Enregistre EFFECTIVEMENT une liste de competences deja previsualisee et
+ * confirmee par l'administrateur (voir previewBulkCompetencyNames()
+ * ci-dessus, appelee AVANT celle-ci par admin/parcours.js). Une SEULE
+ * ecriture Firestore pour l'ensemble du lot (jamais N ecritures
+ * successives), et une SEULE entree de journal resumant l'operation -
+ * plus lisible dans l'historique qu'une entree par competence ajoutee.
+ *
+ * @param {object} parcours
+ * @param {Array<string>} names - noms de competences deja deduplique/nettoyes (voir previewBulkCompetencyNames)
+ * @returns {Promise<object>}
+ */
+export async function addCompetenciesBulk(parcours, names) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  if (!Array.isArray(names) || names.length === 0) {
+    return denied('Aucune compétence à ajouter.');
+  }
+
+  const existing = Array.isArray(parcours.competencies) ? parcours.competencies : [];
+  const newCompetencies = names.map(function(name, i) {
+    return completeCompetency({ name: name, order: existing.length + i, questionIds: [] });
+  });
+  const updated = existing.concat(newCompetencies);
+
+  const result = await updateParcoursFields(parcours.id, { competencies: updated });
+  if (!result.success) return errorResult('L\'ajout des compétences a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'add_competencies_bulk',
+    oldValue: null, newValue: names.length + ' compétence(s) : ' + names.join(', '),
+  }).catch(function() {});
+
+  return success(names.length + ' compétence(s) ajoutée(s) avec succès.', { competencies: updated });
 }
 
 /**
@@ -570,6 +665,7 @@ function describeParcoursAuditEntry(entry) {
   if (entry.actionType === 'edit_color') return 'Modification de la couleur';
   if (entry.actionType === 'edit_icon') return 'Modification de l\'icône';
   if (entry.actionType === 'add_competency') return 'Ajout d\'une compétence (' + entry.newValue + ')';
+  if (entry.actionType === 'add_competencies_bulk') return 'Ajout multiple de compétences (' + entry.newValue + ')';
   if (entry.actionType === 'remove_competency') return 'Suppression d\'une compétence (' + entry.oldValue + ')';
   if (entry.actionType === 'reorder_competency') return 'Réordonnancement des compétences';
   if (entry.actionType === 'link_question') return 'Question liée à « ' + entry.oldValue + ' »';
@@ -582,24 +678,66 @@ function describeParcoursAuditEntry(entry) {
  * @param {object} parcours
  * @returns {Promise<{authorized:boolean, message?:string, error?:boolean, items:Array<object>}>}
  */
+/**
+ * CORRECTIF (avant validation du Sprint 12) : cette fonction ne retourne
+ * plus jamais une "erreur" bloquante uniquement parce que la lecture du
+ * journal d'audit a echoue (ex. index Firestore composite manquant sur
+ * parcours_audit_logs - voir firestore.indexes.json, corrige egalement
+ * dans ce meme correctif). L'evenement de CREATION reste TOUJOURS
+ * calculable directement depuis le document du parcours lui-meme
+ * (`createdAt`), independamment de la disponibilite du journal d'audit -
+ * il est donc TOUJOURS affiche pour un parcours reellement cree, meme si
+ * le journal detaille est temporairement indisponible.
+ *
+ * Trois cas desormais distingues clairement par l'appelant
+ * (admin/parcours.js) :
+ *   - `items.length > 0` : au moins un evenement a afficher (toujours vrai
+ *     pour un parcours ayant un createdAt, ce qui est le cas de tout
+ *     parcours reellement cree par ce sprint).
+ *   - `items.length === 0` : aucun evenement du tout (cas degrade
+ *     extreme - document malforme sans createdAt) -> message neutre
+ *     "Aucun historique disponible", jamais une erreur.
+ *   - `auditUnavailable: true` : le journal detaille des actions
+ *     ULTERIEURES a la creation n'a pas pu etre charge - la creation
+ *     reste neanmoins affichee, avec une mention discrete plutot qu'un
+ *     blocage complet de l'affichage.
+ *
+ * @param {object} parcours
+ * @returns {Promise<{authorized:boolean, message?:string, auditUnavailable:boolean, items:Array<object>}>}
+ */
 export async function getParcoursTimeline(parcours) {
   const access = checkAccess();
   if (access.status !== 'authorized') {
-    return { authorized: false, message: access.message, items: [] };
+    return { authorized: false, message: access.message, auditUnavailable: false, items: [] };
   }
   if (!parcours || !parcours.id) {
-    return { authorized: true, error: false, items: [] };
+    return { authorized: true, auditUnavailable: false, items: [] };
   }
 
   const logsResult = await getRecentParcoursAuditLogs({ parcoursId: parcours.id, limit: 100 });
-  const items = (logsResult.items || []).map(function(entry) {
-    return { date: entry.date, label: describeParcoursAuditEntry(entry), adminEmail: entry.adminEmail || null };
-  });
 
-  if (parcours.createdAt && !items.some(function(i) { return i.label === 'Création'; })) {
+  const items = [];
+  // Toujours calculable depuis le document lui-meme - jamais tributaire de
+  // la disponibilite du journal d'audit.
+  if (parcours.createdAt) {
     items.push({ date: parcours.createdAt, label: 'Création', adminEmail: parcours.author || null });
   }
 
+  if (!logsResult.error) {
+    (logsResult.items || []).forEach(function(entry) {
+      // Une eventuelle entree "creation" du journal ferait doublon avec
+      // celle deja ajoutee ci-dessus a partir du document - ignoree pour
+      // ne jamais afficher deux fois le meme evenement.
+      if (entry.actionType === 'creation') return;
+      items.push({ date: entry.date, label: describeParcoursAuditEntry(entry), adminEmail: entry.adminEmail || null });
+    });
+  }
+
   items.sort(function(a, b) { return new Date(a.date).getTime() - new Date(b.date).getTime(); });
-  return { authorized: true, error: !!logsResult.error, items: items };
+
+  return {
+    authorized: true,
+    auditUnavailable: !!logsResult.error,
+    items: items,
+  };
 }

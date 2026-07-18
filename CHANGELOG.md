@@ -4,6 +4,21 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.3.1 — Correctif Sprint 12 (Parcours)
+
+### Corrections apportées
+- **Sélection de couleur** : remplacement de la saisie libre par une palette fermée de 6 couleurs (vert, bleu, orange, violet, rouge, gris), pastilles cliquables. Compatibilité ascendante conservée avec les parcours déjà créés (ancien code hexadécimal libre).
+- **Ajout multiple de compétences** : nouveau panneau « Ajouter plusieurs » (coller une liste, une compétence par ligne), avec récapitulatif avant enregistrement (doublons et lignes vides ignorés, ordre conservé). Ajout unitaire conservé.
+- **Historique** : cause racine identifiée et corrigée — index Firestore composite manquant (`parcoursId` + `date`) sur `parcours_audit_logs`. L'événement de création s'affiche désormais toujours, même si le journal détaillé est indisponible ; message neutre si aucun historique n'existe réellement. Le même index manquant a été corrigé par précaution pour `question_audit_logs` (Banque de questions), sans modifier son comportement.
+
+### Fichiers modifiés
+`js/services/parcours-metadata-service.js`, `js/services/parcours-service.js`, `admin/parcours.js`, `admin/parcours.html`, `css/styles.css`, `firestore.indexes.json`.
+
+### Tests
+63 nouvelles vérifications ciblées sur ce correctif, toutes réussies. 1132 vérifications héritées rejouées sans régression. Voir `NOTE_CORRECTIF_SPRINT12.md`.
+
+---
+
 ## v2.3.0 — Sprint 12 (Parcours — fondations)
 
 ### Fonctionnalités ajoutées

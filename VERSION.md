@@ -1,19 +1,19 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.3.0 (Sprint 12 — Parcours, fondations)
+## Pharmeval — version actuelle : v2.3.1 (correctif Sprint 12 — Parcours)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.2.1 (correctifs avant validation, Sprint 11) |
-| Version actuelle | **v2.3.0** |
+| Version précédente | v2.3.0 (Sprint 12 — Parcours, fondations) |
+| Version actuelle | **v2.3.1** |
 | Date | 18 juillet 2026 |
-| Objectif de cette version | Nouvelle fonctionnalité compatible avec l'existant (MINOR) : fondations des Parcours (organisation logique de compétences, chacune liable à des questions existantes), avec un écran d'administration dédié reprenant le style et le workflow de suppression sécurisée de la Banque de questions. Aucune régression sur l'existant — moteur de quiz, statistiques, authentification, import et Banque de questions strictement inchangés. |
+| Objectif de cette version | Correctif (PATCH) : palette de couleurs fermée (6 couleurs, compatibilité ascendante conservée), ajout multiple de compétences avec récapitulatif, correction de la cause racine du bug d'historique (index Firestore composite manquant sur `parcours_audit_logs`, corrigé aussi par précaution pour `question_audit_logs`). Aucune régression. |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.3.0) est documenté dans `CHANGELOG.md`. Le détail complet de ce sprint est documenté dans `RAPPORT_SPRINT12.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.3.1) est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `NOTE_CORRECTIF_SPRINT12.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1)
 
 **v1.9.0 (Sprint 8)** — voir `RAPPORT_SPRINT8.md` :
 - Modifiés : `js/services/authorization-service.js` (additif), `js/admin.js`, `index.html`, `css/styles.css`.
@@ -44,6 +44,9 @@ Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque
 **v2.3.0 (Sprint 12)** — voir `RAPPORT_SPRINT12.md` :
 - Modifiés : `js/services/authorization-service.js` (permissions MANAGE_PARCOURS/PURGE_PARCOURS), `index.html`, `css/styles.css` (additif), `firestore.rules` (nouvelles collections parcours/ et parcours_audit_logs/), `firestore.indexes.json` (4 nouveaux index).
 - Créés : `admin/parcours.html`, `admin/parcours.js`, `js/services/parcours-service.js`, `js/services/parcours-catalog-service.js`, `js/services/parcours-metadata-service.js`, `js/services/parcours-audit-service.js`.
+
+**v2.3.1 (correctif Sprint 12)** — voir `NOTE_CORRECTIF_SPRINT12.md` :
+- Modifiés : `js/services/parcours-metadata-service.js` (palette de couleurs fermée), `js/services/parcours-service.js` (ajout multiple de compétences, historique robuste), `admin/parcours.js`, `admin/parcours.html`, `css/styles.css` (additif), `firestore.indexes.json` (2 index composites manquants ajoutés : parcours_audit_logs et question_audit_logs).
 
 ## Fonctionnalités conservées
 

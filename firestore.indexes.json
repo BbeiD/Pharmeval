@@ -51,6 +51,14 @@
     { "collectionGroup": "parcours", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "author", "order": "ASCENDING" },
       { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "parcours_audit_logs", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "parcoursId", "order": "ASCENDING" },
+      { "fieldPath": "date", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "question_audit_logs", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "pedagogicalId", "order": "ASCENDING" },
+      { "fieldPath": "date", "order": "DESCENDING" }
     ]}
   ],
   "fieldOverrides": []
