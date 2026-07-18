@@ -139,6 +139,11 @@ export const PERMISSIONS = Object.freeze({
   // formation" qui organise des parcours sans jamais editer de questions).
   MANAGE_PARCOURS: 'manage_parcours',
   PURGE_PARCOURS: 'purge_parcours',
+  // Sprint 13 ("Organisations") : meme principe que Parcours - un niveau
+  // de gouvernance distinct des questions et des parcours, reserve aux
+  // administrateurs.
+  MANAGE_ORGANISATIONS: 'manage_organisations',
+  PURGE_ORGANISATIONS: 'purge_organisations',
 });
 
 /**
@@ -165,8 +170,8 @@ const ROLE_PERMISSIONS = Object.freeze({
   // reellement implemente - une permission peut etre accordee a plusieurs
   // roles a la fois, c'est precisement l'interet d'une matrice plutot que
   // d'un lien direct role -> fonctionnalite.
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS]),
-  editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours pour l'instant (type de contenu distinct, voir Sprint 12)
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_ORGANISATIONS, PERMISSIONS.PURGE_ORGANISATIONS]),
+  editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours ni des organisations (types de contenu/gouvernance distincts, voir Sprints 12 et 13)
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
   super_admin: Object.freeze([
     PERMISSIONS.MANAGE_USERS,
@@ -176,6 +181,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.PURGE_QUESTIONS,
     PERMISSIONS.MANAGE_PARCOURS,
     PERMISSIONS.PURGE_PARCOURS,
+    PERMISSIONS.MANAGE_ORGANISATIONS,
+    PERMISSIONS.PURGE_ORGANISATIONS,
   ]),
 });
 

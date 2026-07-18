@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Organisations</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="orga-loading">Vérification des droits d'accès…</div>
+
+<div id="orga-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La gestion des organisations est réservée aux administrateurs.</p>
+    <div class="btn-row">
+      <a class="btn-primary" href="../index.html">Retour à l'accueil</a>
+    </div>
+  </div>
+</div>
+
+<!-- Reutilise le meme style que la Banque de questions et les Parcours :
+     memes classes CSS (.bank-*), meme disposition deux colonnes. -->
+<div id="orga-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>🏢 Organisations</h2>
+      <a href="../index.html" class="btn-secondary">← Retour à l'administration</a>
+    </div>
+
+    <div id="orga-message" class="admin-message" style="display:none;"></div>
+
+    <!-- BARRE D'OUTILS : recherche, filtres, tri, creation -->
+    <div class="bank-toolbar">
+      <input type="text" id="orga-search-input" class="admin-users-search-input bank-search-input"
+             placeholder="Rechercher (nom, description, type, pays)…"
+             oninput="onOrgaSearchInput()">
+
+      <select id="orga-filter-status" class="bank-select" onchange="onOrgaFilterChange()">
+        <option value="">Statut : Tous</option>
+        <option value="draft">🟡 Brouillon</option>
+        <option value="review">🔵 En relecture</option>
+        <option value="published">🟢 Publiée</option>
+        <option value="archived">⚫ Archivée</option>
+        <option value="trash">🔴 Corbeille</option>
+      </select>
+
+      <select id="orga-filter-type" class="bank-select" onchange="onOrgaFilterChange()">
+        <option value="">Type : Tous</option>
+        <option value="universite">Université</option>
+        <option value="chaine_pharmacies">Chaîne de pharmacies</option>
+        <option value="officine_independante">Officine indépendante</option>
+        <option value="laboratoire">Laboratoire</option>
+        <option value="autorite_sante">Autorité de santé</option>
+        <option value="societe_privee">Société privée</option>
+        <option value="autre">Autre</option>
+      </select>
+
+      <input type="text" id="orga-filter-author" class="bank-select bank-author-input" placeholder="Auteur…" oninput="onOrgaFilterChange()">
+
+      <select id="orga-sort-field" class="bank-select" onchange="onOrgaFilterChange()">
+        <option value="createdAt">Trier : Date de création</option>
+        <option value="updatedAt">Date de modification</option>
+        <option value="name">Nom</option>
+      </select>
+
+      <button class="btn-secondary bank-sort-dir-btn" id="orga-sort-dir-btn" onclick="toggleOrgaSortDirection()" title="Inverser l'ordre">⬇️</button>
+      <button class="btn-primary" onclick="openCreateOrgaForm()">+ Nouvelle organisation</button>
+    </div>
+
+    <div id="orga-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
+
+    <!-- FORMULAIRE DE CREATION -->
+    <div id="orga-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
+      <h3>Nouvelle organisation</h3>
+      <label class="bank-edit-label">Nom</label>
+      <input type="text" id="orga-create-name" class="bank-select" placeholder="Ex. Pharmacie Familia">
+      <label class="bank-edit-label">Description</label>
+      <textarea id="orga-create-description" class="bank-edit-textarea"></textarea>
+      <label class="bank-edit-label">Type</label>
+      <select id="orga-create-type" class="bank-select">
+        <option value="universite">Université</option>
+        <option value="chaine_pharmacies">Chaîne de pharmacies</option>
+        <option value="officine_independante">Officine indépendante</option>
+        <option value="laboratoire">Laboratoire</option>
+        <option value="autorite_sante">Autorité de santé</option>
+        <option value="societe_privee">Société privée</option>
+        <option value="autre" selected>Autre</option>
+      </select>
+      <label class="bank-edit-label">Logo (URL, optionnel)</label>
+      <input type="text" id="orga-create-logo" class="bank-select" placeholder="https://…">
+      <label class="bank-edit-label">Couleur (optionnel)</label>
+      <div id="orga-create-color-container"></div>
+      <label class="bank-edit-label">Pays (optionnel)</label>
+      <input type="text" id="orga-create-country" class="bank-select" placeholder="Ex. Belgique">
+      <label class="bank-edit-label">Langue principale (optionnel)</label>
+      <input type="text" id="orga-create-language" class="bank-select" placeholder="Ex. Français">
+      <label class="bank-edit-label">Fuseau horaire (optionnel)</label>
+      <input type="text" id="orga-create-timezone" class="bank-select" placeholder="Ex. Europe/Brussels">
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="closeCreateOrgaForm()">Annuler</button>
+        <button class="btn-primary" onclick="submitCreateOrga()">Créer l'organisation</button>
+      </div>
+    </div>
+
+    <!-- DEUX COLONNES -->
+    <div class="bank-columns">
+
+      <div class="bank-list-column">
+        <div id="orga-list-empty" class="bank-list-empty" style="display:none;"></div>
+        <div id="orga-list" class="bank-list"></div>
+        <div id="orga-pagination" class="bank-pagination"></div>
+      </div>
+
+      <div class="bank-detail-column">
+        <div id="orga-detail-placeholder" class="bank-detail-placeholder">
+          Sélectionnez une organisation dans la liste pour afficher sa fiche complète.
+        </div>
+        <div id="orga-detail" class="bank-detail" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="orga-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Confirmation</h3>
+    <p id="orga-confirm-message"></p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelOrgaAction()">Annuler</button>
+      <button class="btn-primary" id="orga-confirm-btn" onclick="confirmOrgaAction()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="organisations.js"></script>
+
+</body>
+</html>

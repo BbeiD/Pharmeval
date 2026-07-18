@@ -1406,4 +1406,18 @@
   .parcours-bulk-summary-count { font-weight: 700; }
   .parcours-bulk-duplicates { color: #8a6d0a; }
   .bank-timeline-partial-note { font-size: 11px; color: var(--text2); font-style: italic; margin-top: 6px; }
+
+  /* ---- Organisations (Sprint 13) - specifique au tableau de bord et au
+     logo uniquement ; le reste reutilise deliberement les classes .bank-*
+     et .parcours-color-* existantes (meme ergonomie que Questions et
+     Parcours, comme demande). ---- */
+  .orga-logo-thumb { width: 20px; height: 20px; border-radius: 4px; object-fit: cover; vertical-align: middle; }
+  .orga-simulated-note { font-size: 10px; font-weight: 400; color: var(--text2); text-transform: none; letter-spacing: normal; }
+  .orga-dashboard-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .orga-dashboard-stat {
+    flex: 1; min-width: 90px; text-align: center; padding: 12px; border-radius: var(--radius);
+    background: var(--surface2);
+  }
+  .orga-dashboard-stat span { display: block; font-size: 22px; font-weight: 800; }
+  .orga-dashboard-stat label { font-size: 10px; color: var(--text2); text-transform: uppercase; }
   

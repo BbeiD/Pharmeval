@@ -385,7 +385,7 @@ function detailHtml(p) {
   html += '<label class="bank-edit-label">Public cible</label>';
   html += '<input type="text" id="parcours-edit-audience" class="bank-select" value="' + escapeHtml(p.targetAudience || '') + '">';
   html += '<label class="bank-edit-label">Couleur</label>';
-  html += colorPickerHtml('parcours-edit-color', PARCOURS_COLOR_HEX[p.color] ? p.color : '');
+  html += colorPickerHtml('parcours-edit-color', p.color || '');
   html += '<label class="bank-edit-label">Icône</label>';
   html += '<input type="text" id="parcours-edit-icon" class="bank-select" value="' + escapeHtml(p.icon || '') + '">';
   html += '<div class="btn-row"><button class="btn-primary" onclick="saveParcoursEdit()">Enregistrer les modifications</button></div>';
