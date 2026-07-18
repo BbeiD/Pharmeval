@@ -1328,8 +1328,18 @@ function changeSpace() {
 // reponse d'une question a partir de son questionId - uniquement lorsque
 // l'utilisateur ouvre le detail d'une evaluation dans "Mes evaluations",
 // jamais pour la liste des cartes. Ne modifie ni QDB ni son contenu.
+//
+// Sprint 9 : expose egalement THEME_CONFIG et themeOfQuestion (deja
+// existants, inchanges), pour que js/services/question-service.js puisse
+// deriver avec precision le domaine/theme et l'espace (student/pharmacist/
+// both) de chaque question existante lors de la construction de ses
+// metadonnees par defaut - sans dupliquer cette logique de classification
+// (deja correcte, y compris le cas particulier "cbip") dans un autre
+// fichier.
 if (typeof window !== 'undefined') {
   window.PharmevalQDB = QDB;
+  window.PharmevalThemeConfig = THEME_CONFIG;
+  window.PharmevalThemeOfQuestion = themeOfQuestion;
 }
 
 

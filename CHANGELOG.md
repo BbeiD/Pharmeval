@@ -4,6 +4,74 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.0.0 — Sprint 9 (Architecture pédagogique)
+
+**Changement de modèle de données — évolution majeure d'architecture, d'où le passage en 2.0.**
+
+### Fonctionnalités ajoutées
+- **Modèle de données définitif d'une question** : 21 propriétés (`id`, `pedagogicalId`, `space`, `domain`, `theme`, `subtheme`, `tags`, `difficulty`, `questionType`, `source`, `sourceVersion`, `author`, `reviewer`, `reviewDate`, `version`, `status`, `createdAt`, `updatedAt`, `estimatedTime`, `learningObjectives`, `keywords`) — voir `QUESTION_SCHEMA.md`.
+- **Statuts éditoriaux** : `draft`/`review`/`published`/`archived`. Toutes les questions existantes deviennent automatiquement `published`.
+- **Versionnement** : `version: 1` pour l'existant, prêt pour l'incrémentation future.
+- **Nouvel identifiant pédagogique stable** (`pedagogicalId`, ex. `PHARM-BAP-000124`), qui ne change jamais malgré des corrections de contenu — contrairement à l'identifiant technique existant, basé sur un hachage du texte.
+- **Service de tags centralisé** (`js/services/tag-service.js`), réutilisable par le futur moteur de recommandations.
+- **Validation des métadonnées** : statut, difficulté, domaine, thème, sous-thème — toujours contre des listes fermées et cohérentes.
+- **Poursuite de l'internationalisation** : `THEME_LABELS` (theme-utils.js) devient exportée et complétée (`KNOWN_THEMES`, `THEME_CODES`) ; `tag-service.js` applique le même principe de séparation identifiant technique / libellé affiché aux tags.
+
+### Découverte de compatibilité (identifiée et corrigée avant livraison)
+Le champ de difficulté existant (`d`) contient 9 écritures différentes à travers les 949 questions (`essentiel`, `Basique`, `débutant`, `approfondi`, `Intermédiaire`, `intermédiaire`, `expert`, `Expert`, `avancé`). Une fonction de normalisation (`normalizeDifficulty()`) les regroupe en exactement 3 niveaux canoniques, sans modifier `data/questions.js` — vérifiée sur l'intégralité des 949 questions.
+
+### Fichiers créés
+- `js/services/question-service.js`
+- `js/services/question-metadata-service.js`
+- `js/services/tag-service.js`
+- `QUESTION_SCHEMA.md`
+
+### Fichiers modifiés
+- `js/app.js` — deux lignes ajoutées exposant `THEME_CONFIG` et `themeOfQuestion()` (déjà existants, inchangés) via `window`, même principe déjà établi au Sprint 5 pour `QDB`.
+- `js/services/theme-utils.js` — `THEME_LABELS` devient exportée, ajout de `KNOWN_THEMES` et `THEME_CODES` (purement additif).
+
+### Compatibilité
+**Aucune question de `data/questions.js` n'est modifiée.** Vérifié sur les 949 questions réelles : aucun plantage, aucune mutation de l'objet source, toutes les 21 propriétés toujours présentes avec des valeurs par défaut sûres et jamais inventées (source, auteur, objectifs pédagogiques restent `null`/`[]` tant qu'ils ne sont pas réellement renseignés).
+
+### Ce qui n'est pas encore construit (préparé uniquement)
+Éditeur de questions, import Excel/JSON, campagnes, exploitation des tags par le moteur de recommandations, écran de recherche — aucune interface n'appelle encore ces nouveaux services (« ces données ne devront pas encore être affichées au joueur »).
+
+### Limites connues
+- `domain` reprend aujourd'hui la même valeur que `theme` (aucune taxonomie de domaine distincte n'existe encore).
+- `pedagogicalId` reste stable par position dans la banque, pas par un identifiant permanent stocké — résiste aux corrections de contenu, pas à une insertion/suppression de questions.
+- `tags`/`keywords`/`learningObjectives` restent vides pour toutes les questions existantes (aucune analyse de contenu automatique, pour ne jamais inventer une association non vérifiée).
+
+### Tests
+577 vérifications automatisées (56 nouvelles ciblées sur l'architecture pédagogique, dont un balayage complet des 949 questions réelles ; 521 rejouées sans régression). Voir `RAPPORT_SPRINT9.md`.
+
+---
+
+## v1.9.1 — Correctif de sécurité post-déploiement (Sprint 8)
+
+**Correctif ciblé, appliqué après le déploiement du Sprint 8.** Aucune architecture, aucun parcours existant, aucun design modifié.
+
+### Corrections apportées
+- **Interdiction complète de l'auto-modification** : un administrateur ne peut désormais modifier **ni son propre rôle, ni son propre statut** (le statut pouvait auparavant être auto-modifié depuis le Sprint 8 — comportement inversé). Message unifié : « Vous ne pouvez pas modifier votre propre rôle ou votre propre statut. »
+- **Interface** : dans la fiche du compte connecté, les boutons de changement de statut (Activer/Suspendre/Réactiver) sont désormais masqués, aux côtés des boutons de rôle déjà masqués — remplacés par une mention discrète.
+- **Règles Firestore resserrées** : la mise à jour administrative d'un utilisateur est désormais strictement limitée aux champs `role` et `status` via une liste blanche (`diff().affectedKeys().hasOnly(['role','status'])`), remplaçant l'ancienne liste noire de champs protégés. Les valeurs sont explicitement validées (`role in ['user','admin']`, `status in ['pending','active','suspended']`) ; les rôles futurs (Éditeur, Enseignant, Super administrateur) restent dans les constantes applicatives mais sont désormais explicitement rejetés par Firestore tant qu'ils ne sont pas officiellement implémentés.
+- **Audit confirmé** : vérifié explicitement qu'aucune entrée d'audit n'est créée pour une action refusée ou échouée (auto-modification, valeur invalide, échec Firestore).
+
+### Fichiers modifiés
+- `js/services/admin-service.js` — ajout de la vérification d'auto-modification dans `changeUserStatus()`, message unifié.
+- `js/admin.js` — masquage des boutons de statut pour le compte connecté lui-même.
+- `firestore.rules` — règle de mise à jour administrative resserrée (liste blanche + validation des valeurs).
+
+### Limite reconfirmée
+La protection du dernier administrateur actif reste appliquée **au niveau applicatif uniquement** — aucune règle Firestore ni Cloud Function ne la renforce encore côté serveur. Une Cloud Function déclenchée sur écriture, ou une opération serveur transactionnelle, serait nécessaire pour une garantie réellement robuste. Voir `RAPPORT_CORRECTIF_1.9.1.md` pour le détail complet.
+
+### ⚠️ Publication requise
+Si les règles Firestore du Sprint 8 sont déjà déployées, **`firestore.rules` doit être republié manuellement** pour que la restriction des champs et la validation des valeurs soient appliquées côté serveur.
+
+### Tests
+25 nouvelles vérifications dédiées (`test_correctif_1_9_1.js`), 2 suites existantes mises à jour pour refléter le changement de comportement intentionnel, 578 vérifications au total rejouées sans régression. Voir `RAPPORT_CORRECTIF_1.9.1.md`.
+
+---
+
 ## v1.9.0 — Sprint 8 (Centre d'administration)
 
 ### Fonctionnalités ajoutées
@@ -37,8 +105,15 @@ Trois niveaux de protection contre l'auto-modification de rôle (interface, logi
 ### Migration nécessaire
 Aucune. Le fonctionnement d'inscription n'a pas été modifié (tout nouveau compte reste `active` comme avant).
 
+### Addendum (même version v1.9.0) — Garantie du dernier administrateur + matrice de permissions
+- **Garantie qu'il existe toujours au moins un administrateur actif** : un administrateur ne peut plus être rétrogradé ni suspendu s'il est le dernier administrateur actif de la plateforme (nouvelle fonction `countActiveAdmins()` dans `user-management-service.js`, vérifiée dans `admin-service.js` avec repli sûr en cas de panne Firestore).
+- **Vraie matrice de permissions** (`PERMISSIONS`, `ROLE_PERMISSIONS` dans `authorization-service.js`), remplaçant l'ancien raccourci `hasPermission() = isAdmin()`. Les rôles futurs `EDITOR`, `TEACHER`, `SUPER_ADMIN` sont désormais de vraies constantes avec leurs permissions déjà correctement définies, sans être attribuables via l'interface aujourd'hui. Le contrôle d'accès général au Centre d'administration utilise désormais cette matrice (`hasPermission(PERMISSIONS.MANAGE_USERS)`), sans changement de comportement observable actuel.
+- Fichiers concernés : `js/services/authorization-service.js`, `js/services/user-management-service.js`, `js/services/admin-service.js`, `js/admin.js`, `firestore.rules`.
+- 38 nouvelles vérifications automatisées (`test_last_admin_protection.js` : 14/14, `test_permissions.js` : 24/24), non-régression complète rejouée.
+- Limite documentée : la garantie du dernier administrateur actif est appliquée au niveau applicatif, pas encore par une règle Firestore dédiée (voir `firestore.rules` et `RAPPORT_SPRINT8.md`).
+
 ### Tests effectués
-418 vérifications automatisées (règles métier du service d'administration, lecture/écriture Firestore simulées, interface complète, non-régression complète de tout le reste du projet) — voir `RAPPORT_SPRINT8.md` pour le détail complet.
+418 + 38 = 456 vérifications automatisées (règles métier du service d'administration, garantie du dernier administrateur, matrice de permissions, lecture/écriture Firestore simulées, interface complète, non-régression complète de tout le reste du projet) — voir `RAPPORT_SPRINT8.md` pour le détail complet.
 
 ---
 

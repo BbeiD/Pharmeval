@@ -13,7 +13,16 @@
 // (voir les onglets de themes dans index.html). Ne modifie aucune donnee :
 // formatage d'affichage uniquement, jamais applique a evaluation.selection.theme
 // lui-meme (qui reste tel quel dans Firestore et en memoire).
-const THEME_LABELS = {
+//
+// EXPORTEE depuis le Sprint 9 (etait interne jusque-la) : cette table est
+// desormais la SOURCE UNIQUE de la liste des themes connus, reutilisee par
+// js/services/question-metadata-service.js pour valider qu'un domaine/theme
+// existe, sans jamais redefinir cette liste ailleurs. C'est aussi le point
+// de depart naturel d'une future internationalisation (Sprint 9, demande
+// complementaire "Prevoir les traductions") : chaque cle technique (ex.
+// "bapcoc") est deja separee de son libelle affiche ("BAPCOC"), il suffira
+// demain de remplacer cette simple table par une table par langue.
+export const THEME_LABELS = {
   conseil: 'Conseil',
   dermo: 'Dermo-cosmétiques',
   procedures: 'Procédures',
@@ -27,6 +36,33 @@ const THEME_LABELS = {
   galenique: 'Galénique',
   adm: 'ADM',
 };
+
+/** Liste des identifiants de themes connus, derivee de THEME_LABELS - ne
+ * jamais redefinir cette liste en dur ailleurs (voir question-metadata-
+ * service.js, validation de `domain`/`theme`). */
+export const KNOWN_THEMES = Object.freeze(Object.keys(THEME_LABELS));
+
+/**
+ * Codes courts (3 lettres) par theme, utilises par
+ * js/services/question-service.js pour construire l'identifiant
+ * pedagogique stable (ex. "PHARM-BAP-000124" pour un theme "bapcoc").
+ * Centralises ici pour la meme raison que THEME_LABELS : une seule source,
+ * jamais dupliquee.
+ */
+export const THEME_CODES = Object.freeze({
+  conseil: 'CON',
+  dermo: 'DER',
+  procedures: 'PRO',
+  medicaments: 'MED',
+  bppo: 'BPP',
+  ftm: 'FTM',
+  deon: 'DEO',
+  bapcoc: 'BAP',
+  etudiant: 'ETU',
+  legislation: 'LEG',
+  galenique: 'GAL',
+  adm: 'ADM',
+});
 
 /**
  * Retourne un libelle humain pour un identifiant de theme. Utilise la table

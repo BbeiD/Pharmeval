@@ -1,23 +1,30 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v1.9.0 (Sprint 8 — Centre d'administration)
+## Pharmeval — version actuelle : v2.0.0 (Sprint 9 — Architecture pédagogique)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v1.8.0 (Sprint 7 — Moteur de recommandations intelligentes) |
-| Version actuelle | **v1.9.0** |
+| Version précédente | v1.9.1 (correctif de sécurité post-déploiement du Sprint 8) |
+| Version actuelle | **v2.0.0** |
 | Date | 17 juillet 2026 |
-| Objectif de cette version | Transformer la zone d'administration minimale en un véritable Centre d'administration : gestion des utilisateurs, des rôles et des statuts, journal d'audit — sans jamais passer par la console Firebase. |
+| Objectif de cette version | Changement du **modèle de données** des questions : passage d'un simple QCM à un véritable objet pédagogique (21 métadonnées, statuts éditoriaux, versionnement, identifiant pédagogique stable, service de tags centralisé). Évolution d'architecture majeure, d'où le passage en 2.0 — sans aucune régression sur les 949 questions existantes. |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v1.9.0) est documenté dans `CHANGELOG.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.0.0) est documenté dans `CHANGELOG.md`. Le détail complet de ce sprint est documenté dans `RAPPORT_SPRINT9.md`, et le modèle de données complet dans `QUESTION_SCHEMA.md`.
 
 ---
 
-## Fichiers modifiés / créés par cette version (v1.9.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0)
 
-Voir `RAPPORT_SPRINT8.md` pour le détail complet. En résumé :
+**v1.9.0 (Sprint 8)** — voir `RAPPORT_SPRINT8.md` :
 - Modifiés : `js/services/authorization-service.js` (additif), `js/admin.js`, `index.html`, `css/styles.css`.
 - Créés : `js/services/user-management-service.js`, `js/services/admin-service.js`, `js/services/audit-service.js`, `firestore.rules`.
+
+**v1.9.1 (correctif)** — voir `RAPPORT_CORRECTIF_1.9.1.md` :
+- Modifiés : `js/services/admin-service.js` (interdiction de l'auto-modification du statut), `js/admin.js` (boutons de statut masqués pour soi-même), `firestore.rules` (restriction stricte des champs `role`/`status` et validation des valeurs autorisées).
+
+**v2.0.0 (Sprint 9)** — voir `RAPPORT_SPRINT9.md` :
+- Modifiés : `js/app.js` (exposition de `THEME_CONFIG`/`themeOfQuestion` via `window`, 2 lignes), `js/services/theme-utils.js` (export de `THEME_LABELS`, ajout de `KNOWN_THEMES`/`THEME_CODES`, purement additif).
+- Créés : `js/services/question-service.js`, `js/services/question-metadata-service.js`, `js/services/tag-service.js`, `QUESTION_SCHEMA.md`.
 
 ## Fonctionnalités conservées
 
@@ -29,11 +36,12 @@ Toutes les fonctionnalités des versions précédentes, sans exception — véri
 - Analyse de progression : indicateurs généraux, tendance, performance par espace et par thème (Sprint 6).
 - Moteur de recommandations basé sur des règles, avec transparence explicite (« Pourquoi cette recommandation ? ») (Sprint 7).
 - **Nouveau (v1.9.0)** : Centre d'administration complet (tableau des utilisateurs, gestion des rôles/statuts, journal d'audit).
+- **Nouveau (v2.0.0)** : modèle de métadonnées pédagogiques complet pour chaque question (calculé à la demande, jamais stocké dans `data/questions.js`), prêt pour un futur éditeur de questions, des imports, des campagnes et une recherche enrichie.
 - L'intégralité du moteur de quiz d'origine (949 questions, tous types confondus), inchangée depuis la migration multi-fichiers (v1.2.0).
 
-## Fonctionnalités ajoutées par cette version
+## Fonctionnalités ajoutées par ces versions
 
-Voir `CHANGELOG.md`, section « v1.9.0 — Sprint 8 », pour le détail complet.
+Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif » et « v2.0.0 — Sprint 9 », pour le détail complet.
 
 ## Fonctionnalités supprimées
 
@@ -42,8 +50,11 @@ Voir `CHANGELOG.md`, section « v1.9.0 — Sprint 8 », pour le détail complet.
 ## Anomalies connues (cumulées, non résolues)
 
 1. **Pré-existante dans le fichier source d'origine, non corrigée (hors périmètre)** : 35 questions de type « arbre décisionnel » du thème Conseil utilisent un champ `question` plutôt que `q` pour leur énoncé ; la fonction de signalement (`openReportModal`) suppose `q.q` et échoue sur ce type précis de question. Documenté depuis `RAPPORT_MIGRATION.md` (v1.2.0).
-2. **Identifiant de question synthétique** (`computeQuestionId`, Sprint 4) : aucune question de `data/questions.js` ne possède de champ `id` stable ; l'identifiant utilisé pour l'historique est dérivé du sous-thème et d'un hachage du texte, donc stable tant que le texte ne change pas, mais pas un vrai identifiant permanent.
+2. **Identifiant de question synthétique** (`computeQuestionId`, Sprint 4) : aucune question de `data/questions.js` ne possède de champ `id` stable ; l'identifiant utilisé pour l'historique est dérivé du sous-thème et d'un hachage du texte, donc stable tant que le texte ne change pas, mais pas un vrai identifiant permanent. **Partiellement compensé depuis le Sprint 9** par le nouvel identifiant pédagogique stable (`pedagogicalId`), lui-même stable par position tant qu'aucune question n'est insérée/supprimée au milieu d'un domaine (voir `QUESTION_SCHEMA.md`).
 3. **Statuts `pending`/`suspended` non exploités par la garde d'authentification** (Sprint 8) : un compte suspendu peut aujourd'hui toujours se connecter — préparation uniquement, comme demandé.
-4. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
+4. **Protection du dernier administrateur actif : applicative uniquement** (v1.9.1) : pas encore renforcée par une règle Firestore dédiée ni par une Cloud Function — voir `RAPPORT_CORRECTIF_1.9.1.md`, section 4, pour la justification détaillée de ce choix et la recommandation pour une protection serveur future.
+5. **Champ de difficulté historiquement incohérent** (découvert au Sprint 9) : 9 écritures différentes du champ `d` à travers les 949 questions, normalisées à la lecture par `question-metadata-service.js` sans modifier `data/questions.js` — voir `QUESTION_SCHEMA.md` pour le détail. Le fichier source reste tel quel ; une reprise éventuelle pour l'uniformiser resterait une amélioration possible, hors périmètre.
+6. **Modèle de métadonnées pédagogiques non encore exploité par une interface** (Sprint 9) : `domain` ≡ `theme` (aucune taxonomie de domaine distincte), `tags`/`keywords`/`learningObjectives` vides pour toutes les questions existantes (aucune analyse de contenu automatique).
+7. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
 
-Voir chaque `RAPPORT_SPRINTx.md` pour les limites propres à chaque sprint (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).
+Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).
