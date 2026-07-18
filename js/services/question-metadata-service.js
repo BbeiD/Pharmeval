@@ -35,6 +35,12 @@ export const QUESTION_STATUSES = Object.freeze({
   REVIEW: 'review',
   PUBLISHED: 'published',
   ARCHIVED: 'archived',
+  // Correctif Sprint 11 : etape intermediaire du workflow de suppression
+  // securisee (Question -> Archivee -> Corbeille -> Suppression definitive).
+  // Purement additif : aucune question existante n'est affectee, ce statut
+  // n'est atteignable que depuis "archived" via une action explicite de la
+  // Banque de questions (voir js/services/question-bank-service.js).
+  TRASH: 'trash',
 });
 
 /** Niveaux de difficulte, deja utilises tels quels par le champ `d` existant. */

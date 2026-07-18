@@ -1262,4 +1262,116 @@
   .import-report-duration { font-size: 12px; color: var(--text2); }
   .import-report-error { color: #b33332; font-weight: 600; }
   .import-report-warning { font-size: 12px; color: #8a5608; background: rgba(184,114,10,.1); padding: 8px 12px; border-radius: var(--radius); }
+
+  /* ---- Banque de questions (Sprint 11, admin/bank.html) ---- */
+  /* UX demandee : interface sobre, peu de couleurs - reservees
+     exclusivement aux 4 statuts (draft/review/published/archived).
+     Tout le reste de l'interface reste dans la palette neutre deja
+     etablie (--surface/--surface2/--border/--text/--text2). */
+  #bank-loading, #bank-denied { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .bank-page { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+  .bank-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .bank-header h2 { margin: 0; }
+
+  .bank-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .bank-search-input { flex: 2; min-width: 240px; }
+  .bank-select {
+    padding: 8px 10px; border-radius: var(--radius); border: 1.5px solid var(--border2);
+    background: var(--surface); font-size: 12px; color: var(--text); box-sizing: border-box;
+  }
+  .bank-author-input { min-width: 110px; }
+  .bank-sort-dir-btn { padding: 8px 12px; }
+
+  .bank-columns { display: flex; gap: 18px; align-items: flex-start; margin-top: 12px; }
+  .bank-list-column { flex: 1; min-width: 320px; max-width: 480px; }
+  .bank-detail-column { flex: 1.6; min-width: 380px; }
+
+  .bank-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
+  .bank-list-loading, .bank-list-empty {
+    padding: 24px; text-align: center; color: var(--text2); font-size: 13px;
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+  }
+
+  .bank-row {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius);
+    padding: 10px 12px; cursor: pointer; transition: border-color .15s;
+  }
+  .bank-row:hover { border-color: var(--text2); }
+  .bank-row-selected { border-color: var(--text); border-width: 2px; }
+  .bank-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .bank-row-id { font-size: 11px; font-weight: 700; color: var(--text2); font-family: monospace; }
+  .bank-row-question { font-size: 13px; color: var(--text); line-height: 1.35; margin-bottom: 4px; }
+  .bank-row-meta { font-size: 11px; color: var(--text2); }
+
+  .bank-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
+  .bank-pagination-label { font-size: 12px; color: var(--text2); }
+
+  /* Badges de statut - SEULE source de couleur volontaire de cet ecran */
+  .bank-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap;
+  }
+  .bank-badge-draft { background: rgba(212,160,23,.15); color: #8a6d0a; }
+  .bank-badge-review { background: rgba(37,110,214,.13); color: #1d5bb0; }
+  .bank-badge-published { background: rgba(29,158,117,.15); color: var(--green-dark); }
+  .bank-badge-archived { background: rgba(40,40,40,.12); color: #333; }
+  .bank-badge-trash { background: rgba(226,75,74,.13); color: #b33332; }
+
+  /* Colonne droite : fiche produit */
+  .bank-detail-placeholder {
+    padding: 60px 20px; text-align: center; color: var(--text2); font-size: 13px;
+    background: var(--surface); border: 1.5px dashed var(--border2); border-radius: var(--radius-lg);
+  }
+  .bank-detail-card {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 22px; max-height: 78vh; overflow-y: auto;
+  }
+  .bank-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .bank-detail-header h3 { margin: 0; font-family: monospace; font-size: 16px; }
+  .bank-detail-tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .bank-chip {
+    display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px;
+    background: var(--surface2); color: var(--text2);
+  }
+  .bank-detail-section { padding: 14px 0; border-top: 1px solid var(--border); }
+  .bank-detail-section:first-of-type { border-top: none; padding-top: 0; }
+  .bank-detail-section h4 { margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--text2); }
+  .bank-detail-question { font-size: 15px; font-weight: 600; line-height: 1.5; margin: 0 0 10px 0; }
+  .bank-detail-answers { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .bank-detail-answers li { padding: 6px 10px; border-radius: var(--radius); margin-bottom: 4px; background: var(--surface2); }
+  .bank-answer-correct { background: var(--green-light) !important; font-weight: 600; }
+  .bank-detail-row { font-size: 13px; padding: 4px 0; }
+  .bank-detail-row strong { color: var(--text2); font-weight: 600; margin-right: 4px; }
+  .bank-detail-row ul { margin: 4px 0 0 18px; padding: 0; }
+
+  .bank-completeness-bar { font-family: monospace; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; }
+  .bank-completeness-pct { font-family: inherit; font-weight: 700; font-size: 13px; letter-spacing: normal; }
+  .bank-completeness-checklist { list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--text2); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+
+  .bank-actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bank-delete-btn { color: #b33332; border-color: rgba(226,75,74,.4); }
+
+  .bank-edit-label { display: block; font-size: 11px; color: var(--text2); margin: 10px 0 4px 0; }
+  .bank-edit-textarea {
+    width: 100%; min-height: 80px; padding: 8px 10px; border-radius: var(--radius);
+    border: 1.5px solid var(--border2); font-size: 13px; font-family: inherit; box-sizing: border-box; resize: vertical;
+  }
+
+  @media (max-width: 900px) {
+    .bank-columns { flex-direction: column; }
+    .bank-list-column, .bank-detail-column { max-width: none; width: 100%; }
+  }
+
+  /* ---- Historique visuel (correctif Sprint 11) ---- */
+  .bank-timeline { font-size: 12px; color: var(--text2); }
+  .bank-timeline-list { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--border2); }
+  .bank-timeline-item { position: relative; padding: 4px 0 10px 16px; }
+  .bank-timeline-item::before {
+    content: ''; position: absolute; left: -5px; top: 8px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--text2);
+  }
+  .bank-timeline-date { font-size: 11px; color: var(--text2); }
+  .bank-timeline-label { font-size: 13px; color: var(--text); font-weight: 600; }
+  .bank-timeline-detail { font-size: 11px; color: var(--text2); font-style: italic; }
+
+  .bank-trash-btn { color: #8a5608; border-color: rgba(184,114,10,.4); }
   

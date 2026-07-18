@@ -13,16 +13,61 @@
 // question-import-validator.js) ni de construction de document (voir
 // question-parser.js) : il ne fait que lire et ecrire ce qu'on lui donne
 // deja construit et valide.
+//
+// Sprint 11 (Banque de questions) : etend ce meme service (une seule
+// responsabilite - Firestore I/O sur `questions` - mais davantage
+// d'operations) avec la pagination reelle, la recherche bornee, et les
+// operations de gestion (changement de statut, edition limitee,
+// suppression). Aucune regle metier ni journalisation ici : voir
+// js/services/question-bank-service.js, seul appelant legitime de ces
+// nouvelles fonctions.
 
 import { db } from "../firebase-config.js";
 import {
   doc,
   getDoc,
   writeBatch,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  updateDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
 
 const QUESTIONS_COLLECTION = 'questions';
+
+// Sprint 11 : taille de page par defaut pour la navigation paginee de la
+// Banque de questions (voir js/services/question-bank-service.js).
+export const DEFAULT_BANK_PAGE_SIZE = 25;
+
+// Sprint 11 : plafond de balayage pour la recherche textuelle (voir
+// Correctif Sprint 11 ("preparer l'architecture pour un futur moteur de
+// recherche, eviter que cette limite soit codee de maniere rigide") :
+// cette valeur reste le DEFAUT du balayage borne (voir searchQuestionsBounded
+// ci-dessous), mais n'est plus une constante figee - voir
+// js/services/question-search-provider.js, qui expose getSearchScanLimit()/
+// setSearchScanLimit() comme point de configuration central. Ne JAMAIS lire
+// cette variable directement depuis un autre fichier : passer par
+// question-search-provider.js, seul point d'entree recommande pour la
+// recherche (voir ce fichier pour le detail de la preparation architecturale).
+let defaultSearchScanLimit = 500;
+
+/** Limite de balayage actuellement configuree (voir question-search-
+ * provider.js pour l'API de configuration recommandee - exportee ici
+ * uniquement pour compatibilite et tests directs de ce fichier). */
+export function getDefaultSearchScanLimit() {
+  return defaultSearchScanLimit;
+}
+/** Reconfigure la limite par defaut du balayage borne. N'affecte que les
+ * appels futurs qui ne precisent pas explicitement `options.maxScan`. */
+export function setDefaultSearchScanLimit(n) {
+  if (typeof n === 'number' && n > 0) defaultSearchScanLimit = n;
+}
 
 function logCatalogError(context, err) {
   const code = (err && err.code) || 'erreur-inconnue';
@@ -135,5 +180,179 @@ export async function writeQuestionsBatch(documentsByPedagogicalId) {
   } catch (err) {
     logCatalogError('ecriture du lot de questions', err);
     return { success: false, writtenCount: 0, error: true };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 11 : navigation, recherche, et actions de gestion de la Banque de
+// questions. Reutilise la MEME collection `questions` (aucune duplication),
+// simplement de nouvelles operations de lecture/ecriture dessus.
+// ---------------------------------------------------------------------------
+
+function buildFilterClauses(filters) {
+  const clauses = [];
+  const f = filters || {};
+  if (f.status) clauses.push(where('status', '==', f.status));
+  if (f.theme) clauses.push(where('theme', '==', f.theme));
+  if (f.difficulty) clauses.push(where('difficulty', '==', f.difficulty));
+  if (f.questionType) clauses.push(where('questionType', '==', f.questionType));
+  if (f.author) clauses.push(where('author', '==', f.author));
+  return clauses;
+}
+
+/**
+ * Charge UNE PAGE de questions, filtree et triee cote SERVEUR (vraie
+ * pagination Firestore par curseur - jamais un chargement de toute la
+ * collection). Utilisee pour la navigation normale (sans recherche
+ * textuelle) de la Banque de questions - voir question-bank-service.js.
+ *
+ * IMPORTANT (a savoir avant publication) : combiner un filtre d'egalite
+ * (`where`) avec un tri (`orderBy`) sur un champ different necessite un
+ * INDEX COMPOSITE Firestore. Voir firestore.indexes.json (propose, non
+ * deploye) pour les combinaisons filtre+tri recommandees. Sans l'index
+ * correspondant deploye, Firestore renverra une erreur explicite (avec un
+ * lien de creation automatique de l'index) plutot qu'un resultat errone -
+ * jamais un risque de donnee incorrecte, seulement une fonctionnalite
+ * indisponible tant que l'index n'est pas cree.
+ *
+ * @param {{filters:object, sortField:string, sortDirection:('asc'|'desc'), pageSize:number, cursorDoc:(object|null)}} options
+ * @returns {Promise<{items:Array<object>, lastDoc:(object|null), hasMore:boolean, error:boolean}>}
+ */
+export async function queryQuestionsPage(options) {
+  const opts = options || {};
+  const pageSize = opts.pageSize || DEFAULT_BANK_PAGE_SIZE;
+  try {
+    const colRef = collection(db, QUESTIONS_COLLECTION);
+    const clauses = buildFilterClauses(opts.filters);
+    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
+    clauses.push(limit(pageSize));
+    if (opts.cursorDoc) clauses.push(startAfter(opts.cursorDoc));
+    const q = query(colRef, ...clauses);
+    const snap = await getDocs(q);
+    const items = [];
+    let lastRawDoc = null;
+    snap.forEach(function(d) { items.push(d.data()); lastRawDoc = d; });
+    return { items: items, lastDoc: lastRawDoc, hasMore: items.length === pageSize, error: false };
+  } catch (err) {
+    logCatalogError('chargement d\'une page de questions', err);
+    return { items: [], lastDoc: null, hasMore: false, error: true };
+  }
+}
+
+/**
+ * Balayage BORNE (jamais toute la collection) pour la recherche textuelle
+ * libre, qui n'est PAS nativement supportee par Firestore (pas de
+ * recherche plein texte / sous-chaine sur des champs arbitraires, y
+ * compris un champ tableau comme `tags`). Retourne un lot borne (par
+ * defaut getDefaultSearchScanLimit(), deja filtre par egalite cote serveur
+ * si des filtres sont actifs), sur lequel js/services/question-bank-
+ * service.js applique ensuite la correspondance textuelle et une
+ * pagination cote client.
+ *
+ * CORRECTIF Sprint 11 : la limite n'est plus figee - `options.maxScan`
+ * permet de la surcharger par appel (utilise par js/services/question-
+ * search-provider.js, le point d'entree recommande pour la recherche -
+ * voir ce fichier pour la preparation d'un futur moteur externe).
+ *
+ * LIMITE HONNETE (documentee, pas cachee) : si la base depasse
+ * significativement la limite configuree de questions correspondant aux
+ * filtres actifs, une recherche textuelle peut manquer des resultats plus
+ * anciens non compris dans ce balayage. Une recherche reellement
+ * exhaustive a grande echelle necessiterait un moteur de recherche dedie
+ * (ex. Algolia, Meilisearch, ou une Cloud Function d'indexation) - voir
+ * js/services/question-search-provider.js, qui prepare l'architecture
+ * pour accueillir un tel moteur sans devoir modifier ce fichier ni
+ * question-bank-service.js le jour venu. Le drapeau `truncated` du
+ * resultat permet a l'interface de le signaler clairement plutot que de
+ * laisser croire a une recherche exhaustive.
+ *
+ * @param {{filters:object, sortField:string, sortDirection:string, maxScan?:number}} options
+ * @returns {Promise<{items:Array<object>, truncated:boolean, error:boolean, scanLimit:number}>}
+ */
+export async function searchQuestionsBounded(options) {
+  const opts = options || {};
+  const scanLimit = (typeof opts.maxScan === 'number' && opts.maxScan > 0) ? opts.maxScan : defaultSearchScanLimit;
+  try {
+    const colRef = collection(db, QUESTIONS_COLLECTION);
+    const clauses = buildFilterClauses(opts.filters);
+    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
+    clauses.push(limit(scanLimit + 1));
+    const q = query(colRef, ...clauses);
+    const snap = await getDocs(q);
+    const all = [];
+    snap.forEach(function(d) { all.push(d.data()); });
+    const truncated = all.length > scanLimit;
+    return { items: all.slice(0, scanLimit), truncated: truncated, error: false, scanLimit: scanLimit };
+  } catch (err) {
+    logCatalogError('balayage de recherche', err);
+    return { items: [], truncated: false, error: true, scanLimit: scanLimit };
+  }
+}
+
+/**
+ * Change UNIQUEMENT le statut d'une question (Publier / Archiver / Remettre
+ * en brouillon - voir js/services/question-bank-service.js pour la
+ * confirmation et la journalisation). Ne modifie jamais aucun autre champ.
+ *
+ * @param {string} pedagogicalId
+ * @param {string} newStatus
+ * @returns {Promise<{success:boolean, error:boolean}>}
+ */
+export async function updateQuestionStatus(pedagogicalId, newStatus) {
+  try {
+    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
+    await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
+    return { success: true, error: false };
+  } catch (err) {
+    logCatalogError('changement de statut de la question ' + pedagogicalId, err);
+    return { success: false, error: true };
+  }
+}
+
+/**
+ * Met a jour UNIQUEMENT les champs editables limites de ce sprint
+ * (explication, tags, source - voir "Aucune edition complete" du Sprint
+ * 11). N'accepte que ces trois cles, jamais un champ arbitraire, pour ne
+ * jamais permettre a un appel de contourner l'absence volontaire d'un
+ * editeur complet.
+ *
+ * @param {string} pedagogicalId
+ * @param {{explanation?:string, tags?:Array<string>, source?:string}} fields
+ * @returns {Promise<{success:boolean, error:boolean}>}
+ */
+export async function updateQuestionFields(pedagogicalId, fields) {
+  const allowed = ['explanation', 'tags', 'source'];
+  const payload = {};
+  allowed.forEach(function(key) {
+    if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
+  });
+  payload.updatedAt = new Date().toISOString();
+  try {
+    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
+    await updateDoc(ref, payload);
+    return { success: true, error: false };
+  } catch (err) {
+    logCatalogError('modification des champs de la question ' + pedagogicalId, err);
+    return { success: false, error: true };
+  }
+}
+
+/**
+ * Supprime DEFINITIVEMENT une question (suppression reelle, pas un
+ * archivage - voir js/services/question-bank-service.js pour la
+ * confirmation et la journalisation obligatoires avant tout appel). Aucun
+ * retour en arriere possible une fois la suppression confirmee.
+ *
+ * @param {string} pedagogicalId
+ * @returns {Promise<{success:boolean, error:boolean}>}
+ */
+export async function deleteQuestionDocument(pedagogicalId) {
+  try {
+    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
+    await deleteDoc(ref);
+    return { success: true, error: false };
+  } catch (err) {
+    logCatalogError('suppression de la question ' + pedagogicalId, err);
+    return { success: false, error: true };
   }
 }

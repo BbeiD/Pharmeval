@@ -4,6 +4,75 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.2.1 — Correctifs avant validation (Sprint 11)
+
+### Corrections apportées
+- **Suppression sécurisée** : plus aucune suppression Firestore directe. Nouveau workflow *Question → Archivée → Corbeille → Suppression définitive*, avec un nouveau statut `trash` (additif) et une nouvelle permission dédiée `PURGE_QUESTIONS` (distincte de `MANAGE_QUESTIONS`, réservée à `admin`/`super_admin`, jamais à un futur `editor`).
+- **Bug critique détecté et corrigé avant publication** : la règle Firestore générale de transition de statut ne vérifiait que le nouveau statut demandé, jamais l'ancien — une question déjà à la corbeille aurait pu être renvoyée directement vers `published`, contournant le workflow. Corrigé en excluant explicitement l'ancien statut `trash` de cette règle, vérifié par un test dédié.
+- **Historique visuel** : nouvelle section « Historique » dans la fiche détaillée, combinant l'événement de création/import et le journal d'audit existant en une timeline lisible — consultable sans quitter l'écran.
+- **Recherche** : la limite de balayage (500) n'est plus une constante figée (`getDefaultSearchScanLimit()`/`setDefaultSearchScanLimit()`), et une nouvelle abstraction (`question-search-provider.js`) prépare une future intégration d'un moteur externe (Algolia, Meilisearch) sans devoir modifier les appelants. Aucune intégration réelle développée — un point de préparation uniquement, comme demandé.
+
+### Fichiers créés
+- `js/services/question-search-provider.js`
+
+### Fichiers modifiés
+- `js/services/question-metadata-service.js` (statut `TRASH`, additif)
+- `js/services/authorization-service.js` (permission `PURGE_QUESTIONS`)
+- `js/services/question-catalog-service.js` (limite de recherche configurable)
+- `js/services/question-bank-service.js` (workflow de suppression sécurisée, timeline, fournisseur de recherche)
+- `admin/bank.js`, `admin/bank.html`, `css/styles.css` (interface du nouveau workflow et de la timeline)
+- `firestore.rules` (règle générale resserrée, nouvelle règle dédiée archived↔trash, suppression contrainte au statut trash)
+
+### Compatibilité
+Aucun comportement des sprints précédents modifié (import, simulation, historique, statistiques, catalogue, administration) — vérifié par 873 vérifications de non-régression rejouées, toutes réussies.
+
+### Tests
+123 nouvelles vérifications ciblées sur ce correctif, toutes réussies. Voir `RAPPORT_SPRINT11.md`, section « Correctifs avant validation ».
+
+---
+
+## v2.2.0 — Sprint 11 (Banque de questions)
+
+### Fonctionnalités ajoutées
+- **Nouvel écran d'administration « Banque de questions »** (`admin/bank.html` + `admin/bank.js`), deux colonnes : liste à gauche, fiche détaillée à droite — sans popup, sans navigation compliquée.
+- **Recherche instantanée** sur identifiant pédagogique, énoncé, thème, sous-thème, tags, source.
+- **Filtres** : statut, thème, difficulté, type de question, auteur — combinables, appliqués côté serveur.
+- **Tri** : date de création, date de modification, identifiant, thème, difficulté (croissant/décroissant).
+- **Vraie pagination Firestore par curseur**, jamais un chargement complet de la collection — compatible avec plusieurs milliers de questions.
+- **Fiche détaillée complète** façon « fiche produit » : énoncé, réponses, bonne réponse surlignée, explication, tags, source, objectifs pédagogiques, métadonnées, dates, version, auteur.
+- **Badges visuels sobres par statut** : 🟡 Brouillon · 🔵 En relecture · 🟢 Publiée · ⚫ Archivée.
+- **Indicateur de complétude des métadonnées** (barre + pourcentage + détail par critère) — vérifie la présence de 6 métadonnées (objectifs pédagogiques, tags, source, explication, auteur, temps estimé), jamais la qualité scientifique du contenu.
+- **Actions limitées, avec confirmation systématique** : Publier, Archiver, Remettre en brouillon, Supprimer.
+- **Édition limitée** : explication, tags, source uniquement — aucun éditeur complet.
+- **Journal dédié des actions sur les questions** (`question_audit_logs`), même principe que `audit_logs`/`importLogs`.
+- **Index Firestore composites proposés** (`firestore.indexes.json`) pour les combinaisons filtre + tri les plus probables.
+
+### Fichiers créés
+- `admin/bank.html`, `admin/bank.js`
+- `js/services/question-bank-service.js`
+- `js/services/question-completeness-service.js`
+- `js/services/question-audit-service.js`
+- `firestore.indexes.json`
+
+### Fichiers modifiés
+- `js/services/question-catalog-service.js` — extension additive (pagination, recherche bornée, statut, édition, suppression). Aucune fonction existante modifiée.
+- `index.html`, `css/styles.css` — navigation et styles (additifs).
+- `firestore.rules` — `questions/` accepte désormais une transition de statut et une édition limitée, la suppression est assouplie pour les administrateurs ; nouvelle collection `question_audit_logs/`.
+
+### Sécurité
+Accès réservé aux administrateurs à trois niveaux (interface, service, règles Firestore). Chaque nouvelle règle de mise à jour de `questions/` est strictement bornée (`hasOnly`) : une transition de statut ne peut jamais modifier le contenu, une édition de champ ne peut jamais changer le statut.
+
+### Limites connues
+- Recherche textuelle bornée à 500 questions par filtres actifs (limite Firestore native, documentée).
+- Édition limitée à explication/tags/source ; pas d'éditeur complet.
+- Index Firestore proposés, non déployés automatiquement.
+- Suppression définitive, sans corbeille.
+
+### Tests
+966 vérifications automatisées (150 nouvelles ciblées sur la Banque de questions, 816 rejouées sans régression). Voir `RAPPORT_SPRINT11.md`.
+
+---
+
 ## v2.1.1 — Correctif : sécurité et atomicité des imports (Sprint 10)
 
 ### Corrections apportées

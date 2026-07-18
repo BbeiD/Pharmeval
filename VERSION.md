@@ -1,19 +1,19 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.1.1 (correctif de sécurité et d'atomicité, Sprint 10)
+## Pharmeval — version actuelle : v2.2.1 (correctifs avant validation, Sprint 11)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.1.0 (Sprint 10 — Moteur d'import de contenu pédagogique JSON) |
-| Version actuelle | **v2.1.1** |
+| Version précédente | v2.2.0 (Sprint 11 — Banque de questions) |
+| Version actuelle | **v2.2.1** |
 | Date | 18 juillet 2026 |
-| Objectif de cette version | Correctif de sécurité (PATCH) : limite stricte de 500 questions par import (atomicité Firestore garantie sans mécanisme de reprise complexe), et renforcement de `isRequesterAdmin()` dans `firestore.rules` (un administrateur suspendu perd immédiatement ses droits). Aucune nouvelle fonctionnalité, aucune régression. |
+| Objectif de cette version | Correctif (PATCH) avant déploiement du Sprint 11 : suppression sécurisée (workflow Archivée → Corbeille → Suppression définitive, permission dédiée PURGE_QUESTIONS), historique visuel consultable depuis la fiche, préparation architecturale de la recherche (limite configurable, abstraction de fournisseur). Bug critique de règle Firestore détecté et corrigé avant publication. Aucune régression. |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.1.1) est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `RAPPORT_CORRECTIF_SPRINT10.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.2.1) est documenté dans `CHANGELOG.md`. Le détail complet est documenté dans `RAPPORT_SPRINT11.md` (section « Correctifs avant validation »).
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1)
 
 **v1.9.0 (Sprint 8)** — voir `RAPPORT_SPRINT8.md` :
 - Modifiés : `js/services/authorization-service.js` (additif), `js/admin.js`, `index.html`, `css/styles.css`.
@@ -33,6 +33,14 @@ Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque
 **v2.1.1 (correctif)** — voir `RAPPORT_CORRECTIF_SPRINT10.md` :
 - Modifiés : `js/services/question-import-validator.js` (limite de 500 questions), `js/services/question-catalog-service.js` (un seul writeBatch), `js/services/import-service.js` (suppression de multiBatchWarning), `admin/import.js` (suppression de l'affichage correspondant), `firestore.rules` (isRequesterAdmin() vérifie aussi le statut actif).
 
+**v2.2.0 (Sprint 11)** — voir `RAPPORT_SPRINT11.md` :
+- Modifiés : `js/services/question-catalog-service.js` (extension additive : pagination, recherche bornée, statut, édition, suppression), `index.html`, `css/styles.css`, `firestore.rules` (questions/ étendue, question_audit_logs/ nouvelle).
+- Créés : `admin/bank.html`, `admin/bank.js`, `js/services/question-bank-service.js`, `js/services/question-completeness-service.js`, `js/services/question-audit-service.js`, `firestore.indexes.json`.
+
+**v2.2.1 (correctifs avant validation)** — voir `RAPPORT_SPRINT11.md`, section « Correctifs avant validation » :
+- Modifiés : `js/services/question-metadata-service.js` (statut TRASH), `js/services/authorization-service.js` (permission PURGE_QUESTIONS), `js/services/question-catalog-service.js` (limite de recherche configurable), `js/services/question-bank-service.js` (workflow de suppression sécurisée, timeline), `admin/bank.js`, `admin/bank.html`, `css/styles.css`, `firestore.rules` (règle générale resserrée + règle dédiée archived↔trash).
+- Créés : `js/services/question-search-provider.js`.
+
 ## Fonctionnalités conservées
 
 Toutes les fonctionnalités des versions précédentes, sans exception — vérifié par une suite de régression complète rejouée à chaque sprint (voir chaque `RAPPORT_SPRINTx.md` pour le détail) :
@@ -44,11 +52,12 @@ Toutes les fonctionnalités des versions précédentes, sans exception — véri
 - Moteur de recommandations basé sur des règles, avec transparence explicite (« Pourquoi cette recommandation ? ») (Sprint 7).
 - **Nouveau (v1.9.0)** : Centre d'administration complet (tableau des utilisateurs, gestion des rôles/statuts, journal d'audit).
 - **Nouveau (v2.0.0)** : modèle de métadonnées pédagogiques complet pour chaque question (calculé à la demande, jamais stocké dans `data/questions.js`), prêt pour un futur éditeur de questions, des imports, des campagnes et une recherche enrichie.
+- **Nouveau (v2.2.0)** : interface d'administration « Banque de questions » (recherche, filtres, tri, pagination Firestore réelle, fiche détaillée, badges de statut, indicateur de complétude, actions limitées avec confirmation et journalisation).
 - L'intégralité du moteur de quiz d'origine (949 questions, tous types confondus), inchangée depuis la migration multi-fichiers (v1.2.0).
 
 ## Fonctionnalités ajoutées par ces versions
 
-Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif », « v2.0.0 — Sprint 9 » et « v2.1.0 — Sprint 10 », pour le détail complet.
+Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif », « v2.0.0 — Sprint 9 », « v2.1.0 — Sprint 10 », « v2.1.1 — Correctif » et « v2.2.0 — Sprint 11 », pour le détail complet.
 
 ## Fonctionnalités supprimées
 
@@ -64,8 +73,11 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 6. **Modèle de métadonnées pédagogiques non encore exploité par une interface** (Sprint 9) : `domain` ≡ `theme` (aucune taxonomie de domaine distincte), `tags`/`keywords`/`learningObjectives` vides pour toutes les questions existantes (aucune analyse de contenu automatique).
 7. **Moteur d'import limité au type `single-choice`** (Sprint 10) : les autres types de question (relier, arbre décisionnel, cas évolutif...) ne sont pas encore pris en charge par le format JSON officiel.
 8. **Statut toujours forcé à `draft` à l'import, y compris pour une mise à jour d'une question déjà publiée** (Sprint 10) : simplification délibérée, nécessite une republication manuelle après réimport d'une correction.
-9. **Aucune interface ne consomme encore la collection Firestore `questions`** (Sprint 10) : ni le moteur de quiz (qui lit toujours `data/questions.js`), ni un futur catalogue public — choix délibéré du sprint, pas un oubli.
+9. **Le moteur de quiz ne consomme toujours pas la collection Firestore `questions`** (Sprint 10) : il continue de lire exclusivement `data/questions.js`. La Banque de questions (Sprint 11) gère bien ce catalogue côté administration, mais aucun pont vers le moteur de quiz lui-même n'existe encore — choix délibéré, pas un oubli.
 10. **Un fichier d'import est strictement limité à 500 questions** (correctif v2.1.1) : au-delà, l'import est refusé avant toute écriture (garantit l'atomicité, sans mécanisme de reprise/rollback) — un fichier plus volumineux doit être divisé en plusieurs imports distincts.
-11. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
+11. **Recherche textuelle de la Banque de questions bornée** (500 par défaut, désormais configurable — correctif v2.2.1) par filtres actifs : limite Firestore native (pas de recherche plein texte), documentée, pas cachée. Une abstraction (`question-search-provider.js`) prépare une future intégration externe, non encore développée.
+12. **Édition limitée à explication/tags/source dans la Banque de questions** (Sprint 11) : pas d'éditeur complet, aucune modification de l'énoncé, des réponses, du thème ou de la difficulté possible depuis cet écran.
+13. **Suppression définitive irréversible une fois confirmée** (correctif v2.2.1) : le workflow Archivée → Corbeille → Suppression définitive protège contre une perte accidentelle, mais la dernière étape (purge, réservée à la permission `PURGE_QUESTIONS`) reste volontairement sans mécanisme de restauration.
+14. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Banque de questions</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="bank-loading">Vérification des droits d'accès…</div>
+
+<div id="bank-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La banque de questions est réservée aux administrateurs.</p>
+    <div class="btn-row">
+      <a class="btn-primary" href="../index.html">Retour à l'accueil</a>
+    </div>
+  </div>
+</div>
+
+<div id="bank-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>🗂️ Banque de questions</h2>
+      <a href="../index.html" class="btn-secondary">← Retour à l'administration</a>
+    </div>
+
+    <div id="bank-message" class="admin-message" style="display:none;"></div>
+
+    <!-- BARRE D'OUTILS : recherche, filtres, tri -->
+    <div class="bank-toolbar">
+      <input type="text" id="bank-search-input" class="admin-users-search-input bank-search-input"
+             placeholder="Rechercher (identifiant, question, thème, sous-thème, tags, source)…"
+             oninput="onBankSearchInput()">
+
+      <select id="bank-filter-status" class="bank-select" onchange="onBankFilterChange()">
+        <option value="">Statut : Tous</option>
+        <option value="draft">🟡 Brouillon</option>
+        <option value="review">🔵 En relecture</option>
+        <option value="published">🟢 Publiée</option>
+        <option value="archived">⚫ Archivée</option>
+        <option value="trash">🔴 Corbeille</option>
+      </select>
+
+      <select id="bank-filter-theme" class="bank-select" onchange="onBankFilterChange()"></select>
+
+      <select id="bank-filter-difficulty" class="bank-select" onchange="onBankFilterChange()">
+        <option value="">Difficulté : Toutes</option>
+        <option value="essentiel">Essentiel</option>
+        <option value="approfondi">Approfondi</option>
+        <option value="avance">Avancé</option>
+      </select>
+
+      <select id="bank-filter-type" class="bank-select" onchange="onBankFilterChange()">
+        <option value="">Type : Tous</option>
+        <option value="qcm">QCM</option>
+      </select>
+
+      <input type="text" id="bank-filter-author" class="bank-select bank-author-input" placeholder="Auteur…" oninput="onBankFilterChange()">
+
+      <select id="bank-sort-field" class="bank-select" onchange="onBankFilterChange()">
+        <option value="createdAt">Trier : Date de création</option>
+        <option value="updatedAt">Date de modification</option>
+        <option value="pedagogicalId">Identifiant</option>
+        <option value="theme">Thème</option>
+        <option value="difficulty">Difficulté</option>
+      </select>
+
+      <button class="btn-secondary bank-sort-dir-btn" id="bank-sort-dir-btn" onclick="toggleBankSortDirection()" title="Inverser l'ordre">⬇️</button>
+    </div>
+
+    <div id="bank-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
+
+    <!-- DEUX COLONNES -->
+    <div class="bank-columns">
+
+      <!-- COLONNE GAUCHE : liste -->
+      <div class="bank-list-column">
+        <div id="bank-list-empty" class="bank-list-empty" style="display:none;"></div>
+        <div id="bank-list" class="bank-list"></div>
+        <div id="bank-pagination" class="bank-pagination"></div>
+      </div>
+
+      <!-- COLONNE DROITE : fiche détaillée -->
+      <div class="bank-detail-column">
+        <div id="bank-detail-placeholder" class="bank-detail-placeholder">
+          Sélectionnez une question dans la liste pour afficher sa fiche complète.
+        </div>
+        <div id="bank-detail" class="bank-detail" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION AVANT ACTION SENSIBLE -->
+<div id="bank-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Confirmation</h3>
+    <p id="bank-confirm-message"></p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelBankAction()">Annuler</button>
+      <button class="btn-primary" id="bank-confirm-btn" onclick="confirmBankAction()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="bank.js"></script>
+
+</body>
+</html>

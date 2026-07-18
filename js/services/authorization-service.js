@@ -125,6 +125,13 @@ export const PERMISSIONS = Object.freeze({
   MANAGE_QUESTIONS: 'manage_questions', // futur : Editeur
   MANAGE_CAMPAIGNS: 'manage_campaigns', // futur : Enseignant
   MANAGE_PLATFORM: 'manage_platform',   // futur : Super administrateur (acces complet)
+  // Correctif Sprint 11 ("suppression securisee") : distincte de
+  // MANAGE_QUESTIONS. Un futur role EDITOR pourra gerer les questions
+  // (creer, publier, archiver, mettre a la corbeille) SANS jamais pouvoir
+  // purger definitivement - cette derniere etape reste reservee aux
+  // administrateurs (et au futur Super administrateur), jamais a un
+  // simple gestionnaire de contenu.
+  PURGE_QUESTIONS: 'purge_questions',
 });
 
 /**
@@ -151,14 +158,15 @@ const ROLE_PERMISSIONS = Object.freeze({
   // reellement implemente - une permission peut etre accordee a plusieurs
   // roles a la fois, c'est precisement l'interet d'une matrice plutot que
   // d'un lien direct role -> fonctionnalite.
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS]),
-  editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]),
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS]),
+  editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
   super_admin: Object.freeze([
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_QUESTIONS,
     PERMISSIONS.MANAGE_CAMPAIGNS,
     PERMISSIONS.MANAGE_PLATFORM,
+    PERMISSIONS.PURGE_QUESTIONS,
   ]),
 });
 

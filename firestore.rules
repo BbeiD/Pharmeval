@@ -1,5 +1,5 @@
 // =============================================================================
-// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au correctif post-Sprint 10)
+// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au correctif post-Sprint 11)
 // =============================================================================
 // Ce fichier est une PROPOSITION CONSOLIDEE. Il n'a pas ete deploye
 // automatiquement sur le projet Firebase (conformement a la consigne "les
@@ -9,25 +9,39 @@
 // conformement a CHARTE_DEVELOPPEMENT_PHARMEVAL.md, section 14.2.
 //
 // ⚠️ CE FICHIER DOIT ETRE (RE)PUBLIE MANUELLEMENT s'il n'est pas deja a
-// jour en production, en particulier pour les deux corrections suivantes :
+// jour en production, en particulier pour les corrections/ajouts suivants :
 //   - Sprint 8 puis resserree au correctif v1.9.1 : mise a jour
 //     administrative de users/{userId} strictement limitee aux champs
 //     role/status (voir RAPPORT_CORRECTIF_1.9.1.md).
-//   - CORRECTIF (post-Sprint 10) : isRequesterAdmin() verifie desormais
-//     AUSSI le statut actif (voir la fonction elle-meme ci-dessous) - un
-//     administrateur suspendu perd immediatement tous ses droits
-//     administratifs sur TOUTES les collections de ce fichier, pas
-//     seulement une nouvelle regle isolee.
+//   - Correctif post-Sprint 10 : isRequesterAdmin() verifie desormais
+//     AUSSI le statut actif - un administrateur suspendu perd
+//     immediatement tous ses droits sur TOUTES les collections de ce
+//     fichier, pas seulement une regle isolee.
+//   - Sprint 11 : questions/{pedagogicalId} accepte desormais aussi une
+//     transition de statut et une edition limitee (explanation/tags/
+//     source). Nouvelle collection question_audit_logs/.
+//   - CORRECTIF (avant validation du Sprint 11) : suppression securisee.
+//     La suppression definitive (allow delete) n'est plus ouverte a tout
+//     administrateur depuis n'importe quel statut - elle exige desormais
+//     que la question soit DEJA a la corbeille (status == 'trash'),
+//     dernier maillon du workflow Question -> Archivee -> Corbeille ->
+//     Suppression definitive. Nouvelle regle de transition dediee et
+//     strictement bornee pour archived <-> trash.
 //
 // Historique cumule de ce fichier (voir chaque rapport pour le detail) :
 //   - Sprints 3 et 4 : users/{userId} et ses evaluations.
 //   - Sprint 8 (+ correctif v1.9.1) : mise a jour administrative resserree
 //     de users/{userId}, audit_logs/ (journal des actions administrateur).
-//   - Sprint 10 : questions/ (catalogue global, identifiant = pedagogicalId)
-//     et importLogs/ (journal des imports).
-//   - CORRECTIF (post-Sprint 10, ce fichier) : isRequesterAdmin() renforcee
-//     (role ET statut actif) ; questions/ desormais implicitement protegee
-//     contre un administrateur suspendu par cette meme fonction partagee.
+//   - Sprint 10 (+ correctif post-Sprint 10) : questions/ (catalogue
+//     global, identifiant = pedagogicalId), importLogs/ (journal des
+//     imports), isRequesterAdmin() renforcee (role ET statut actif).
+//   - Sprint 11 : questions/ etendue (transition de statut, edition
+//     limitee) ; question_audit_logs/ (journal des actions de gestion de
+//     la Banque de questions).
+//   - Correctif (avant validation du Sprint 11) : suppression securisee
+//     (Question -> Archivee -> Corbeille -> Suppression definitive),
+//     regle de transition archived<->trash dediee, suppression contrainte
+//     au statut "trash" uniquement.
 // =============================================================================
 
 rules_version = '2';
@@ -197,7 +211,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // NOUVEAU (Sprint 10) : catalogue global de questions (moteur d'import JSON)
+    // catalogue global de questions (Sprint 10 : import JSON ; Sprint 11 : Banque de questions)
     // =========================================================================
     // Collection GLOBALE, jamais sous users/{uid} - les questions sont
     // communes a tous les utilisateurs (voir RAPPORT_SPRINT10.md,
@@ -207,39 +221,114 @@ service cloud.firestore {
     //
     // Acces reserve aux administrateurs pour l'instant (aucune interface ne
     // consomme encore ce catalogue publiquement - "ne pas developper la
-    // publication" est un non-objectif explicite de ce sprint). A ELARGIR
-    // le jour ou un futur role EDITOR sera reellement attribuable (ajouter
-    // une fonction isRequesterEditorOrAdmin() equivalente a
-    // isRequesterAdmin() ci-dessus), et le jour ou la lecture publique des
-    // questions PUBLIEES sera necessaire pour alimenter le moteur de quiz
-    // depuis Firestore (hors perimetre de ce sprint).
+    // publication" restait un non-objectif explicite du Sprint 10 ; le
+    // Sprint 11 ajoute la NAVIGATION/GESTION administrative de ce
+    // catalogue, toujours reservee aux administrateurs, jamais une
+    // consultation publique). A ELARGIR le jour ou un futur role EDITOR
+    // sera reellement attribuable (ajouter une fonction
+    // isRequesterEditorOrAdmin() equivalente a isRequesterAdmin()
+    // ci-dessus), et le jour ou la lecture publique des questions PUBLIEES
+    // sera necessaire pour alimenter le moteur de quiz depuis Firestore
+    // (toujours hors perimetre).
     match /questions/{pedagogicalId} {
       allow read: if isRequesterAdmin();
 
-      // Creation : l'identifiant du document DOIT correspondre exactement
-      // au pedagogicalId contenu dans le document lui-meme (protege contre
-      // un import qui ecrirait un document sous un identifiant different
-      // de celui qu'il declare) ; le statut ecrit doit toujours etre
-      // "draft" (defense en profondeur, en plus de la regle deja imposee
-      // cote application par js/services/question-parser.js - "ne jamais
-      // publier automatiquement" ne doit pas reposer sur la seule
-      // discipline du code client).
+      // Creation (Sprint 10, inchangee) : l'identifiant du document DOIT
+      // correspondre exactement au pedagogicalId contenu dans le document
+      // lui-meme ; le statut ecrit doit toujours etre "draft".
       allow create: if isRequesterAdmin()
                     && request.resource.data.pedagogicalId == pedagogicalId
                     && request.resource.data.status == 'draft';
 
-      // Mise a jour : memes garanties, plus l'interdiction de changer
-      // l'identifiant pedagogique d'un document existant (il doit rester
-      // stable par definition - voir QUESTION_SCHEMA.md).
+      // --- Mise a jour n°1 (Sprint 10, INCHANGEE) : reecriture complete
+      // par l'IMPORTEUR ---
+      // Un reimport (js/services/question-parser.js) reconstruit
+      // l'integralite du document (contenu, metadonnees, version) et force
+      // TOUJOURS le statut a "draft", quel que soit le statut precedent -
+      // regle de securite non negociable du Sprint 10, non modifiee ici.
       allow update: if isRequesterAdmin()
                     && request.resource.data.pedagogicalId == resource.data.pedagogicalId
                     && request.resource.data.status == 'draft';
 
-      // Aucune suppression pour l'instant (pas d'historique complexe a ce
-      // stade, comme demande - une question importee par erreur reste
-      // visible en administration plutot que d'etre supprimee
-      // silencieusement ; un futur sprint pourra introduire un statut
-      // "archived" gere via une simple mise a jour plutot qu'une suppression).
+      // --- Mise a jour n°2 (Sprint 11) : transition de statut depuis la
+      // Banque de questions (draft/review/published/archived UNIQUEMENT -
+      // CORRECTIF : "trash" est retiree de cette liste generale et geree
+      // par une regle dediee ci-dessous, plus contrainte) ---
+      // Publier / Archiver / Remettre en brouillon (voir js/services/
+      // question-bank-service.js) ne modifient JAMAIS que le champ
+      // `status` (et `updatedAt`) - jamais le contenu, jamais les
+      // metadonnees. `hasOnly` garantit qu'aucun autre champ ne peut etre
+      // modifie "au passage" d'un changement de statut.
+      //
+      // CORRECTIF CRITIQUE (detecte par les tests avant publication) :
+      // cette regle verifiait uniquement le NOUVEAU statut demande, jamais
+      // l'ANCIEN - une question DEJA A LA CORBEILLE aurait donc pu sauter
+      // directement vers "published" (ou tout autre statut de la liste),
+      // contournant entierement l'obligation de repasser par "archived"
+      // (restauration) avant toute autre transition. La condition
+      // `resource.data.status != 'trash'` ci-dessous ferme cette bascule :
+      // une question a la corbeille ne peut JAMAIS emprunter cette regle
+      // generale, uniquement la regle dediee n°2b ci-dessous (qui ne
+      // permet que le retour vers "archived").
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && resource.data.status != 'trash'
+                    && request.resource.data.status in ['draft', 'review', 'published', 'archived'];
+
+      // --- Mise a jour n°2b (CORRECTIF, suppression securisee) :
+      // transition Archivee <-> Corbeille UNIQUEMENT ---
+      // Workflow impose : Question -> Archivee -> Corbeille -> Suppression
+      // definitive. Cette regle n'autorise QUE les deux sens de cette
+      // transition precise (archived -> trash pour la mise a la corbeille,
+      // trash -> archived pour la restauration) - jamais un saut direct
+      // depuis draft/review/published vers "trash", ni l'inverse.
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
+                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
+
+      // --- Mise a jour n°3 (Sprint 11) : edition limitee ---
+      // "Aucune edition complete" (Sprint 11) : seuls explanation/tags/
+      // source (+ updatedAt) peuvent etre modifies par cette voie, et le
+      // STATUT DOIT RESTER INCHANGE - une simple correction de source ou
+      // de tags ne doit jamais republier ou depublier une question par
+      // effet de bord.
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['explanation', 'tags', 'source', 'updatedAt'])
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && request.resource.data.status == resource.data.status;
+
+      // --- Suppression (CORRECTIF, suppression securisee) ---
+      // Le Sprint 10 interdisait toute suppression ("allow delete: if
+      // false"). Le Sprint 11 l'avait ensuite ouverte a tout administrateur
+      // depuis n'importe quel statut - CE CORRECTIF LA RESSERRE : la
+      // suppression definitive n'est desormais possible QUE si la question
+      // est DEJA a la corbeille (dernier maillon du workflow Question ->
+      // Archivee -> Corbeille -> Suppression definitive), jamais en
+      // contournant les etapes precedentes. Defense en profondeur : cette
+      // contrainte s'applique meme si l'application cliente (js/services/
+      // question-bank-service.js, permanentlyDeleteQuestion()) etait
+      // elle-meme contournee.
+      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 11) : journal des actions sur les questions
+    // =========================================================================
+    // Distinct de audit_logs/ (Sprint 8, actions utilisateurs) et de
+    // importLogs/ (Sprint 10, operations d'import completes) : trace ICI
+    // chaque action individuelle sur UNE question (changement de statut,
+    // modification de champ, suppression) depuis la Banque de questions.
+    // Meme logique d'immuabilite que les autres journaux.
+    match /question_audit_logs/{logId} {
+      allow read: if isRequesterAdmin();
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.adminUid == request.auth.uid;
+
+      allow update: if false;
       allow delete: if false;
     }
 
