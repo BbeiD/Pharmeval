@@ -1374,4 +1374,19 @@
   .bank-timeline-detail { font-size: 11px; color: var(--text2); font-style: italic; }
 
   .bank-trash-btn { color: #8a5608; border-color: rgba(184,114,10,.4); }
+
+  /* ---- Parcours (Sprint 12) - specifique aux competences uniquement ;
+     le reste de l'ecran reutilise deliberement les classes .bank-*
+     existantes (meme style que la Banque de questions, comme demande). ---- */
+  .parcours-competency-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .parcours-competency-card {
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .parcours-competency-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .parcours-competency-actions { display: flex; gap: 4px; }
+  .parcours-competency-actions button { padding: 4px 8px; font-size: 12px; }
+  .parcours-competency-description { font-size: 12px; color: var(--text2); margin: 4px 0; }
+  .parcours-competency-questions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .parcours-competency-questions a { color: #b33332; text-decoration: none; margin-left: 4px; }
   

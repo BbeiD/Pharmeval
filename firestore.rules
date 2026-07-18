@@ -333,6 +333,83 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // NOUVEAU (Sprint 12) : Parcours (fondations)
+    // =========================================================================
+    // Collection GLOBALE, jamais sous users/{uid} - un parcours est commun a
+    // tous les utilisateurs, meme principe que questions/ (Sprint 10).
+    // L'IDENTIFIANT DE DOCUMENT est directement l'identifiant stable du
+    // parcours (ex. "PARC-a1b2c3d4", voir js/services/parcours-metadata-
+    // service.js), genere a la creation - jamais un identifiant Firestore
+    // aleatoire.
+    //
+    // "Workflow identique aux questions" (demande explicite du Sprint 12) :
+    // memes 3 regles de mise a jour (creation/edition complete, transition
+    // de statut generale hors corbeille, transition dediee archived<->trash),
+    // meme suppression contrainte au statut "trash" uniquement. Reprend
+    // fidelement la structure de questions/ ci-dessus, appliquee a ce
+    // nouveau type de contenu.
+    //
+    // Acces reserve aux administrateurs (aucune interface ne consomme
+    // encore ce contenu publiquement - "progression utilisateur" est un
+    // non-objectif explicite de ce sprint).
+    match /parcours/{parcoursId} {
+      allow read: if isRequesterAdmin();
+
+      // Creation : l'identifiant du document DOIT correspondre exactement
+      // a l'identifiant contenu dans le document lui-meme ; le statut ecrit
+      // doit toujours etre "draft" (jamais publie automatiquement, meme
+      // principe que les questions).
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.id == parcoursId
+                    && request.resource.data.status == 'draft';
+
+      // --- Mise a jour n°1 : edition complete (nom, description, public
+      // cible, couleur, icone, competences) ---
+      // Contrairement aux questions (reecrites uniquement par l'importeur),
+      // un parcours peut etre edite librement par son proprietaire
+      // administrateur - MAIS jamais l'identifiant, et jamais le statut
+      // "au passage" d'une simple edition (voir regle n°2 pour les
+      // transitions de statut, separee et dediee).
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.status == resource.data.status;
+
+      // --- Mise a jour n°2 : transition de statut (draft/review/published/
+      // archived UNIQUEMENT - "trash" gere par une regle dediee ci-dessous,
+      // meme principe que questions/, correctif Sprint 11) ---
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && resource.data.status != 'trash'
+                    && request.resource.data.status in ['draft', 'review', 'published', 'archived'];
+
+      // --- Mise a jour n°2b : transition Archive <-> Corbeille UNIQUEMENT ---
+      // Memes garanties que questions/ (correctif Sprint 11) : jamais un
+      // saut direct depuis/vers "trash" en dehors de ce chemin precis.
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
+                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
+
+      // --- Suppression : contrainte au statut "trash" uniquement (workflow
+      // identique aux questions) ---
+      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+    }
+
+    // Journal des actions de gestion des parcours - meme logique
+    // d'immuabilite que question_audit_logs/ ci-dessus.
+    match /parcours_audit_logs/{logId} {
+      allow read: if isRequesterAdmin();
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.adminUid == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
     // NOUVEAU (Sprint 10, demande complementaire) : journal des imports
     // =========================================================================
     // Meme logique d'immuabilite que audit_logs/ (Sprint 8) : trace CHAQUE

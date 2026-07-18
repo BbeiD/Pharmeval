@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Parcours</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="parcours-loading">Vérification des droits d'accès…</div>
+
+<div id="parcours-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La gestion des parcours est réservée aux administrateurs.</p>
+    <div class="btn-row">
+      <a class="btn-primary" href="../index.html">Retour à l'accueil</a>
+    </div>
+  </div>
+</div>
+
+<!-- Reutilise le meme style que la Banque de questions (Sprint 11) :
+     memes classes CSS (.bank-*), meme disposition deux colonnes. -->
+<div id="parcours-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>🧭 Parcours</h2>
+      <a href="../index.html" class="btn-secondary">← Retour à l'administration</a>
+    </div>
+
+    <div id="parcours-message" class="admin-message" style="display:none;"></div>
+
+    <!-- BARRE D'OUTILS : recherche, filtres, tri, creation -->
+    <div class="bank-toolbar">
+      <input type="text" id="parcours-search-input" class="admin-users-search-input bank-search-input"
+             placeholder="Rechercher (nom, description, public cible, compétence)…"
+             oninput="onParcoursSearchInput()">
+
+      <select id="parcours-filter-status" class="bank-select" onchange="onParcoursFilterChange()">
+        <option value="">Statut : Tous</option>
+        <option value="draft">🟡 Brouillon</option>
+        <option value="review">🔵 En relecture</option>
+        <option value="published">🟢 Publié</option>
+        <option value="archived">⚫ Archivé</option>
+        <option value="trash">🔴 Corbeille</option>
+      </select>
+
+      <input type="text" id="parcours-filter-author" class="bank-select bank-author-input" placeholder="Auteur…" oninput="onParcoursFilterChange()">
+
+      <select id="parcours-sort-field" class="bank-select" onchange="onParcoursFilterChange()">
+        <option value="createdAt">Trier : Date de création</option>
+        <option value="updatedAt">Date de modification</option>
+        <option value="name">Nom</option>
+      </select>
+
+      <button class="btn-secondary bank-sort-dir-btn" id="parcours-sort-dir-btn" onclick="toggleParcoursSortDirection()" title="Inverser l'ordre">⬇️</button>
+      <button class="btn-primary" onclick="openCreateParcoursForm()">+ Nouveau parcours</button>
+    </div>
+
+    <div id="parcours-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
+
+    <!-- FORMULAIRE DE CREATION (repli simple, pas de popup) -->
+    <div id="parcours-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
+      <h3>Nouveau parcours</h3>
+      <label class="bank-edit-label">Nom</label>
+      <input type="text" id="parcours-create-name" class="bank-select" placeholder="Ex. Parcours Vaccination">
+      <label class="bank-edit-label">Description</label>
+      <textarea id="parcours-create-description" class="bank-edit-textarea"></textarea>
+      <label class="bank-edit-label">Public cible</label>
+      <input type="text" id="parcours-create-audience" class="bank-select" placeholder="Ex. Pharmaciens d'officine">
+      <label class="bank-edit-label">Couleur (optionnel)</label>
+      <input type="text" id="parcours-create-color" class="bank-select" placeholder="Ex. #2E7D32">
+      <label class="bank-edit-label">Icône (optionnel)</label>
+      <input type="text" id="parcours-create-icon" class="bank-select" placeholder="Ex. 💉">
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="closeCreateParcoursForm()">Annuler</button>
+        <button class="btn-primary" onclick="submitCreateParcours()">Créer le parcours</button>
+      </div>
+    </div>
+
+    <!-- DEUX COLONNES -->
+    <div class="bank-columns">
+
+      <!-- COLONNE GAUCHE : liste -->
+      <div class="bank-list-column">
+        <div id="parcours-list-empty" class="bank-list-empty" style="display:none;"></div>
+        <div id="parcours-list" class="bank-list"></div>
+        <div id="parcours-pagination" class="bank-pagination"></div>
+      </div>
+
+      <!-- COLONNE DROITE : fiche détaillée -->
+      <div class="bank-detail-column">
+        <div id="parcours-detail-placeholder" class="bank-detail-placeholder">
+          Sélectionnez un parcours dans la liste pour afficher sa fiche complète.
+        </div>
+        <div id="parcours-detail" class="bank-detail" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION AVANT ACTION SENSIBLE (memes classes que la Banque de questions) -->
+<div id="parcours-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Confirmation</h3>
+    <p id="parcours-confirm-message"></p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelParcoursAction()">Annuler</button>
+      <button class="btn-primary" id="parcours-confirm-btn" onclick="confirmParcoursAction()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANNEAU DE RECHERCHE DE QUESTIONS A LIER (pas de popup separee - un panneau repliable dans la fiche) -->
+<div id="parcours-link-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeLinkQuestionPanel()">✕</button>
+    <h3>Lier une question existante</h3>
+    <input type="text" id="parcours-link-search" class="bank-select" placeholder="Rechercher une question (identifiant ou énoncé)…" oninput="onLinkSearchInput()">
+    <div id="parcours-link-results" style="margin-top:12px; max-height:50vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<script type="module" src="parcours.js"></script>
+
+</body>
+</html>

@@ -4,6 +4,44 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.3.0 — Sprint 12 (Parcours — fondations)
+
+### Fonctionnalités ajoutées
+- **Nouvelle notion « Parcours »** (jamais « Parcours de compétences » dans l'interface — nom volontairement générique) : une organisation logique de compétences, chacune pouvant être liée à des questions existantes.
+- **Nouvel écran d'administration « Parcours »** (`admin/parcours.html` + `admin/parcours.js`), même style deux colonnes que la Banque de questions, réutilisant ses classes CSS.
+- **CRUD complet des parcours** : création, édition limitée (nom, description, public cible, couleur, icône), recherche, filtres (statut, auteur), tri, pagination réelle par curseur Firestore.
+- **Workflow de suppression sécurisée identique aux questions** : Parcours → Archivé → Corbeille → Suppression définitive, avec une permission dédiée `PURGE_PARCOURS` distincte de `MANAGE_PARCOURS`.
+- **Gestion complète des compétences** : ajout, suppression, réordonnancement (haut/bas), chacune avec un identifiant stable.
+- **Liaison de questions existantes** à une compétence (sélection manuelle via un panneau de recherche réutilisant le moteur de recherche des questions), sans jamais modifier les questions elles-mêmes.
+- **Historique visuel (timeline)** par parcours, même principe que celui des questions (Sprint 11).
+- **Journal d'audit dédié** (`parcours_audit_logs`), même principe que `question_audit_logs`.
+
+### Fichiers créés
+- `admin/parcours.html`, `admin/parcours.js`
+- `js/services/parcours-service.js`
+- `js/services/parcours-catalog-service.js`
+- `js/services/parcours-metadata-service.js`
+- `js/services/parcours-audit-service.js`
+
+### Fichiers modifiés
+- `js/services/authorization-service.js` — nouvelles permissions `MANAGE_PARCOURS`/`PURGE_PARCOURS` (admin/super_admin uniquement, jamais editor).
+- `index.html`, `css/styles.css` — navigation et styles additifs (uniquement pour l'affichage des compétences ; le reste réutilise les classes existantes de la Banque de questions).
+- `firestore.rules` — nouvelles collections `parcours/` et `parcours_audit_logs/`, reprenant fidèlement le workflow de suppression sécurisée des questions.
+- `firestore.indexes.json` — 4 index composites proposés pour les parcours.
+
+### Compatibilité
+**Aucun changement** au moteur de quiz, aux statistiques, à l'authentification, à l'import, à la Banque de questions ou à l'administration existante — vérifié explicitement par 978 vérifications de non-régression, toutes réussies.
+
+### Limites connues
+- Compétences en champ imbriqué du document Parcours, pas en sous-collection Firestore (choix délibéré pour ce sprint « fondations »).
+- Réordonnancement simple (haut/bas), pas de glisser-déposer.
+- Aucun lien avec le moteur de quiz — structure organisationnelle côté administration uniquement.
+
+### Tests
+1132 vérifications automatisées (154 nouvelles ciblées sur les Parcours, 978 rejouées sans régression). Voir `RAPPORT_SPRINT12.md`.
+
+---
+
 ## v2.2.1 — Correctifs avant validation (Sprint 11)
 
 ### Corrections apportées

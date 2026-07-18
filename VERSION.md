@@ -1,19 +1,19 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.2.1 (correctifs avant validation, Sprint 11)
+## Pharmeval — version actuelle : v2.3.0 (Sprint 12 — Parcours, fondations)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.2.0 (Sprint 11 — Banque de questions) |
-| Version actuelle | **v2.2.1** |
+| Version précédente | v2.2.1 (correctifs avant validation, Sprint 11) |
+| Version actuelle | **v2.3.0** |
 | Date | 18 juillet 2026 |
-| Objectif de cette version | Correctif (PATCH) avant déploiement du Sprint 11 : suppression sécurisée (workflow Archivée → Corbeille → Suppression définitive, permission dédiée PURGE_QUESTIONS), historique visuel consultable depuis la fiche, préparation architecturale de la recherche (limite configurable, abstraction de fournisseur). Bug critique de règle Firestore détecté et corrigé avant publication. Aucune régression. |
+| Objectif de cette version | Nouvelle fonctionnalité compatible avec l'existant (MINOR) : fondations des Parcours (organisation logique de compétences, chacune liable à des questions existantes), avec un écran d'administration dédié reprenant le style et le workflow de suppression sécurisée de la Banque de questions. Aucune régression sur l'existant — moteur de quiz, statistiques, authentification, import et Banque de questions strictement inchangés. |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.2.1) est documenté dans `CHANGELOG.md`. Le détail complet est documenté dans `RAPPORT_SPRINT11.md` (section « Correctifs avant validation »).
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.3.0) est documenté dans `CHANGELOG.md`. Le détail complet de ce sprint est documenté dans `RAPPORT_SPRINT12.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0)
 
 **v1.9.0 (Sprint 8)** — voir `RAPPORT_SPRINT8.md` :
 - Modifiés : `js/services/authorization-service.js` (additif), `js/admin.js`, `index.html`, `css/styles.css`.
@@ -41,6 +41,10 @@ Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque
 - Modifiés : `js/services/question-metadata-service.js` (statut TRASH), `js/services/authorization-service.js` (permission PURGE_QUESTIONS), `js/services/question-catalog-service.js` (limite de recherche configurable), `js/services/question-bank-service.js` (workflow de suppression sécurisée, timeline), `admin/bank.js`, `admin/bank.html`, `css/styles.css`, `firestore.rules` (règle générale resserrée + règle dédiée archived↔trash).
 - Créés : `js/services/question-search-provider.js`.
 
+**v2.3.0 (Sprint 12)** — voir `RAPPORT_SPRINT12.md` :
+- Modifiés : `js/services/authorization-service.js` (permissions MANAGE_PARCOURS/PURGE_PARCOURS), `index.html`, `css/styles.css` (additif), `firestore.rules` (nouvelles collections parcours/ et parcours_audit_logs/), `firestore.indexes.json` (4 nouveaux index).
+- Créés : `admin/parcours.html`, `admin/parcours.js`, `js/services/parcours-service.js`, `js/services/parcours-catalog-service.js`, `js/services/parcours-metadata-service.js`, `js/services/parcours-audit-service.js`.
+
 ## Fonctionnalités conservées
 
 Toutes les fonctionnalités des versions précédentes, sans exception — vérifié par une suite de régression complète rejouée à chaque sprint (voir chaque `RAPPORT_SPRINTx.md` pour le détail) :
@@ -53,6 +57,7 @@ Toutes les fonctionnalités des versions précédentes, sans exception — véri
 - **Nouveau (v1.9.0)** : Centre d'administration complet (tableau des utilisateurs, gestion des rôles/statuts, journal d'audit).
 - **Nouveau (v2.0.0)** : modèle de métadonnées pédagogiques complet pour chaque question (calculé à la demande, jamais stocké dans `data/questions.js`), prêt pour un futur éditeur de questions, des imports, des campagnes et une recherche enrichie.
 - **Nouveau (v2.2.0)** : interface d'administration « Banque de questions » (recherche, filtres, tri, pagination Firestore réelle, fiche détaillée, badges de statut, indicateur de complétude, actions limitées avec confirmation et journalisation).
+- **Nouveau (v2.3.0)** : Parcours (organisation logique de compétences, liaison de questions existantes), fondations structurelles pour de futurs déploiements (universités, officines, entreprises).
 - L'intégralité du moteur de quiz d'origine (949 questions, tous types confondus), inchangée depuis la migration multi-fichiers (v1.2.0).
 
 ## Fonctionnalités ajoutées par ces versions
@@ -78,6 +83,8 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 11. **Recherche textuelle de la Banque de questions bornée** (500 par défaut, désormais configurable — correctif v2.2.1) par filtres actifs : limite Firestore native (pas de recherche plein texte), documentée, pas cachée. Une abstraction (`question-search-provider.js`) prépare une future intégration externe, non encore développée.
 12. **Édition limitée à explication/tags/source dans la Banque de questions** (Sprint 11) : pas d'éditeur complet, aucune modification de l'énoncé, des réponses, du thème ou de la difficulté possible depuis cet écran.
 13. **Suppression définitive irréversible une fois confirmée** (correctif v2.2.1) : le workflow Archivée → Corbeille → Suppression définitive protège contre une perte accidentelle, mais la dernière étape (purge, réservée à la permission `PURGE_QUESTIONS`) reste volontairement sans mécanisme de restauration.
-14. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
+14. **Compétences des Parcours en champ imbriqué, pas en sous-collection Firestore** (Sprint 12) : choix délibéré pour ce sprint « fondations » — voir `RAPPORT_SPRINT12.md` pour la justification et la piste de migration si le besoin évolue.
+15. **Aucun lien entre les Parcours et le moteur de quiz** (Sprint 12) : structure organisationnelle côté administration uniquement, explicitement hors périmètre de ce sprint.
+16. Le fichier d'archive du monolithe d'origine (≈ 37 Mo, `archive/Pharmeval-monolithique-v1.1.0.html`) dépasse la limite de 25 Mo de l'interface web de dépôt GitHub (upload par glisser-déposer) ; à ajouter via `git` en ligne de commande ou GitHub Desktop si nécessaire.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).
