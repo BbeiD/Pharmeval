@@ -25,6 +25,13 @@ import {
 } from "../js/services/parcours-service.js";
 import { browseCompetencies } from "../js/services/competency-service.js";
 import { COMPETENCY_COLOR_HEX, resolveCompetencyColorHex } from "../js/services/competency-metadata-service.js";
+import {
+  ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_TARGET_TYPE_LABELS,
+  ASSIGNMENT_PRIORITIES,
+} from "../js/services/assignment-metadata-service.js";
+import {
+  listParcoursAssignments, createAssignment, removeAssignment, searchAssignmentTargets,
+} from "../js/services/assignment-service.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -307,6 +314,7 @@ export async function selectParcours(id) {
   detailEl.innerHTML = detailHtml(p, resolvedCompetencies);
 
   await renderTimeline(p);
+  await renderAssignments(p);
 }
 
 function detailHtml(p, resolvedCompetencies) {
@@ -387,6 +395,15 @@ function detailHtml(p, resolvedCompetencies) {
   html += '<div class="btn-row"><button class="btn-primary" onclick="openCompetencyPickerPanel()">+ Ajouter une compétence (banque)</button></div>';
   html += '</div>';
 
+  // NOUVEAU (Sprint 15) : "Attributions" - qui reçoit ce parcours
+  // (utilisateur / groupe / profil). Rempli de façon asynchrone par
+  // renderAssignments() juste après ce rendu (voir selectParcours) -
+  // même principe que le conteneur d'historique ci-dessous.
+  html += '<div class="bank-detail-section"><h4>Attributions</h4>';
+  html += '<div id="parcours-assignments-container" class="bank-timeline">Chargement…</div>';
+  html += '<div class="btn-row"><button class="btn-primary" onclick="openAssignmentPickerPanel()">+ Attribuer</button></div>';
+  html += '</div>';
+
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
   if (p.status !== 'trash') {
     if (p.status !== 'published') html += '<button class="btn-primary" onclick="requestParcoursAction(\'publish\')">Publier</button>';
@@ -443,6 +460,103 @@ async function renderTimeline(p) {
     html += '<p class="bank-timeline-partial-note">Historique partiel : le journal détaillé des actions n\u2019a pas pu être chargé pour le moment.</p>';
   }
   container.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// NOUVEAU (Sprint 15) : Attributions (utilisateur / groupe / profil)
+// ---------------------------------------------------------------------------
+
+async function renderAssignments(p) {
+  const container = document.getElementById('parcours-assignments-container');
+  if (!container) return;
+  const result = await listParcoursAssignments(p.id);
+  if (!result.authorized) { container.textContent = result.message || 'Accès refusé.'; return; }
+  if (result.error) { container.textContent = result.message; return; }
+  if (result.items.length === 0) { container.textContent = 'Ce parcours n\'est attribué à personne pour l\'instant.'; return; }
+
+  container.innerHTML = '<ul class="bank-timeline-list">' + result.items.map(function(a) {
+    const typeLabel = ASSIGNMENT_TARGET_TYPE_LABELS[a.type] || a.type;
+    const dueLabel = a.dueDate ? ' · échéance : ' + escapeHtml(formatDateFr(a.dueDate)) : '';
+    const mandatoryLabel = a.mandatory ? ' · obligatoire' : '';
+    return '<li class="bank-timeline-item">' +
+      '<div class="bank-timeline-date">' + escapeHtml(typeLabel) + '</div>' +
+      '<div class="bank-timeline-label">' + escapeHtml(a.targetLabel) + dueLabel + mandatoryLabel +
+      ' <a href="#" onclick="requestRemoveAssignment(\'' + escapeHtml(a.id) + '\');return false;" title="Retirer">✕</a></div>' +
+      '</li>';
+  }).join('') + '</ul>';
+}
+
+let assignmentPickerType = ASSIGNMENT_TARGET_TYPES.USER;
+let assignmentPickerSelectedTarget = null; // {id, label}
+let assignmentPickerDebounce = null;
+
+export function openAssignmentPickerPanel() {
+  assignmentPickerType = ASSIGNMENT_TARGET_TYPES.USER;
+  assignmentPickerSelectedTarget = null;
+  document.getElementById('parcours-assignment-search').value = '';
+  document.getElementById('parcours-assignment-duedate').value = '';
+  document.getElementById('parcours-assignment-priority').value = ASSIGNMENT_PRIORITIES.NORMAL;
+  document.getElementById('parcours-assignment-mandatory').checked = false;
+  document.querySelectorAll('.parcours-assignment-type-btn').forEach(function(btn) {
+    btn.classList.toggle('bank-row-selected', btn.getAttribute('data-type') === assignmentPickerType);
+  });
+  document.getElementById('parcours-assignment-overlay').style.display = 'flex';
+  runAssignmentTargetSearch('');
+}
+export function closeAssignmentPickerPanel() {
+  document.getElementById('parcours-assignment-overlay').style.display = 'none';
+}
+export function pickAssignmentType(type) {
+  assignmentPickerType = type;
+  assignmentPickerSelectedTarget = null;
+  document.querySelectorAll('.parcours-assignment-type-btn').forEach(function(btn) {
+    btn.classList.toggle('bank-row-selected', btn.getAttribute('data-type') === type);
+  });
+  runAssignmentTargetSearch(valueOf('parcours-assignment-search'));
+}
+export function onAssignmentSearchInput() {
+  clearTimeout(assignmentPickerDebounce);
+  const value = valueOf('parcours-assignment-search');
+  assignmentPickerDebounce = setTimeout(function() { runAssignmentTargetSearch(value); }, 250);
+}
+async function runAssignmentTargetSearch(searchText) {
+  const container = document.getElementById('parcours-assignment-results');
+  container.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+  const results = await searchAssignmentTargets(assignmentPickerType, searchText);
+  if (results.length === 0) { container.innerHTML = '<p class="bank-list-empty">Aucun résultat.</p>'; return; }
+  container.innerHTML = results.map(function(r) {
+    const selected = assignmentPickerSelectedTarget && assignmentPickerSelectedTarget.id === r.id;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+      '<input type="radio" name="parcours-assignment-target" onchange="pickAssignmentTarget(\'' + escapeHtml(r.id) + '\',\'' + escapeHtml(r.label) + '\')"' + (selected ? ' checked' : '') + '>' +
+      '<span>' + escapeHtml(r.label) + '</span></label>';
+  }).join('');
+}
+export function pickAssignmentTarget(id, label) {
+  assignmentPickerSelectedTarget = { id: id, label: label };
+}
+export async function confirmAssignmentPicker() {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  if (!p || !assignmentPickerSelectedTarget) {
+    showParcoursMessage('denied', 'Sélectionnez une cible avant de confirmer.');
+    return;
+  }
+  const result = await createAssignment({
+    parcoursId: p.id, type: assignmentPickerType, targetId: assignmentPickerSelectedTarget.id,
+    dueDate: valueOf('parcours-assignment-duedate') || null,
+    priority: document.getElementById('parcours-assignment-priority').value,
+    mandatory: document.getElementById('parcours-assignment-mandatory').checked,
+  });
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    closeAssignmentPickerPanel();
+    await renderAssignments(p);
+  }
+}
+
+export function requestRemoveAssignment(assignmentId) {
+  pendingAction = { kind: 'remove_assignment', assignmentId: assignmentId };
+  document.getElementById('parcours-confirm-message').textContent = 'Voulez-vous vraiment retirer cette attribution ?';
+  document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
 // ---------------------------------------------------------------------------
@@ -676,6 +790,19 @@ export async function confirmParcoursAction() {
   const action = pendingAction;
   pendingAction = null;
 
+  // NOUVEAU (Sprint 15) : suppression d'une attribution - cas distinct des
+  // transitions de statut du parcours ci-dessous (ne concerne jamais le
+  // parcours lui-même, seulement le lien assignments/{id}).
+  if (action.kind === 'remove_assignment') {
+    const result = await removeAssignment(action.assignmentId);
+    showParcoursMessage(result.status, result.message);
+    if (result.status === 'success') {
+      const p = state.items.find(function(item) { return item.id === state.selectedId; });
+      if (p) await renderAssignments(p);
+    }
+    return;
+  }
+
   let result;
   if (action.kind === 'publish') result = await publishParcours(action.parcours);
   else if (action.kind === 'archive') result = await archiveParcours(action.parcours);
@@ -746,3 +873,10 @@ window.closeCompetencyPickerPanel = closeCompetencyPickerPanel;
 window.onCompetencyPickerSearchInput = onCompetencyPickerSearchInput;
 window.toggleCompetencyPick = toggleCompetencyPick;
 window.confirmCompetencyPicker = confirmCompetencyPicker;
+window.openAssignmentPickerPanel = openAssignmentPickerPanel;
+window.closeAssignmentPickerPanel = closeAssignmentPickerPanel;
+window.pickAssignmentType = pickAssignmentType;
+window.onAssignmentSearchInput = onAssignmentSearchInput;
+window.pickAssignmentTarget = pickAssignmentTarget;
+window.confirmAssignmentPicker = confirmAssignmentPicker;
+window.requestRemoveAssignment = requestRemoveAssignment;

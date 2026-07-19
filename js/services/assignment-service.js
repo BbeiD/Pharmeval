@@ -1,0 +1,254 @@
+// ===================== SERVICE D'ORCHESTRATION DES ATTRIBUTIONS (Sprint 15) =====================
+// Point d'entree UNIQUE pour :
+//   - la section "Attributions" de la fiche d'un parcours (admin/parcours.js) ;
+//   - la resolution "Mes parcours" pour un utilisateur donne (mes-parcours.js).
+// Coordonne :
+//   - js/services/assignment-catalog-service.js  (lecture/ecriture Firestore)
+//   - js/services/assignment-metadata-service.js (modele de donnees, defauts, validation)
+//   - js/services/authorization-service.js       (controle d'acces : reutilise MANAGE_PARCOURS, Sprint 12)
+//   - js/services/parcours-catalog-service.js    (REUTILISE getParcoursById - jamais de copie du parcours)
+//   - js/services/user-management-service.js / organizations-bank / profiles-bank / groups-bank
+//     (resolution des cibles en libelles affichables)
+//
+// PERMISSION REUTILISEE (pas de nouveau systeme de droits, SPRINT15
+// "Contraintes" implicite + coherence avec le reste du projet) : gerer les
+// attributions d'un parcours est une extension directe de la gestion de ce
+// parcours - MANAGE_PARCOURS (Sprint 12) est donc reutilisee telle quelle,
+// aucune permission dediee n'est creee.
+
+import { PERMISSIONS, hasPermission } from "./authorization-service.js";
+import { getCurrentUserContext } from "./app-context.js";
+import {
+  ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_STATUSES,
+  completeAssignmentMetadata, validateAssignmentMetadata,
+} from "./assignment-metadata-service.js";
+import {
+  createAssignmentDocument, deleteAssignmentDocument,
+  listAssignmentsByParcours, listAssignmentsByTarget, listAssignmentsByTargetIn,
+  assignmentExists,
+} from "./assignment-catalog-service.js";
+import { getParcoursById } from "./parcours-catalog-service.js";
+import { getUserByUid, fetchAllUsersBounded } from "./user-management-service.js";
+import { formatUserFullName } from "./user-profile-metadata-service.js";
+import { profilesBank } from "./profiles-bank-service.js";
+import { groupsBank } from "./groups-bank-service.js";
+
+function denied(message) { return { status: 'denied', message: message }; }
+function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
+function errorResult(message) { return { status: 'error', message: message }; }
+
+function checkAccess() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour gérer les attributions.');
+  if (!hasPermission(PERMISSIONS.MANAGE_PARCOURS)) return denied('La gestion des attributions est réservée aux administrateurs.');
+  return { status: 'authorized' };
+}
+
+// ---------------------------------------------------------------------------
+// Résolution d'une cible en libellé affichable
+// ---------------------------------------------------------------------------
+
+async function resolveTargetLabel(type, targetId) {
+  if (type === ASSIGNMENT_TARGET_TYPES.USER) {
+    const user = await getUserByUid(targetId);
+    return user ? formatUserFullName(user) + ' (' + (user.email || targetId) + ')' : targetId + ' (utilisateur introuvable)';
+  }
+  if (type === ASSIGNMENT_TARGET_TYPES.GROUP) {
+    const group = await groupsBank.getById(targetId);
+    return group ? group.name : targetId + ' (groupe introuvable)';
+  }
+  if (type === ASSIGNMENT_TARGET_TYPES.PROFILE) {
+    const profile = await profilesBank.getById(targetId);
+    return profile ? profile.name : targetId + ' (profil introuvable)';
+  }
+  return targetId;
+}
+
+/**
+ * Recherche des cibles possibles pour un type d'attribution donne (utilise
+ * par le panneau "+ Attribuer" de la fiche parcours - "Prévoir une
+ * recherche", SPRINT15). REUTILISE les banques deja existantes (Sprint 14)
+ * plutot que de dupliquer une recherche.
+ * @param {string} type
+ * @param {string} searchText
+ * @returns {Promise<Array<{id:string, label:string}>>}
+ */
+export async function searchAssignmentTargets(type, searchText) {
+  const needle = (searchText || '').toString().trim().toLowerCase();
+  if (type === ASSIGNMENT_TARGET_TYPES.GROUP) {
+    const result = await groupsBank.browse({ searchText: searchText, filters: { status: 'published' }, pageSize: 20 });
+    return (result.items || []).map(function(g) { return { id: g.id, label: g.name }; });
+  }
+  if (type === ASSIGNMENT_TARGET_TYPES.PROFILE) {
+    const result = await profilesBank.browse({ searchText: searchText, filters: { status: 'published' }, pageSize: 20 });
+    return (result.items || []).map(function(p) { return { id: p.id, label: p.name }; });
+  }
+  if (type === ASSIGNMENT_TARGET_TYPES.USER) {
+    // Recherche legere directement ici (pas de dependance sur
+    // user-directory-service.js/admin-service.js - separation des
+    // responsabilites) : reutilise fetchAllUsersBounded() (Sprint 8).
+    const result = await fetchAllUsersBounded();
+    if (result.error) return [];
+    return result.items
+      .filter(function(u) {
+        if (!needle) return true;
+        const hay = [u.uid, u.email, u.firstName, u.lastName, u.displayName].filter(Boolean).join(' ').toLowerCase();
+        return hay.indexOf(needle) !== -1;
+      })
+      .slice(0, 20)
+      .map(function(u) { return { id: u.uid, label: formatUserFullName(u) + ' (' + u.email + ')' }; });
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// Gestion des attributions d'un parcours (admin/parcours.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Liste les attributions d'un parcours, avec le libellé de chaque cible
+ * déjà résolu pour un affichage direct.
+ * @param {string} parcoursId
+ * @returns {Promise<{authorized:boolean, message?:string, error?:boolean, items:Array<object>}>}
+ */
+export async function listParcoursAssignments(parcoursId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return { authorized: false, message: access.message, items: [] };
+
+  const result = await listAssignmentsByParcours(parcoursId);
+  if (result.error) return { authorized: true, error: true, message: 'Impossible de charger les attributions pour le moment.', items: [] };
+
+  const items = await Promise.all(result.items.map(async function(a) {
+    return Object.assign({}, a, { targetLabel: await resolveTargetLabel(a.type, a.targetId) });
+  }));
+  return { authorized: true, error: false, items: items };
+}
+
+/**
+ * Attribue un parcours a une cible (utilisateur, groupe ou profil).
+ * Refuse silencieusement (statut "denied", pas une erreur) toute
+ * attribution strictement identique deja existante - "Ne jamais dupliquer
+ * un parcours" est ici interprete comme "ne jamais dupliquer une
+ * attribution non plus", pour un comportement previsible côté interface.
+ *
+ * @param {{parcoursId:string, type:string, targetId:string, dueDate?:(string|null), priority?:string, mandatory?:boolean}} fields
+ * @returns {Promise<object>}
+ */
+export async function createAssignment(fields) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+
+  const f = fields || {};
+  if (!f.parcoursId) return errorResult('Parcours cible introuvable.');
+
+  // "Ne jamais dupliquer un parcours. Toujours travailler par références
+  // Firestore." : verifie que le parcours reference existe reellement
+  // AVANT toute ecriture - jamais de reference orpheline creee.
+  const parcours = await getParcoursById(f.parcoursId);
+  if (!parcours) return errorResult('Le parcours référencé est introuvable.');
+
+  const alreadyExists = await assignmentExists(f.parcoursId, f.type, f.targetId);
+  if (alreadyExists) return denied('Ce parcours est déjà attribué à cette cible.');
+
+  const ctx = getCurrentUserContext();
+  const metadata = completeAssignmentMetadata({
+    parcoursId: f.parcoursId, type: f.type, targetId: f.targetId,
+    dueDate: f.dueDate || null, priority: f.priority, mandatory: f.mandatory,
+    status: ASSIGNMENT_STATUSES.ACTIVE,
+    assignedAt: new Date().toISOString(),
+    assignedBy: (ctx && ctx.email) || null,
+  });
+
+  const validation = validateAssignmentMetadata(metadata);
+  if (!validation.valid) return errorResult(validation.errors.join(' '));
+
+  const result = await createAssignmentDocument(metadata);
+  if (!result.success) return errorResult('L\'attribution a échoué. Veuillez réessayer.');
+
+  const targetLabel = await resolveTargetLabel(metadata.type, metadata.targetId);
+  return success('Parcours attribué avec succès à ' + targetLabel + '.', { assignment: Object.assign({}, metadata, { targetLabel: targetLabel }) });
+}
+
+/**
+ * Supprime une attribution ("supprimer une attribution" - suppression
+ * réelle et immédiate, voir assignment-catalog-service.js en-tête).
+ * @param {string} assignmentId
+ * @returns {Promise<object>}
+ */
+export async function removeAssignment(assignmentId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!assignmentId) return errorResult('Attribution cible introuvable.');
+
+  const result = await deleteAssignmentDocument(assignmentId);
+  if (!result.success) return errorResult('La suppression de l\'attribution a échoué. Veuillez réessayer.');
+  return success('Attribution supprimée avec succès.');
+}
+
+// ---------------------------------------------------------------------------
+// Résolution "Mes parcours" (SPRINT15, "Priorité d'affichage")
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrouve TOUS les parcours attribués à un utilisateur, qu'ils lui soient
+ * attribués directement, via son groupe, ou via son profil - avec
+ * DÉDUPLICATION AUTOMATIQUE par parcours ("Le pharmacien ne doit le voir
+ * qu'une seule fois", exemple du cadrage).
+ *
+ * Accessible a TOUT utilisateur authentifié pour SA PROPRE fiche
+ * uniquement (pas de permission d'administration requise ici - c'est
+ * l'espace utilisateur, pas un écran d'administration ; voir
+ * firestore.rules pour la garantie réelle côté serveur).
+ *
+ * Seuls les parcours au statut `published` sont retournés : un parcours
+ * encore en brouillon ou archivé ne doit jamais apparaître dans l'espace
+ * d'un utilisateur, même s'il lui a été attribué par erreur avant
+ * publication.
+ *
+ * @param {string} uid
+ * @returns {Promise<{items:Array<{parcours:object, assignment:object}>, error:boolean}>}
+ */
+export async function getAssignedParcoursForUser(uid) {
+  if (!uid) return { items: [], error: false };
+
+  const user = await getUserByUid(uid);
+  if (!user) return { items: [], error: true };
+
+  const [directResult, profileResult, groupResult] = await Promise.all([
+    listAssignmentsByTarget(ASSIGNMENT_TARGET_TYPES.USER, uid),
+    user.profileId ? listAssignmentsByTarget(ASSIGNMENT_TARGET_TYPES.PROFILE, user.profileId) : { items: [], error: false },
+    (Array.isArray(user.groupIds) && user.groupIds.length > 0) ? listAssignmentsByTargetIn(ASSIGNMENT_TARGET_TYPES.GROUP, user.groupIds) : { items: [], error: false },
+  ]);
+  if (directResult.error || profileResult.error || groupResult.error) {
+    return { items: [], error: true };
+  }
+
+  const allAssignments = directResult.items.concat(profileResult.items, groupResult.items)
+    .filter(function(a) { return a.status === ASSIGNMENT_STATUSES.ACTIVE; });
+
+  // DEDUPLICATION par parcoursId : conserve la PREMIERE attribution
+  // rencontrée pour un même parcours (l'ordre direct > profil > groupe
+  // n'a ici qu'une valeur de repli d'affichage - aucune fusion de champs
+  // "prepares pour le futur" n'est effectuee, ces champs restant non
+  // exploites ce sprint).
+  const byParcoursId = new Map();
+  allAssignments.forEach(function(a) {
+    if (!byParcoursId.has(a.parcoursId)) byParcoursId.set(a.parcoursId, a);
+  });
+
+  const parcoursIds = Array.from(byParcoursId.keys());
+  const parcoursDocs = await Promise.all(parcoursIds.map(getParcoursById));
+
+  const items = [];
+  parcoursIds.forEach(function(pid, i) {
+    const parcours = parcoursDocs[i];
+    // Un parcours peut avoir ete supprime/depublie apres son attribution -
+    // filtre silencieusement (jamais une carte cassee affichee a
+    // l'utilisateur), sans jamais modifier ni supprimer l'attribution
+    // elle-meme (qui redeviendra visible si le parcours est republie).
+    if (!parcours || parcours.status !== 'published') return;
+    items.push({ parcours: parcours, assignment: byParcoursId.get(pid) });
+  });
+
+  return { items: items, error: false };
+}

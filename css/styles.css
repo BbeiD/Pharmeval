@@ -1406,4 +1406,13 @@
   .parcours-bulk-summary-count { font-weight: 700; }
   .parcours-bulk-duplicates { color: #8a6d0a; }
   .bank-timeline-partial-note { font-size: 11px; color: var(--text2); font-style: italic; margin-top: 6px; }
+
+  /* ---- NOUVEAU (Sprint 15) : cartes "Mes parcours" (espace utilisateur) ---- */
+  .mesparcours-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+  .mesparcours-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+  .mesparcours-card-stripe { height: 6px; background: var(--border); }
+  .mesparcours-card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .mesparcours-card-body h3 { margin: 0; font-size: 16px; }
+  .mesparcours-card-body p { margin: 0; font-size: 13px; color: var(--text2); flex: 1; }
+  .mesparcours-card-body .btn-primary { align-self: flex-start; margin-top: 4px; }
   

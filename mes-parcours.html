@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Mes parcours</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="mesparcours-loading">Chargement…</div>
+
+<div id="mesparcours-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>🧭 Mes parcours</h2>
+      <a href="index.html" class="btn-secondary">← Retour à l'accueil</a>
+    </div>
+
+    <p class="admin-users-disclaimer">Les parcours ci-dessous vous ont été attribués directement, via votre groupe, ou via votre profil. Le contenu détaillé (compétences, évaluations, progression) sera disponible dans une prochaine mise à jour.</p>
+
+    <div id="mesparcours-message" class="admin-message" style="display:none;"></div>
+
+    <div id="mesparcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant. Contactez votre organisation ou votre administrateur Pharmeval.</div>
+
+    <div id="mesparcours-grid" class="mesparcours-grid"></div>
+  </div>
+</div>
+
+<script type="module" src="js/mes-parcours.js"></script>
+
+</body>
+</html>

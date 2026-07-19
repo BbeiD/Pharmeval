@@ -592,6 +592,58 @@ service cloud.firestore {
                     && request.resource.data.consumedByUid == request.auth.uid;
     }
 
+    // =========================================================================
+    // NOUVEAU (Sprint 15) : moteur d'attribution des parcours
+    // =========================================================================
+    // Collection GLOBALE `assignments` (jamais un champ imbriqué dans
+    // `parcours/{id}` - voir SPRINT15, "Ne pas modifier directement les
+    // documents des parcours"). Chaque document relie UN `parcoursId` à
+    // UNE cible (`type` = 'user'/'group'/'profile' + `targetId`).
+    //
+    // Lecture ADMINISTRATEUR : libre (écran "Attributions" de la fiche
+    // parcours).
+    // Lecture UTILISATEUR STANDARD : UNIQUEMENT les attributions le
+    // concernant réellement - directement (targetId == son propre uid),
+    // via son profil (targetId == son propre `profileId`), ou via l'un de
+    // ses groupes (targetId dans son propre `groupIds`) - jamais les
+    // attributions d'un autre utilisateur, jamais par simple modification
+    // de la requête côté client (vérifié ici via `get()` sur son propre
+    // document `users/{uid}`, même principe que `isRequesterAdmin()` et
+    // que la règle de consommation de `pending_user_invites` ci-dessus).
+    // C'est cette règle qui rend "Mes parcours" (mes-parcours.html)
+    // réellement sûr, indépendamment de toute discipline du code client.
+    //
+    // Écriture : réservée à l'administrateur (aucun workflow de contenu -
+    // brouillon/publication/corbeille - pour une simple attribution ;
+    // "supprimer une attribution" est une suppression Firestore réelle et
+    // immédiate, jamais un statut intermédiaire).
+    match /assignments/{assignmentId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null
+                      && resource.data.type == 'user'
+                      && resource.data.targetId == request.auth.uid)
+                  || (request.auth != null
+                      && resource.data.type == 'profile'
+                      && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                      && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profileId == resource.data.targetId)
+                  || (request.auth != null
+                      && resource.data.type == 'group'
+                      && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                      && resource.data.targetId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupIds);
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.id == assignmentId
+                    && request.resource.data.parcoursId is string
+                    && request.resource.data.type in ['user', 'group', 'profile'];
+
+      // Pas de restriction fine par champ ce sprint (pas de workflow de
+      // contenu à protéger, contrairement aux banques Sprint 12-14) - les
+      // champs "préparés pour le futur" (priorité, échéance, obligatoire,
+      // statut) pourront être modifiés sans devoir rouvrir cette règle.
+      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id;
+      allow delete: if isRequesterAdmin();
+    }
+
 
     // =========================================================================
     // NOUVEAU (Sprint 10, demande complementaire) : journal des imports

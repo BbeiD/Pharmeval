@@ -1,21 +1,25 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.5.0 (Sprint 14 — Module Utilisateurs)
+## Pharmeval — version actuelle : v2.6.0 (Sprint 15 — Attribution des parcours)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.4.0 (Sprint 13 — Banque des compétences) |
-| Version actuelle | **v2.5.0** |
+| Version précédente | v2.5.0 (Sprint 14 — Module Utilisateurs) |
+| Version actuelle | **v2.6.0** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : premier module de gestion des utilisateurs (fiche métier, organisation, profil référencé, groupes multiples, désactivation), nouvelle Banque des organisations (créée dans ce sprint, voir écart constaté), nouvelle Banque des profils (référence, plus de saisie libre), nouvelle Banque des groupes, pré-provisionnement par e-mail. Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT14.md`, section 9). |
+| Objectif de cette version | MINOR : moteur d'attribution des parcours (utilisateur/groupe/profil), nouvelle collection `assignments`, résolution dédupliquée pour l'espace utilisateur, section « Attributions » dans la fiche parcours, nouvelle page « Mes parcours ». Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT15.md`, section 8). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.5.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT14.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.6.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT15.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0)
 
-**v2.5.0 (Sprint 14)** — voir `RAPPORT_SPRINT14.md` :
+**v2.6.0 (Sprint 15)** — voir `RAPPORT_SPRINT15.md` :
+- Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
+- Modifiés : `admin/parcours.js`, `admin/parcours.html` (section Attributions), `index.html` (lien Mes parcours), `css/styles.css` (additif), `firestore.rules` (nouvelle collection `assignments/`), `firestore.indexes.json` (3 nouveaux index).
+
+
 - Créés : `js/services/reference-bank-service.js`, `organizations-bank-service.js`, `profiles-bank-service.js`, `groups-bank-service.js`, `user-profile-metadata-service.js`, `user-invite-service.js`, `user-directory-service.js`, `admin/reference-banks.html`, `admin/reference-banks.js`, `admin/users.html`, `admin/users.js`.
 - Modifiés : `js/services/authorization-service.js` (permissions MANAGE_REFERENCE_DATA/PURGE_REFERENCE_DATA), `js/services/user-service.js` (champs métier additifs, pré-provisionnement), `js/services/user-management-service.js` (updateUserBusinessFields), `js/services/admin-service.js` (updateUserBusinessProfile), `js/services/audit-service.js` (filtre targetUid), `index.html`, `firestore.rules` (nouvelle règle métier + 5 nouvelles collections), `firestore.indexes.json` (9 nouveaux index).
 
@@ -105,5 +109,8 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 21. **« Création » d'un utilisateur (Sprint 14) = pré-provisionnement par e-mail**, jamais un compte de connexion : conséquence assumée de « ne pas créer de système d'authentification supplémentaire ».
 22. **Deux écrans de gestion des utilisateurs coexistent** (Sprint 8 : tableau simple rôle/statut dans `index.html`/`js/admin.js` ; Sprint 14 : module complet `admin/users.html`) — non consolidés dans ce sprint.
 23. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 14** : mêmes limites d'environnement que le Sprint 13 — voir `RAPPORT_SPRINT14.md`, section 9. Statut proposé : À_TESTER.
+24. **Pas d'interface de gestion des attributions depuis la fiche utilisateur/groupe/profil** (Sprint 15) : uniquement depuis la fiche du parcours, comme demandé explicitement.
+25. **Aucun journal d'audit dédié aux attributions** (Sprint 15) : `assignedBy`/`assignedAt` tracent la création, aucune trace n'est conservée après suppression — choix délibéré de sobriété, voir `RAPPORT_SPRINT15.md` section 7.
+26. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 15**, notamment la règle de sécurité utilisant `in` sur `get(...).data.groupIds` — voir `RAPPORT_SPRINT15.md`, section 8. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

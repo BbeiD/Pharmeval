@@ -4,6 +4,38 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.6.0 — Sprint 15 (Attribution des parcours)
+
+### Fonctionnalités ajoutées
+- **Moteur d'attribution des parcours** : un parcours peut être attribué directement à un utilisateur, à un groupe, ou à un profil — nouvelle collection Firestore dédiée `assignments` (jamais un champ imbriqué dans `parcours`).
+- **Résolution dédupliquée** (`getAssignedParcoursForUser()`) : retrouve tous les parcours attribués à un utilisateur (direct + groupe + profil) sans jamais afficher un même parcours deux fois.
+- **Section « Attributions »** dans la fiche détaillée d'un parcours (`admin/parcours.html`) : liste des attributions, recherche de cible, ajout (utilisateur/groupe/profil + échéance/priorité/obligatoire), suppression.
+- **Nouvelle page « Mes parcours »** (`mes-parcours.html`), espace utilisateur accessible après connexion : cartes des parcours attribués (nom, description, statut), bouton « Ouvrir » (contenu détaillé prévu au Sprint 16).
+- **Architecture préparée pour le futur** : chaque attribution porte déjà date, auteur, échéance (nullable), priorité, caractère obligatoire et statut — non exploités ce sprint.
+
+### Fichiers créés
+- `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`
+- `mes-parcours.html`, `js/mes-parcours.js`
+- `RAPPORT_SPRINT15.md`
+
+### Fichiers modifiés
+- `admin/parcours.js`, `admin/parcours.html` — section Attributions.
+- `index.html` — lien « Mes parcours ».
+- `css/styles.css` — styles additifs des cartes « Mes parcours ».
+- `firestore.rules` — nouvelle collection `assignments/` (lecture utilisateur strictement limitée à ses propres attributions, vérifiée côté serveur).
+- `firestore.indexes.json` — 3 nouveaux index composites.
+
+### Compatibilité
+Aucun champ de `parcours/{id}` modifié. Aucune modification du moteur de quiz, de l'authentification, de la Banque de questions, de la Banque des compétences ou du module Utilisateurs.
+
+### Limites connues
+Voir `RAPPORT_SPRINT15.md`, section 7 (notamment : pas d'interface de gestion des attributions depuis la fiche utilisateur/groupe/profil, seulement depuis la fiche du parcours, comme demandé ; aucun journal d'audit dédié aux attributions).
+
+### Tests
+Vérification syntaxique de l'ensemble des fichiers JavaScript, vérification JSON des index, vérification d'équilibre de `firestore.rules`, vérification croisée des identifiants DOM et fonctions exposées, relecture manuelle complète — en particulier de la règle de sécurité limitant la lecture des attributions. **Aucun test fonctionnel réel sur un projet Firebase** (non disponible dans cet environnement) — à exécuter avant publication, voir `RAPPORT_SPRINT15.md`, section 8.
+
+---
+
 ## v2.5.0 — Sprint 14 (Module Utilisateurs)
 
 ### Fonctionnalités ajoutées

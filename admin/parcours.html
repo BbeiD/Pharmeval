@@ -146,6 +146,41 @@
   </div>
 </div>
 
+<!-- NOUVEAU (Sprint 15) : panneau d'attribution du parcours a une cible
+     (utilisateur, groupe ou profil) - "Architecture" du Sprint 15. -->
+<div id="parcours-assignment-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeAssignmentPickerPanel()">✕</button>
+    <h3>Attribuer ce parcours</h3>
+
+    <div class="btn-row" style="margin-bottom:8px;">
+      <button type="button" class="btn-secondary parcours-assignment-type-btn" data-type="user" onclick="pickAssignmentType('user')">👤 Utilisateur</button>
+      <button type="button" class="btn-secondary parcours-assignment-type-btn" data-type="group" onclick="pickAssignmentType('group')">👥 Groupe</button>
+      <button type="button" class="btn-secondary parcours-assignment-type-btn" data-type="profile" onclick="pickAssignmentType('profile')">🎓 Profil</button>
+    </div>
+
+    <input type="text" id="parcours-assignment-search" class="bank-select" placeholder="Rechercher…" oninput="onAssignmentSearchInput()">
+    <div id="parcours-assignment-results" style="margin-top:8px; max-height:35vh; overflow-y:auto;"></div>
+
+    <label class="bank-edit-label">Échéance (optionnel)</label>
+    <input type="date" id="parcours-assignment-duedate" class="bank-select">
+    <label class="bank-edit-label">Priorité</label>
+    <select id="parcours-assignment-priority" class="bank-select">
+      <option value="low">Faible</option>
+      <option value="normal" selected>Normale</option>
+      <option value="high">Haute</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+      <input type="checkbox" id="parcours-assignment-mandatory"> Obligatoire
+    </label>
+
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeAssignmentPickerPanel()">Annuler</button>
+      <button class="btn-primary" onclick="confirmAssignmentPicker()">Attribuer</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="parcours.js"></script>
 
 </body>
