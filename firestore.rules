@@ -233,19 +233,35 @@ service cloud.firestore {
     // l'identifiant pedagogique (ex. "PHARM-BAP-000124"), jamais un
     // identifiant Firestore genere aleatoirement.
     //
-    // Acces reserve aux administrateurs pour l'instant (aucune interface ne
-    // consomme encore ce catalogue publiquement - "ne pas developper la
-    // publication" restait un non-objectif explicite du Sprint 10 ; le
-    // Sprint 11 ajoute la NAVIGATION/GESTION administrative de ce
-    // catalogue, toujours reservee aux administrateurs, jamais une
-    // consultation publique). A ELARGIR le jour ou un futur role EDITOR
-    // sera reellement attribuable (ajouter une fonction
-    // isRequesterEditorOrAdmin() equivalente a isRequesterAdmin()
-    // ci-dessus), et le jour ou la lecture publique des questions PUBLIEES
-    // sera necessaire pour alimenter le moteur de quiz depuis Firestore
-    // (toujours hors perimetre).
+    // Acces ADMINISTRATEUR : libre (gestion de la Banque de questions).
+    //
+    // AJOUT (Sprint 17, "Moteur de session d'évaluation") : c'est
+    // exactement le moment anticipé par la note ci-dessus - un utilisateur
+    // authentifié STANDARD peut désormais lire une question dont le statut
+    // est "published", nécessaire pour construire le snapshot d'une
+    // session d'évaluation (voir js/services/parcours-evaluation-
+    // service.js). Une question en brouillon/relecture/archivée/à la
+    // corbeille reste strictement invisible pour tout non-administrateur.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT17.md) :
+    // le champ `correctAnswer` est un champ ORDINAIRE du document, non
+    // séparé ni chiffré - un utilisateur techniquement capable
+    // d'inspecter les requêtes réseau de son propre navigateur PEUT lire
+    // la bonne réponse d'une question avant d'y répondre. Cette limite est
+    // INHÉRENTE à toute architecture 100% cliente (sans fonction serveur)
+    // telle que Pharmeval l'utilise depuis son origine - elle existait
+    // déjà, de façon latente, pour toute personne capable de lire
+    // data/questions.js (le moteur de quiz historique, jamais protégé
+    // techniquement contre la lecture de son propre code source). Ce
+    // sprint ne l'aggrave pas : il rend simplement techniquement possible
+    // ce que l'architecture ne pouvait de toute façon pas empêcher. Une
+    // confidentialité réelle de la clé de correction nécessiterait une
+    // fonction serveur (Cloud Function) de correction - hors périmètre
+    // explicite de ce sprint ("Sprint 18 : corriger et calculer les
+    // résultats").
     match /questions/{pedagogicalId} {
-      allow read: if isRequesterAdmin();
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.status == 'published');
 
       // Creation (Sprint 10, inchangee) : l'identifiant du document DOIT
       // correspondre exactement au pedagogicalId contenu dans le document
@@ -670,6 +686,88 @@ service cloud.firestore {
       // statut) pourront être modifiés sans devoir rouvrir cette règle.
       allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id;
       allow delete: if isRequesterAdmin();
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 17) : sessions d'évaluation
+    // =========================================================================
+    // Chaque document represente UNE tentative d'UN utilisateur sur UNE
+    // competence d'UN parcours (voir js/services/evaluation-session-
+    // metadata-service.js pour le schema complet). Contient les reponses
+    // de l'utilisateur ET le snapshot immuable des questions (y compris la
+    // cle de correction, voir limite documentee dans la regle
+    // `questions/` ci-dessus) : la confidentialite de ce document est donc
+    // CRITIQUE, bien plus stricte que les autres collections du projet.
+    //
+    // "Un utilisateur ne peut : lire que ses propres sessions ; creer une
+    // session qu'en son propre nom ; modifier uniquement ses sessions
+    // in_progress ; ne plus modifier une session submitted." (SPRINT17,
+    // section 13) - regles ci-dessous, terme a terme.
+    //
+    // "Les administrateurs autorisés peuvent consulter les sessions" =
+    // LECTURE uniquement. AUCUNE regle d'ecriture n'accorde de bypass aux
+    // administrateurs ici (contrairement a presque toutes les autres
+    // collections du projet) : un administrateur ne doit jamais pouvoir
+    // modifier les reponses ou le statut de l'evaluation de quelqu'un
+    // d'autre - integrite de l'evaluation avant tout, choix deliberement
+    // plus strict que le reste de l'application.
+    match /evaluation_sessions/{sessionId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      // Creation : uniquement en son propre nom, uniquement au statut
+      // `in_progress` (jamais une session creee directement "submitted" ou
+      // "abandoned" - ces transitions passent obligatoirement par les
+      // regles de mise a jour dediees ci-dessous), identifiant de document
+      // conforme au champ `id` du document lui-meme.
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.id == sessionId
+                    && request.resource.data.status == 'in_progress';
+
+      // --- Mise a jour n°1 : autosave / navigation, UNIQUEMENT pendant
+      // que la session est encore in_progress, UNIQUEMENT les champs
+      // reellement modifies par ces actions (reponses, question courante,
+      // horodatage, journal d'evenements embarque - voir evaluation-
+      // session-service.js) - jamais l'identite, jamais les references au
+      // parcours/a la competence, jamais le statut "au passage". ---
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && resource.data.status == 'in_progress'
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.status == 'in_progress'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answers', 'currentQuestionIndex', 'updatedAt', 'events']);
+
+      // --- Mise a jour n°2 : soumission definitive (in_progress ->
+      // submitted UNIQUEMENT) - autorise egalement un dernier flux de
+      // reponses/position dans le MEME appel (soumission apres une
+      // derniere reponse, sans exiger deux ecritures separees). ---
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && resource.data.status == 'in_progress'
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.status == 'submitted'
+                    && request.resource.data.submittedAt != null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answers', 'currentQuestionIndex', 'status', 'submittedAt', 'updatedAt', 'events']);
+
+      // --- Mise a jour n°3 : abandon (in_progress -> abandoned
+      // UNIQUEMENT, voir "Recommencer" dans evaluation-session-service.js)
+      // - le modele prevoit ce statut sans interface complete dediee,
+      // comme demande explicitement (SPRINT17, section 3). ---
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && resource.data.status == 'in_progress'
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.status == 'abandoned'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'events']);
+
+      // Une session `submitted` ou `abandoned` n'est plus modifiable par
+      // PERSONNE (aucune des 3 regles ci-dessus ne s'applique plus - toute
+      // tentative de mise a jour supplementaire echoue silencieusement,
+      // conformement a "empecher toute modification ulterieure").
+      // Aucune suppression (immuabilite totale, meme principe que les
+      // journaux d'audit du projet).
+      allow delete: if false;
     }
 
 

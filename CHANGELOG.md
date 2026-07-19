@@ -4,6 +4,40 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.8.0 — Sprint 17 (Moteur de session d'évaluation)
+
+### Fonctionnalités ajoutées
+- **Passage réel d'une évaluation** depuis « Commencer » (Sprint 16) : nouvelle page `evaluation.html`, démarrage, réponse, navigation libre entre questions, modification des réponses, sauvegarde automatique (indicateur discret), reprise d'une session en cours, terminaison volontaire avec confirmation.
+- **Nouvelle collection Firestore `evaluation_sessions`** : une session = un parcours + une compétence + les questions déjà liées, toujours par référence (jamais de duplication de contenu). Snapshot minimal et immuable des questions (énoncé, options déjà mélangées et figées, clé de correction, barème éventuel) pour préserver l'intégrité d'une session même si une question est modifiée plus tard — choix d'architecture documenté en détail dans `RAPPORT_SPRINT17.md`.
+- **Une seule session active** par utilisateur/parcours/compétence, dialogue Reprendre/Recommencer, `attemptNumber`/`maxAttempts`/`attemptType` préparés (non exploités).
+- **Moteur de rendu de questions extensible** (`question-renderer-service.js`) : registre par type, seul « qcm » (choix unique) implémenté — c'est le seul type réellement présent dans la Banque de questions à ce jour.
+- **Confirmation de fin d'évaluation** : nom du parcours, compétence, nombre de questions, réponses fournies, date/heure — explicitement aucun score, aucune bonne/mauvaise réponse, aucune progression.
+- Accessibilité et responsive : labels associés, navigation clavier, focus visible, distinction non basée uniquement sur la couleur, utilisable sur smartphone.
+
+### Fichiers créés
+- `js/services/evaluation-session-metadata-service.js`, `evaluation-session-catalog-service.js`, `evaluation-session-service.js`
+- `js/services/parcours-evaluation-service.js` (écart de nommage assumé et documenté — voir `RAPPORT_SPRINT17.md`, section 2)
+- `js/services/question-renderer-service.js`
+- `evaluation.html`, `js/evaluation.js`
+- `RAPPORT_SPRINT17.md`
+
+### Fichiers modifiés
+- `js/parcours-detail.js` — « Commencer » ouvre réellement l'évaluation.
+- `css/styles.css` — styles additifs, responsive et accessibles.
+- `firestore.rules` — lecture des questions publiées ouverte aux utilisateurs authentifiés (nécessaire au snapshot) ; nouvelle collection `evaluation_sessions/` avec règles strictes (aucun bypass administrateur en écriture, pour l'intégrité de l'évaluation).
+- `firestore.indexes.json` — 3 nouveaux index composites.
+
+### Sécurité — limite documentée
+La confidentialité de la clé de correction (`correctAnswer`) reste limitée par l'architecture 100 % cliente du projet (sans fonction serveur) — limite préexistante, non aggravée par ce sprint, documentée en détail dans `RAPPORT_SPRINT17.md`, section 9.3.
+
+### Compatibilité
+Aucune modification du moteur d'attribution, du module Utilisateurs, de la Banque des compétences, de l'administration des parcours, ni de l'ancien moteur de quiz/historique (Sprints 1-5).
+
+### Tests
+Vérification syntaxique complète, vérification JSON/équilibre des règles, vérification croisée des identifiants DOM et fonctions exposées, relecture manuelle complète (avec correction d'un bug d'ordre d'enregistrement de la position courante détecté en relecture). **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_SPRINT17.md`, section 15, et le scénario de test manuel, section 14.
+
+---
+
 ## v2.7.0 — Sprint 16 (Consultation d'un parcours)
 
 ### Fonctionnalités ajoutées

@@ -24,14 +24,6 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-function showMessage(status, message) {
-  const el = document.getElementById('pv-message');
-  if (!el) return;
-  if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
-  el.textContent = message;
-  el.style.display = 'block';
-}
 function getParcoursIdFromUrl() {
   return new URLSearchParams(window.location.search).get('id');
 }
@@ -180,19 +172,24 @@ function renderEvaluations(view) {
   listEl.innerHTML = competencies.map(function(c) {
     const bank = c.bankData;
     const name = bank ? bank.name : c.name;
+    const competencyId = c.competencyId;
+    const disabled = !competencyId; // competence pas encore migree vers la banque (Sprint 13) : pas d'evaluation possible tant que la reference n'existe pas
     return (
       '<div class="pv-evaluation-row">' +
         '<span class="pv-evaluation-name">' + escapeHtml(name || 'Compétence sans nom') + '</span>' +
-        '<button class="btn-primary" onclick="startEvaluation()">Commencer</button>' +
+        '<button class="btn-primary" onclick="startEvaluation(\'' + escapeHtml(competencyId || '') + '\')"' + (disabled ? ' disabled title="Compétence non reliée à la banque"' : '') + '>Commencer</button>' +
       '</div>'
     );
   }).join('');
 }
 
-// "Le bouton n'ouvre pas encore le quiz. Il affiche simplement : Disponible
-// au Sprint 17." (SPRINT16) - message honnete, aucune ecriture, aucune
-// navigation vers un quiz qui n'existe pas encore.
-export function startEvaluation() {
-  showMessage('denied', 'Disponible au Sprint 17.');
+// SPRINT17 : ouvre désormais réellement l'évaluation de cette compétence
+// (evaluation.html), qui revérifie elle-même l'accès au parcours avant
+// d'afficher quoi que ce soit. Ce fichier ne fait que naviguer, aucune
+// logique métier ici.
+export function startEvaluation(competencyId) {
+  if (!competencyId) return;
+  const parcoursId = getParcoursIdFromUrl();
+  window.location.href = 'evaluation.html?parcoursId=' + encodeURIComponent(parcoursId) + '&competencyId=' + encodeURIComponent(competencyId);
 }
 window.startEvaluation = startEvaluation;

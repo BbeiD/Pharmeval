@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Évaluation</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="ev-loading">Chargement…</div>
+
+<!-- ACCES REFUSE / AUCUNE QUESTION / ERREUR (SPRINT17, section 16) -->
+<div id="ev-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2 id="ev-denied-title">Évaluation indisponible</h2>
+    <p id="ev-denied-message"></p>
+    <div class="btn-row"><a class="btn-primary" id="ev-denied-back-link" href="mes-parcours.html">← Retour</a></div>
+  </div>
+</div>
+
+<!-- SESSION DEJA EN COURS (SPRINT17, section 10) -->
+<div id="ev-session-dialog" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Une évaluation est déjà en cours</h2>
+    <p>Vous avez déjà commencé cette évaluation. Voulez-vous la reprendre là où vous vous étiez arrêté, ou recommencer depuis le début ?</p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="requestRestart()">Recommencer</button>
+      <button class="btn-primary" onclick="handleResume()">Reprendre</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION "RECOMMENCER" (SPRINT17, section 10 : "doit demander confirmation") -->
+<div id="ev-restart-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Recommencer l'évaluation ?</h3>
+    <p>Votre progression actuelle sera mise de côté (elle n'est pas supprimée, mais ne comptera plus comme tentative en cours) et une nouvelle tentative démarrera depuis la première question. Continuer ?</p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelRestart()">Annuler</button>
+      <button class="btn-primary" onclick="confirmRestart()">Recommencer</button>
+    </div>
+  </div>
+</div>
+
+<!-- EVALUATION EN COURS -->
+<div id="ev-taking" style="display:none;">
+  <div class="bank-page ev-page">
+
+    <nav class="pv-breadcrumb" aria-label="Fil d'Ariane">
+      <a href="mes-parcours.html">Mes parcours</a>
+      <span aria-hidden="true">›</span>
+      <a id="ev-breadcrumb-parcours" href="#"></a>
+      <span aria-hidden="true">›</span>
+      <span id="ev-breadcrumb-competency"></span>
+    </nav>
+
+    <div id="ev-message" class="admin-message" style="display:none;"></div>
+
+    <div class="ev-header">
+      <h1 id="ev-competency-name"></h1>
+      <p id="ev-parcours-name" class="pv-header-description"></p>
+    </div>
+
+    <div class="ev-progress-block">
+      <div class="ev-progress-row">
+        <span id="ev-progress-label" aria-live="polite"></span>
+        <span id="ev-save-indicator" class="ev-save-indicator" aria-live="polite"></span>
+      </div>
+      <div class="ev-progress-bar-track" role="progressbar" id="ev-progress-bar-track" aria-valuemin="0" aria-valuemax="100">
+        <div class="ev-progress-bar-fill" id="ev-progress-bar-fill"></div>
+      </div>
+    </div>
+
+    <!-- Navigation compacte (SPRINT17, section 8) -->
+    <div class="ev-question-nav" id="ev-question-nav" role="navigation" aria-label="Navigation entre les questions"></div>
+
+    <div class="ev-question-card">
+      <h2 id="ev-question-statement"></h2>
+      <div id="ev-question-options"></div>
+    </div>
+
+    <div class="ev-actions-row">
+      <button class="btn-secondary" id="ev-btn-prev" onclick="goToPrevious()">← Précédent</button>
+      <button class="btn-secondary" id="ev-btn-next" onclick="goToNext()">Suivant →</button>
+      <button class="btn-primary" id="ev-btn-finish" onclick="requestSubmit()">Terminer l'évaluation</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- CONFIRMATION DE FIN D'EVALUATION (SPRINT17, section 11) -->
+<div id="ev-submit-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Terminer l'évaluation ?</h3>
+    <p id="ev-submit-confirm-unanswered" style="display:none;"></p>
+    <p>Une fois confirmée, l'évaluation ne pourra plus être modifiée.</p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelSubmit()">Annuler</button>
+      <button class="btn-primary" onclick="confirmSubmit()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ETAT FINAL : EVALUATION TERMINEE (SPRINT17, section 12) -->
+<div id="ev-finished" style="display:none;">
+  <div class="admin-modal" style="max-width:520px;margin:60px auto;">
+    <h2>✅ Évaluation terminée</h2>
+    <div class="bank-detail-section">
+      <div class="bank-detail-row"><strong>Parcours :</strong> <span id="ev-finished-parcours"></span></div>
+      <div class="bank-detail-row"><strong>Compétence évaluée :</strong> <span id="ev-finished-competency"></span></div>
+      <div class="bank-detail-row"><strong>Nombre de questions :</strong> <span id="ev-finished-total"></span></div>
+      <div class="bank-detail-row"><strong>Réponses fournies :</strong> <span id="ev-finished-answered"></span></div>
+      <div class="bank-detail-row"><strong>Soumise le :</strong> <span id="ev-finished-date"></span></div>
+    </div>
+    <p class="admin-users-disclaimer">Vos résultats détaillés seront disponibles prochainement.</p>
+    <div class="btn-row"><a class="btn-primary" id="ev-finished-back-link" href="mes-parcours.html">Retour au parcours</a></div>
+  </div>
+</div>
+
+<script type="module" src="js/evaluation.js"></script>
+
+</body>
+</html>

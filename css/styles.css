@@ -1464,4 +1464,50 @@
     .pv-evaluation-row { flex-direction: column; align-items: flex-start; }
     .pv-header-card h1 { font-size: 20px; }
   }
+
+  /* ---- NOUVEAU (Sprint 17) : page d'évaluation ---- */
+  .ev-page { max-width: 760px; margin: 0 auto; }
+
+  .ev-header { margin-bottom: 16px; }
+  .ev-header h1 { margin: 0 0 4px 0; font-size: 22px; }
+
+  .ev-progress-block { margin-bottom: 16px; }
+  .ev-progress-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  .ev-save-indicator { font-style: italic; min-height: 16px; }
+  .ev-progress-bar-track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .ev-progress-bar-fill { height: 100%; background: var(--accent, #1D9E75); transition: width .2s ease; }
+
+  .ev-question-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+  .ev-nav-btn {
+    min-width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .ev-nav-btn:focus-visible { outline: 2px solid var(--accent, #1D9E75); outline-offset: 2px; }
+  .ev-nav-current { border-color: var(--accent, #1D9E75); border-width: 2px; }
+  .ev-nav-answered { background: rgba(29,158,117,.15); border-color: var(--accent, #1D9E75); }
+  .ev-nav-answered::after { content: " ✓"; }
+  .ev-nav-unanswered { background: var(--surface); }
+
+  .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }
+  .ev-question-card h2 { margin: 0 0 16px 0; font-size: 17px; line-height: 1.4; }
+
+  .ev-options { display: flex; flex-direction: column; gap: 10px; }
+  .ev-option {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  .ev-option:hover { border-color: var(--accent, #1D9E75); }
+  .ev-option input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; }
+  .ev-option input[type="radio"]:focus-visible { outline: 2px solid var(--accent, #1D9E75); outline-offset: 2px; }
+  .ev-option:has(input:checked) { border-color: var(--accent, #1D9E75); border-width: 2px; background: rgba(29,158,117,.08); }
+
+  .ev-actions-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+  .ev-actions-row .btn-primary, .ev-actions-row .btn-secondary { min-height: 44px; padding-left: 18px; padding-right: 18px; }
+  #ev-btn-prev:disabled, #ev-btn-next:disabled { opacity: .4; cursor: not-allowed; }
+
+  @media (max-width: 600px) {
+    .ev-actions-row { flex-direction: column; }
+    .ev-actions-row button { width: 100%; }
+    .ev-nav-btn { min-width: 40px; height: 40px; }
+  }
   

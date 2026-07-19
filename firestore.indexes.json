@@ -129,6 +129,18 @@
       { "fieldPath": "parcoursId", "order": "ASCENDING" },
       { "fieldPath": "type", "order": "ASCENDING" },
       { "fieldPath": "targetId", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "evaluation_sessions", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "userId", "order": "ASCENDING" },
+      { "fieldPath": "parcoursId", "order": "ASCENDING" },
+      { "fieldPath": "competencyId", "order": "ASCENDING" },
+      { "fieldPath": "status", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "evaluation_sessions", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "userId", "order": "ASCENDING" },
+      { "fieldPath": "parcoursId", "order": "ASCENDING" },
+      { "fieldPath": "competencyId", "order": "ASCENDING" },
+      { "fieldPath": "startedAt", "order": "DESCENDING" }
     ]}
   ],
   "fieldOverrides": []

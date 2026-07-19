@@ -1,23 +1,23 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.7.0 (Sprint 16 — Consultation d'un parcours)
+## Pharmeval — version actuelle : v2.8.0 (Sprint 17 — Moteur de session d'évaluation)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.6.1 (correctif Sprint 15 — Attribution des parcours) |
-| Version actuelle | **v2.7.0** |
+| Version précédente | v2.7.0 (Sprint 16 — Consultation d'un parcours) |
+| Version actuelle | **v2.8.0** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : nouvelle page « Parcours » (consultation détaillée), service dédié `parcours-view-service.js`, couche « Module » préparée pour le futur (non exploitée). Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT16.md`, section 9). |
+| Objectif de cette version | MINOR : moteur transactionnel de passage d'une évaluation (démarrage, réponses, navigation, sauvegarde automatique, reprise, soumission définitive), nouvelle collection `evaluation_sessions`, moteur de rendu de questions extensible (seul « qcm » implémenté, seul type réellement présent dans la banque). Aucun score, aucune correction, aucune progression. Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT17.md`, section 15). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.7.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT16.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.8.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT17.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0 + v2.8.0)
 
-**v2.7.0 (Sprint 16)** — voir `RAPPORT_SPRINT16.md` :
-- Créés : `js/services/parcours-view-service.js`, `parcours-detail.html`, `js/parcours-detail.js`.
-- Modifiés : `js/services/parcours-metadata-service.js` (couche Module additive), `js/mes-parcours.js` (navigation réelle du bouton Ouvrir), `css/styles.css` (additif, responsive), `firestore.rules` (lecture de `parcours/`/`competencies/` publiés ouverte aux utilisateurs authentifiés).
+**v2.8.0 (Sprint 17)** — voir `RAPPORT_SPRINT17.md` :
+- Créés : `js/services/evaluation-session-metadata-service.js`, `evaluation-session-catalog-service.js`, `evaluation-session-service.js`, `parcours-evaluation-service.js`, `question-renderer-service.js`, `evaluation.html`, `js/evaluation.js`.
+- Modifiés : `js/parcours-detail.js` (bouton Commencer réellement fonctionnel), `css/styles.css` (additif), `firestore.rules` (lecture des questions publiées + nouvelle collection `evaluation_sessions/`), `firestore.indexes.json` (3 nouveaux index).
 
 
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
@@ -120,5 +120,9 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 28. **« Temps estimé » est une estimation calculée** (nombre de questions × une constante documentée), jamais une mesure réelle — aucune donnée de temps réel n'existe encore dans Pharmeval.
 29. **Couche « Module » (Sprint 16) posée mais non exploitée** : `parcours.modules` reste vide, `parcours.competencies` demeure la seule structure réellement utilisée par l'interface.
 30. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 16** — voir `RAPPORT_SPRINT16.md`, section 9. Statut proposé : À_TESTER.
+31. **Confidentialité de la clé de correction (`correctAnswer`) limitée par l'architecture 100 % cliente** (Sprint 17, préexistante, non aggravée) : un utilisateur techniquement capable d'inspecter son propre trafic réseau peut lire la bonne réponse avant d'y répondre. Une vraie confidentialité nécessiterait une fonction serveur de correction — hors périmètre avant le Sprint 18. Voir `RAPPORT_SPRINT17.md`, section 9.3.
+32. **« Une seule session active » appliqué au niveau applicatif**, pas garanti de façon absolue par les règles Firestore (limite technique de Firestore, même principe déjà documenté pour les attributions au Sprint 15).
+33. **Seul le type de question « qcm » (choix unique) est pris en charge par le moteur de rendu** (Sprint 17) — aucune question à choix multiple ni vrai/faux n'existe réellement dans la Banque de questions à ce jour.
+34. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 17** — voir `RAPPORT_SPRINT17.md`, section 15, et le scénario de test manuel, section 14. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).
