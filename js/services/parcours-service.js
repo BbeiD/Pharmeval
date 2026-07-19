@@ -39,6 +39,7 @@ import {
 } from "./parcours-catalog-service.js";
 import { logParcoursAction, getRecentParcoursAuditLogs } from "./parcours-audit-service.js";
 import { searchQuestionsBounded } from "./question-catalog-service.js";
+import { getCompetencyById, getCompetenciesByIds } from "./competency-catalog-service.js";
 
 const MIN_PARCOURS_NAME_LENGTH = 3;
 
@@ -339,13 +340,96 @@ export async function editParcoursMetadata(parcours, fields) {
 }
 
 // ---------------------------------------------------------------------------
+// Resolution d'affichage des competences liees (Sprint 13, "Reutilisation")
+// ---------------------------------------------------------------------------
+
+/**
+ * Enrichit les competences d'un parcours avec les donnees A JOUR de la
+ * Banque des compétences (nom, description, couleur, catégorie), pour
+ * toute competence portant un `competencyId`. Une modification faite dans
+ * la banque est donc visible ici SANS AUCUNE ecriture sur le parcours -
+ * "Une modification de la compétence devra être répercutée automatiquement
+ * partout" (Sprint 13). Les competences SANS `competencyId` (pas encore
+ * migrees) gardent leur affichage de repli (name/description imbriques,
+ * Sprint 12).
+ *
+ * @param {object} parcours
+ * @returns {Promise<Array<object>>} competences enrichies d'un champ `bankData` (ou null si non lie / introuvable)
+ */
+export async function resolveParcoursCompetenciesDisplay(parcours) {
+  const list = (parcours && Array.isArray(parcours.competencies)) ? parcours.competencies : [];
+  const ids = list.map(function(c) { return c.competencyId; }).filter(Boolean);
+  const bankMap = ids.length ? await getCompetenciesByIds(ids) : {};
+  return list.map(function(c) {
+    return Object.assign({}, c, { bankData: c.competencyId ? (bankMap[c.competencyId] || null) : null });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Gestion des competences
 // ---------------------------------------------------------------------------
 
 /**
- * Ajoute une nouvelle competence au parcours (ajoutee en derniere
- * position). Reecrit le tableau `competencies` dans son ensemble (voir
- * parcours-catalog-service.js, updateParcoursFields).
+ * NOUVEAU (Sprint 13) : ajoute au parcours une reference vers une fiche
+ * EXISTANTE de la Banque des compétences ("Les parcours ne devront plus
+ * créer des compétences 'texte', mais sélectionner une compétence
+ * existante dans cette banque" - SPRINT13). C'est desormais LE chemin
+ * recommande depuis admin/parcours.js pour ajouter une competence a un
+ * parcours - voir addCompetency()/addCompetenciesBulk() ci-dessous,
+ * conservees uniquement pour compatibilite ascendante et pour le service
+ * de migration (competency-migration-service.js), plus exposees dans
+ * l'interface de creation libre.
+ *
+ * `name`/`description` sont conserves comme SIMPLE COPIE D'AFFICHAGE DE
+ * REPLI (utile si la fiche de la banque devient temporairement
+ * illisible) : ce sont toujours `competencyId` + une relecture de la
+ * banque qui font foi a l'affichage (voir admin/parcours.js,
+ * resolveCompetencyDisplay()) - une modification ulterieure de la fiche
+ * de la banque n'a donc PAS besoin de reecrire cette copie pour etre
+ * visible partout.
+ *
+ * @param {object} parcours
+ * @param {string} competencyId - identifiant d'une fiche de la Banque des compétences (ex. "SKILL-xxxx")
+ * @returns {Promise<object>}
+ */
+export async function addCompetencyFromBank(parcours, competencyId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  if (!competencyId) return errorResult('Compétence de la banque introuvable.');
+
+  const existing = Array.isArray(parcours.competencies) ? parcours.competencies : [];
+  if (existing.some(function(c) { return c.competencyId === competencyId; })) {
+    return denied('Cette compétence est déjà présente dans ce parcours.');
+  }
+
+  const bankCompetency = await getCompetencyById(competencyId);
+  if (!bankCompetency) return errorResult('Compétence introuvable dans la banque des compétences.');
+
+  const newEntry = completeCompetency({
+    name: bankCompetency.name, description: bankCompetency.description,
+    order: existing.length, questionIds: [], competencyId: competencyId,
+  });
+  const updated = existing.concat([newEntry]);
+
+  const result = await updateParcoursFields(parcours.id, { competencies: updated });
+  if (!result.success) return errorResult('L\'ajout de la compétence a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'add_competency', oldValue: null, newValue: bankCompetency.name + ' (' + competencyId + ')',
+  }).catch(function() {});
+
+  return success('Compétence ajoutée avec succès.', { competencies: updated });
+}
+
+/**
+ * LEGACY (Sprint 12, conservee pour compatibilité ascendante et pour
+ * competency-migration-service.js UNIQUEMENT) : ajoute une competence en
+ * TEXTE LIBRE, sans reference a la Banque des compétences. Depuis le
+ * Sprint 13, l'interface (admin/parcours.js) n'expose plus cette creation
+ * libre - voir addCompetencyFromBank() ci-dessus.
  *
  * @param {object} parcours
  * @param {{name:string, description?:string}} fields
@@ -388,6 +472,12 @@ export async function addCompetency(parcours, fields) {
 /**
  * Analyse un texte colle (une competence par ligne) SANS RIEN ECRIRE dans
  * Firestore - fonction pure, utilisee pour construire le recapitulatif
+ * LEGACY (Sprint 12 correctif, conservee pour compatibilité ascendante) :
+ * depuis le Sprint 13, l'ajout en bloc se fait par SELECTION dans la
+ * Banque des compétences (admin/parcours.js appelle addCompetencyFromBank()
+ * pour chaque competence choisie), plus par texte libre colle - cette
+ * fonction n'est plus exposee dans l'interface, seulement conservee pour
+ * compatibilite et pour le service de migration.
  * demande avant tout enregistrement. Regles appliquees, dans l'ordre :
  *   - lignes vides ignorees ;
  *   - espaces superflus supprimes (debut/fin de chaque ligne) ;

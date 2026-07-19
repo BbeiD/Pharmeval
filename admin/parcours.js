@@ -18,11 +18,13 @@ import { PARCOURS_COLOR_HEX, resolveParcoursColorHex } from "../js/services/parc
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
   moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours,
-  editParcoursMetadata, addCompetency, removeCompetency, moveCompetency,
+  editParcoursMetadata, removeCompetency, moveCompetency,
   linkQuestionToCompetency, unlinkQuestionFromCompetency, searchQuestionsForLinking,
-  previewBulkCompetencyNames, addCompetenciesBulk,
+  addCompetencyFromBank, resolveParcoursCompetenciesDisplay,
   getParcoursTimeline,
 } from "../js/services/parcours-service.js";
+import { browseCompetencies } from "../js/services/competency-service.js";
+import { COMPETENCY_COLOR_HEX, resolveCompetencyColorHex } from "../js/services/competency-metadata-service.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -295,14 +297,21 @@ export async function selectParcours(id) {
   document.getElementById('parcours-detail-placeholder').style.display = 'none';
   const detailEl = document.getElementById('parcours-detail');
   detailEl.style.display = 'block';
-  detailEl.innerHTML = detailHtml(p);
+  detailEl.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+
+  // Sprint 13 : resolution des competences liees a la Banque des
+  // compétences AVANT le rendu, pour toujours afficher le nom/la
+  // description/la couleur A JOUR (voir resolveParcoursCompetenciesDisplay,
+  // "Reutilisation").
+  const resolvedCompetencies = await resolveParcoursCompetenciesDisplay(p);
+  detailEl.innerHTML = detailHtml(p, resolvedCompetencies);
 
   await renderTimeline(p);
 }
 
-function detailHtml(p) {
+function detailHtml(p, resolvedCompetencies) {
   const badge = STATUS_BADGES[p.status] || STATUS_BADGES.draft;
-  const competencies = (p.competencies || []).slice().sort(function(a, b) { return a.order - b.order; });
+  const competencies = (resolvedCompetencies || p.competencies || []).slice().sort(function(a, b) { return a.order - b.order; });
 
   let html = '<div class="bank-detail-card">';
 
@@ -334,14 +343,34 @@ function detailHtml(p) {
   } else {
     html += '<div class="parcours-competency-list">';
     competencies.forEach(function(c, i) {
+      // Sprint 13 : si la competence est liee a la banque (`competencyId`)
+      // et que la fiche a pu etre relue (`bankData`), affiche TOUJOURS ces
+      // donnees a jour - jamais l'ancienne copie imbriquee `c.name`/
+      // `c.description`, qui ne sert plus que de repli (voir
+      // parcours-service.js, resolveParcoursCompetenciesDisplay()).
+      const bank = c.bankData || null;
+      const displayName = bank ? bank.name : c.name;
+      const displayDescription = bank ? bank.description : c.description;
+      const notYetMigrated = !c.competencyId;
+      const brokenLink = !!c.competencyId && !bank;
+
       html += '<div class="parcours-competency-card">';
-      html += '<div class="parcours-competency-header"><strong>' + escapeHtml(c.name) + '</strong>';
+      html += '<div class="parcours-competency-header"><strong>' + escapeHtml(displayName) + '</strong>';
+      if (bank && bank.color && COMPETENCY_COLOR_HEX[bank.color]) {
+        html += '<span class="bank-chip" style="background:' + escapeHtml(COMPETENCY_COLOR_HEX[bank.color]) + ';color:#fff;">' + escapeHtml(capitalizeFirst(bank.color)) + '</span>';
+      }
+      if (bank && bank.category) html += '<span class="bank-chip">' + escapeHtml(bank.category) + '</span>';
       html += '<div class="parcours-competency-actions">';
       html += '<button class="btn-secondary" onclick="moveCompetencyUp(\'' + escapeHtml(c.id) + '\')"' + (i === 0 ? ' disabled' : '') + '>↑</button>';
       html += '<button class="btn-secondary" onclick="moveCompetencyDown(\'' + escapeHtml(c.id) + '\')"' + (i === competencies.length - 1 ? ' disabled' : '') + '>↓</button>';
       html += '<button class="btn-secondary bank-delete-btn" onclick="requestRemoveCompetency(\'' + escapeHtml(c.id) + '\')">Supprimer</button>';
       html += '</div></div>';
-      if (c.description) html += '<p class="parcours-competency-description">' + escapeHtml(c.description) + '</p>';
+      if (displayDescription) html += '<p class="parcours-competency-description">' + escapeHtml(displayDescription) + '</p>';
+      if (notYetMigrated) {
+        html += '<p class="parcours-bulk-duplicates">⚠️ Compétence non reliée à la banque (ancienne compétence texte) — utilisez « Migrer » depuis la <a href="competencies.html" target="_blank">Banque des compétences</a>.</p>';
+      } else if (brokenLink) {
+        html += '<p class="parcours-bulk-duplicates">⚠️ Fiche introuvable dans la banque (peut-être supprimée définitivement).</p>';
+      }
       html += '<div class="parcours-competency-questions">';
       if (c.questionIds.length === 0) {
         html += '<span class="bank-chip">Aucune question liée</span>';
@@ -355,7 +384,7 @@ function detailHtml(p) {
     });
     html += '</div>';
   }
-  html += '<div class="btn-row"><input type="text" id="parcours-new-competency-name" class="bank-select" placeholder="Nom de la nouvelle compétence"><button class="btn-primary" onclick="submitAddCompetency()">Ajouter</button><button class="btn-secondary" onclick="openBulkCompetencyPanel()">Ajouter plusieurs…</button></div>';
+  html += '<div class="btn-row"><button class="btn-primary" onclick="openCompetencyPickerPanel()">+ Ajouter une compétence (banque)</button></div>';
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
@@ -385,7 +414,7 @@ function detailHtml(p) {
   html += '<label class="bank-edit-label">Public cible</label>';
   html += '<input type="text" id="parcours-edit-audience" class="bank-select" value="' + escapeHtml(p.targetAudience || '') + '">';
   html += '<label class="bank-edit-label">Couleur</label>';
-  html += colorPickerHtml('parcours-edit-color', p.color || '');
+  html += colorPickerHtml('parcours-edit-color', PARCOURS_COLOR_HEX[p.color] ? p.color : '');
   html += '<label class="bank-edit-label">Icône</label>';
   html += '<input type="text" id="parcours-edit-icon" class="bank-select" value="' + escapeHtml(p.icon || '') + '">';
   html += '<div class="btn-row"><button class="btn-primary" onclick="saveParcoursEdit()">Enregistrer les modifications</button></div>';
@@ -439,75 +468,97 @@ export async function saveParcoursEdit() {
 // Competences
 // ---------------------------------------------------------------------------
 
-export async function submitAddCompetency() {
-  const p = state.items.find(function(item) { return item.id === state.selectedId; });
-  if (!p) return;
-  const name = valueOf('parcours-new-competency-name');
-  const result = await addCompetency(p, { name: name });
-  showParcoursMessage(result.status, result.message);
-  if (result.status === 'success') {
-    p.competencies = result.competencies;
-    await selectParcours(p.id);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// CORRECTIF : ajout multiple de competences (coller une liste, une par ligne)
+// NOUVEAU (Sprint 13) : sélection d'une ou plusieurs compétences EXISTANTES
+// dans la Banque des compétences, remplace l'ancien ajout en texte libre
+// (submitAddCompetency) et l'ancien panneau "Ajouter plusieurs" (Sprint 12
+// correctif, conservés côté service pour compatibilité et migration
+// uniquement — voir js/services/parcours-service.js).
 // ---------------------------------------------------------------------------
 
-let pendingBulkNames = null; // liste deja previsualisee, en attente de confirmation
+let competencyPickerSelection = new Set(); // identifiants de fiches de la banque cochées dans le panneau
+let competencyPickerResults = [];
 
-export function openBulkCompetencyPanel() {
-  document.getElementById('parcours-bulk-textarea').value = '';
-  document.getElementById('parcours-bulk-preview').innerHTML = '';
-  pendingBulkNames = null;
-  document.getElementById('parcours-bulk-overlay').style.display = 'flex';
+export async function openCompetencyPickerPanel() {
+  competencyPickerSelection = new Set();
+  document.getElementById('parcours-competency-picker-search').value = '';
+  document.getElementById('parcours-competency-picker-overlay').style.display = 'flex';
+  await runCompetencyPickerSearch('');
 }
-export function closeBulkCompetencyPanel() {
-  pendingBulkNames = null;
-  document.getElementById('parcours-bulk-overlay').style.display = 'none';
+export function closeCompetencyPickerPanel() {
+  document.getElementById('parcours-competency-picker-overlay').style.display = 'none';
 }
 
-export function previewBulkCompetencies() {
+let competencyPickerDebounce = null;
+export function onCompetencyPickerSearchInput() {
+  clearTimeout(competencyPickerDebounce);
+  const value = valueOf('parcours-competency-picker-search');
+  competencyPickerDebounce = setTimeout(function() { runCompetencyPickerSearch(value); }, 250);
+}
+
+async function runCompetencyPickerSearch(searchText) {
+  const container = document.getElementById('parcours-competency-picker-results');
+  container.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+
   const p = state.items.find(function(item) { return item.id === state.selectedId; });
-  if (!p) return;
-  const rawText = document.getElementById('parcours-bulk-textarea').value;
-  const preview = previewBulkCompetencyNames(p, rawText);
-  pendingBulkNames = preview.toAdd;
+  const alreadyLinkedIds = (p && Array.isArray(p.competencies))
+    ? p.competencies.map(function(c) { return c.competencyId; }).filter(Boolean)
+    : [];
 
-  const container = document.getElementById('parcours-bulk-preview');
-  if (preview.toAdd.length === 0 && preview.duplicates.length === 0) {
-    container.innerHTML = '<p>Aucune ligne à ajouter.</p>';
+  // NOTE (limite documentée) : browseCompetencies() exige la permission
+  // MANAGE_COMPETENCIES (voir authorization-service.js). Aujourd'hui, seul
+  // le rôle admin existe réellement et possède déjà les deux permissions
+  // (MANAGE_PARCOURS + MANAGE_COMPETENCIES) — un futur rôle qui gérerait
+  // les parcours SANS gérer la banque de compétences ne pourrait pas
+  // encore lier de compétence depuis cet écran ; signalé ici plutôt que
+  // masqué, à traiter le jour où un tel rôle serait réellement attribué.
+  const result = await browseCompetencies({
+    searchText: searchText, filters: { status: 'published' },
+    sortField: 'name', sortDirection: 'asc', pageSize: 50,
+  });
+
+  if (!result.authorized || result.error) {
+    container.innerHTML = '<p>' + escapeHtml(result.message || 'Impossible de charger la banque des compétences.') + '</p>';
+    competencyPickerResults = [];
     return;
   }
 
-  let html = '<div class="parcours-bulk-summary">';
-  html += '<p><span class="parcours-bulk-summary-count">' + preview.toAdd.length + '</span> compétence(s) seront ajoutée(s) :</p>';
-  html += '<ul>' + preview.toAdd.map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>';
-  if (preview.duplicates.length > 0) {
-    html += '<p class="parcours-bulk-duplicates">' + preview.duplicates.length + ' doublon(s) ignoré(s) :</p>';
-    html += '<ul class="parcours-bulk-duplicates">' + preview.duplicates.map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>';
+  competencyPickerResults = result.items.filter(function(c) { return alreadyLinkedIds.indexOf(c.id) === -1; });
+
+  if (competencyPickerResults.length === 0) {
+    container.innerHTML = '<p class="bank-list-empty">Aucune compétence publiée disponible (ou déjà toutes liées à ce parcours).</p>';
+    return;
   }
-  if (preview.emptyLinesIgnored > 0) {
-    html += '<p>' + preview.emptyLinesIgnored + ' ligne(s) vide(s) ignorée(s).</p>';
-  }
-  if (preview.toAdd.length > 0) {
-    html += '<div class="btn-row"><button class="btn-primary" onclick="confirmBulkCompetencies()">Confirmer l\'ajout</button></div>';
-  }
-  html += '</div>';
-  container.innerHTML = html;
+
+  container.innerHTML = competencyPickerResults.map(function(c) {
+    const hex = resolveCompetencyColorHex(c.color);
+    const colorDot = hex ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + escapeHtml(hex) + ';margin-right:6px;"></span>' : '';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+      '<input type="checkbox" onchange="toggleCompetencyPick(\'' + escapeHtml(c.id) + '\')">' +
+      colorDot + '<span><strong>' + escapeHtml(c.name) + '</strong>' + (c.category ? ' — ' + escapeHtml(c.category) : '') + '</span>' +
+      '</label>';
+  }).join('');
 }
 
-export async function confirmBulkCompetencies() {
+export function toggleCompetencyPick(competencyId) {
+  if (competencyPickerSelection.has(competencyId)) competencyPickerSelection.delete(competencyId);
+  else competencyPickerSelection.add(competencyId);
+}
+
+export async function confirmCompetencyPicker() {
   const p = state.items.find(function(item) { return item.id === state.selectedId; });
-  if (!p || !pendingBulkNames || pendingBulkNames.length === 0) return;
-  const result = await addCompetenciesBulk(p, pendingBulkNames);
-  showParcoursMessage(result.status, result.message);
-  if (result.status === 'success') {
-    p.competencies = result.competencies;
-    closeBulkCompetencyPanel();
-    await selectParcours(p.id);
+  if (!p || competencyPickerSelection.size === 0) return;
+
+  const ids = Array.from(competencyPickerSelection);
+  let lastResult = null;
+  for (const competencyId of ids) {
+    lastResult = await addCompetencyFromBank(p, competencyId);
+    if (lastResult.status === 'success') p.competencies = lastResult.competencies;
   }
+
+  showParcoursMessage(lastResult ? lastResult.status : 'error', ids.length + ' compétence(s) traitée(s).');
+  closeCompetencyPickerPanel();
+  await selectParcours(p.id);
 }
 
 export async function requestRemoveCompetency(competencyId) {
@@ -678,7 +729,6 @@ window.closeCreateParcoursForm = closeCreateParcoursForm;
 window.submitCreateParcours = submitCreateParcours;
 window.selectParcours = selectParcours;
 window.saveParcoursEdit = saveParcoursEdit;
-window.submitAddCompetency = submitAddCompetency;
 window.requestRemoveCompetency = requestRemoveCompetency;
 window.moveCompetencyUp = moveCompetencyUp;
 window.moveCompetencyDown = moveCompetencyDown;
@@ -691,7 +741,8 @@ window.requestParcoursAction = requestParcoursAction;
 window.cancelParcoursAction = cancelParcoursAction;
 window.confirmParcoursAction = confirmParcoursAction;
 window.pickParcoursColor = pickParcoursColor;
-window.openBulkCompetencyPanel = openBulkCompetencyPanel;
-window.closeBulkCompetencyPanel = closeBulkCompetencyPanel;
-window.previewBulkCompetencies = previewBulkCompetencies;
-window.confirmBulkCompetencies = confirmBulkCompetencies;
+window.openCompetencyPickerPanel = openCompetencyPickerPanel;
+window.closeCompetencyPickerPanel = closeCompetencyPickerPanel;
+window.onCompetencyPickerSearchInput = onCompetencyPickerSearchInput;
+window.toggleCompetencyPick = toggleCompetencyPick;
+window.confirmCompetencyPicker = confirmCompetencyPicker;

@@ -126,7 +126,20 @@ export function generateCompetencyId() {
  * identifiant QUE si aucun n'est deja fourni (permet de completer une
  * competence existante sans lui changer son identifiant stable).
  *
- * @param {{id?:string, name?:string, description?:string, order?:number, questionIds?:Array<string>}} partial
+ * CHAMP AJOUTE (Sprint 13, additif, compatibilite ascendante totale) :
+ * `competencyId` - reference vers une fiche de la nouvelle "Banque des
+ * compétences" (js/services/competency-metadata-service.js, identifiants
+ * "SKILL-xxxx"). Une competence de parcours CREEE DEPUIS LE SPRINT 13
+ * porte toujours un `competencyId` (voir parcours-service.js,
+ * addCompetencyFromBank()) ; une competence plus ancienne peut ne pas en
+ * avoir tant qu'elle n'a pas ete migree (voir competency-migration-
+ * service.js) - `null` reste une valeur valide, jamais forcee.
+ * `name`/`description` restent conserves ici pour un AFFICHAGE DE REPLI
+ * immediat si la fiche de la banque n'a pas pu etre relue (jamais comme
+ * source de verite une fois `competencyId` present - voir
+ * competency-service.js, "Reutilisation").
+ *
+ * @param {{id?:string, name?:string, description?:string, order?:number, questionIds?:Array<string>, competencyId?:string}} partial
  * @returns {object}
  */
 export function completeCompetency(partial) {
@@ -137,6 +150,7 @@ export function completeCompetency(partial) {
     description: (p.description || '').toString().trim(),
     order: typeof p.order === 'number' ? p.order : 0,
     questionIds: Array.isArray(p.questionIds) ? p.questionIds.slice() : [],
+    competencyId: p.competencyId || null,
   };
 }
 

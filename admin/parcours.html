@@ -74,6 +74,7 @@
       <div id="parcours-create-color-container"></div>
       <label class="bank-edit-label">Icône (optionnel)</label>
       <input type="text" id="parcours-create-icon" class="bank-select" placeholder="Ex. 💉">
+      <p class="admin-users-disclaimer" style="margin-top:8px;">Les compétences se sélectionnent ensuite depuis la <a href="competencies.html" target="_blank">Banque des compétences</a>, une fois le parcours créé.</p>
       <div class="btn-row">
         <button class="btn-secondary" onclick="closeCreateParcoursForm()">Annuler</button>
         <button class="btn-primary" onclick="submitCreateParcours()">Créer le parcours</button>
@@ -124,18 +125,24 @@
   </div>
 </div>
 
-<!-- PANNEAU D'AJOUT MULTIPLE DE COMPETENCES (CORRECTIF) -->
-<div id="parcours-bulk-overlay" class="admin-modal-overlay" style="display:none;">
-  <div class="admin-modal" style="max-width:560px;">
-    <button class="admin-modal-close" onclick="closeBulkCompetencyPanel()">✕</button>
-    <h3>Ajouter plusieurs compétences</h3>
-    <p class="import-users-disclaimer" style="margin-bottom:8px;">Une compétence par ligne. Les lignes vides sont ignorées, les doublons avec l'existant ne seront pas ajoutés.</p>
-    <textarea id="parcours-bulk-textarea" class="bank-edit-textarea" style="min-height:140px;" placeholder="Injection intramusculaire&#10;Contre-indications&#10;Suivi post-vaccinal"></textarea>
-    <div class="btn-row">
-      <button class="btn-secondary" onclick="closeBulkCompetencyPanel()">Annuler</button>
-      <button class="btn-primary" onclick="previewBulkCompetencies()">Prévisualiser</button>
+<!-- NOUVEAU (Sprint 13) : panneau de selection d'une ou plusieurs
+     compétences EXISTANTES dans la Banque des compétences - remplace
+     l'ancien panneau de texte libre "Ajouter plusieurs" (Sprint 12
+     correctif), conforme a la consigne "sélectionner une compétence
+     existante dans cette banque". -->
+<div id="parcours-competency-picker-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeCompetencyPickerPanel()">✕</button>
+    <h3>Ajouter une ou plusieurs compétences</h3>
+    <input type="text" id="parcours-competency-picker-search" class="bank-select"
+           placeholder="Rechercher dans la banque des compétences (nom, catégorie, mot-clé)…"
+           oninput="onCompetencyPickerSearchInput()">
+    <p class="admin-users-disclaimer" style="margin:8px 0;">Compétence introuvable ? <a href="competencies.html" target="_blank">Créez-la dans la Banque des compétences</a>, puis revenez ici.</p>
+    <div id="parcours-competency-picker-results" style="margin-top:8px; max-height:45vh; overflow-y:auto;"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeCompetencyPickerPanel()">Annuler</button>
+      <button class="btn-primary" onclick="confirmCompetencyPicker()">Ajouter la sélection</button>
     </div>
-    <div id="parcours-bulk-preview" style="margin-top:14px;"></div>
   </div>
 </div>
 
