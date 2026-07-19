@@ -43,7 +43,8 @@
 
 import { ROLES, STATUSES, PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
-import { updateUserRole, updateUserStatus, getRequestingAdminIdentity, countActiveAdmins } from "./user-management-service.js";
+import { updateUserRole, updateUserStatus, updateUserBusinessFields, getRequestingAdminIdentity, countActiveAdmins } from "./user-management-service.js";
+import { validateUserBusinessFields } from "./user-profile-metadata-service.js";
 import { logAction } from "./audit-service.js";
 
 // Message unique reutilise pour toute tentative d'auto-modification (role
@@ -228,4 +229,61 @@ export async function changeUserStatus(targetUser, newStatus) {
   });
 
   return success('Statut mis à jour avec succès.');
+}
+
+// ---------------------------------------------------------------------------
+// NOUVEAU (Sprint 14) : édition des champs métier du module Utilisateurs
+// (firstName/lastName/organizationId/profileId/groupIds). Distinct de
+// changeRole()/changeUserStatus() ci-dessus : aucune règle de "dernier
+// administrateur actif" ne s'applique ici (ces champs n'ont aucune
+// incidence sur les permissions), mais la même discipline générale
+// s'applique (permission requise, cible existante, résultat structuré,
+// journalisation systématique).
+// ---------------------------------------------------------------------------
+
+/**
+ * Met à jour les champs métier (Sprint 14) d'un utilisateur cible.
+ * Autorise l'auto-édition (contrairement à changeRole/changeUserStatus) :
+ * modifier son propre nom/prénom/organisation n'a aucune incidence sur les
+ * permissions ou la sécurité de la plateforme, la restriction "jamais sur
+ * soi-même" ne se justifie donc pas ici.
+ *
+ * @param {{uid:string, email:string}} targetUser
+ * @param {{firstName?:string, lastName?:string, organizationId?:(string|null), profileId?:(string|null), groupIds?:Array<string>}} fields
+ * @returns {Promise<AdminActionResult>}
+ */
+export async function updateUserBusinessProfile(targetUser, fields) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) {
+    return denied('Vous devez être connecté pour effectuer cette action.');
+  }
+  if (!hasPermission(PERMISSIONS.MANAGE_USERS)) {
+    return denied('Cette action est réservée aux administrateurs.');
+  }
+  if (!targetUser || !targetUser.uid) {
+    return errorResult('Utilisateur cible introuvable.');
+  }
+
+  const validation = validateUserBusinessFields(fields);
+  if (!validation.valid) {
+    return errorResult(validation.errors.join(' '));
+  }
+
+  const result = await updateUserBusinessFields(targetUser.uid, fields);
+  if (!result.success) {
+    return errorResult('L\'enregistrement des modifications a échoué. Veuillez réessayer.');
+  }
+
+  const admin = getRequestingAdminIdentity();
+  const editedKeys = Object.keys(fields || {});
+  for (const key of editedKeys) {
+    await logAction({
+      adminUid: admin && admin.uid, adminEmail: admin && admin.email,
+      targetUid: targetUser.uid, targetEmail: targetUser.email,
+      actionType: 'business_profile_edit_' + key,
+      oldValue: targetUser[key], newValue: fields[key],
+    });
+  }
+
+  return success('Fiche utilisateur mise à jour avec succès.');
 }

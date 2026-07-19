@@ -165,6 +165,33 @@ export async function countActiveAdmins() {
 }
 
 /**
+ * Met a jour les champs METIER additifs (Sprint 14) d'un utilisateur cible
+ * - jamais role/status/uid/email/createdAt (voir changeRole/changeUserStatus
+ * dans admin-service.js pour ces champs proteges separement). Reecrit
+ * uniquement les cles fournies.
+ *
+ * @param {string} uid
+ * @param {{firstName?:string, lastName?:string, organizationId?:(string|null), profileId?:(string|null), groupIds?:Array<string>}} fields
+ * @returns {Promise<{success:boolean, error:boolean}>}
+ */
+export async function updateUserBusinessFields(uid, fields) {
+  const allowed = ['firstName', 'lastName', 'organizationId', 'profileId', 'groupIds'];
+  const payload = {};
+  allowed.forEach(function(key) {
+    if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
+  });
+  if (Object.keys(payload).length === 0) return { success: false, error: false };
+  try {
+    const ref = doc(db, 'users', uid);
+    await updateDoc(ref, payload);
+    return { success: true, error: false };
+  } catch (err) {
+    logUserManagementError('mise à jour des champs métier de l\'utilisateur ' + uid, err);
+    return { success: false, error: true };
+  }
+}
+
+/**
  * Identifiant de l'administrateur actuellement connecte (pour le journal
  * d'audit, voir js/services/admin-service.js). Simple relai de
  * app-context.js, pour eviter que ce service n'ait besoin d'importer

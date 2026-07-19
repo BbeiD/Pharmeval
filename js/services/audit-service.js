@@ -13,6 +13,7 @@ import {
   collection,
   addDoc,
   query,
+  where,
   orderBy,
   limit,
   getDocs,
@@ -64,14 +65,24 @@ export async function logAction(entry) {
  * premier), pour un affichage simple dans le Centre d'administration.
  * Lecture bornee (jamais toute la collection).
  *
- * @param {{limit?:number}} options
+ * AJOUT ADDITIF (Sprint 14) : `targetUid` optionnel, pour n'afficher que
+ * les actions concernant UN utilisateur precis (fiche detaillee du module
+ * Utilisateurs, admin/users.js) - comportement par defaut (sans filtre)
+ * strictement inchange, retrocompatible avec tout appelant existant
+ * (js/admin.js, Sprint 8).
+ *
+ * @param {{limit?:number, targetUid?:string}} options
  * @returns {Promise<{items:Array<object>, error:boolean}>}
  */
 export async function getRecentAuditEntries(options) {
   const max = (options && options.limit) || DEFAULT_READ_LIMIT;
   try {
     const colRef = collection(db, AUDIT_COLLECTION);
-    const q = query(colRef, orderBy('date', 'desc'), limit(max));
+    const clauses = [];
+    if (options && options.targetUid) clauses.push(where('targetUid', '==', options.targetUid));
+    clauses.push(orderBy('date', 'desc'));
+    clauses.push(limit(max));
+    const q = query(colRef, ...clauses);
     const snap = await getDocs(q);
     const items = [];
     snap.forEach(function(d) { items.push(d.data()); });

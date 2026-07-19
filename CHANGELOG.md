@@ -4,6 +4,42 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.5.0 — Sprint 14 (Module Utilisateurs)
+
+### Fonctionnalités ajoutées
+- **Module Utilisateurs** (`admin/users.html` + `admin/users.js`) : recherche, filtres (statut, organisation, profil, groupe), pagination, fiche détaillée, édition (prénom/nom/organisation/profil/groupes), désactivation/réactivation, historique.
+- **Banque des organisations** (nouvelle, voir `RAPPORT_SPRINT14.md` section 1 pour l'écart constaté avec le cadrage), **Banque des profils** (référence, remplace toute saisie libre de "Pharmacien"/"Étudiant"...) et **Banque des groupes** — trois collections indépendantes, gérées par un écran unique à onglets (`admin/reference-banks.html` + `reference-banks.js`), au-dessus d'une fondation générique commune (`js/services/reference-bank-service.js`).
+- **Pré-provisionnement d'utilisateurs par e-mail** (`pending_user_invites`, `user-invite-service.js`) : permet une « création » de fiche métier sans créer de nouveau système d'authentification — la fiche est automatiquement complétée à la première connexion réelle via Firebase Authentication.
+- **Architecture préparée pour le futur** (schéma posé, aucune interface) : parcours attribués, compétences validées, progression, badges, certificats, historique de formations, résultats d'évaluations.
+
+### Fichiers créés
+- `js/services/reference-bank-service.js`, `organizations-bank-service.js`, `profiles-bank-service.js`, `groups-bank-service.js`
+- `js/services/user-profile-metadata-service.js`, `user-invite-service.js`, `user-directory-service.js`
+- `admin/reference-banks.html`, `admin/reference-banks.js`
+- `admin/users.html`, `admin/users.js`
+- `RAPPORT_SPRINT14.md`
+
+### Fichiers modifiés
+- `js/services/authorization-service.js` — permissions `MANAGE_REFERENCE_DATA`/`PURGE_REFERENCE_DATA` ; `MANAGE_USERS` (Sprint 8) réutilisée pour le module Utilisateurs, aucun nouveau système de droits.
+- `js/services/user-service.js` — champs métier additifs par défaut, consommation d'une pré-provision à la première connexion.
+- `js/services/user-management-service.js` — `updateUserBusinessFields()`.
+- `js/services/admin-service.js` — `updateUserBusinessProfile()`.
+- `js/services/audit-service.js` — filtre optionnel `targetUid` (rétrocompatible).
+- `index.html` — navigation.
+- `firestore.rules` — nouvelle règle d'édition métier sur `users/{userId}` ; nouvelles collections `organizations/`, `profiles/`, `groups/`, `reference_bank_audit_logs/`, `pending_user_invites/`.
+- `firestore.indexes.json` — 9 nouveaux index composites.
+
+### Compatibilité
+Aucun champ existant supprimé ou renommé sur `users/{uid}`. Le tableau utilisateurs existant (Sprint 8, `js/admin.js`) reste inchangé et pleinement fonctionnel. Aucune modification du moteur de quiz, de l'import, de la Banque de questions, des Parcours ou de la Banque des compétences.
+
+### Limites connues
+Voir `RAPPORT_SPRINT14.md`, section 8 (notamment : la Banque des organisations est neuve — n'existait pas réellement à l'issue du Sprint 13, contrairement à ce que supposait le cadrage ; « création » d'un utilisateur = pré-provisionnement par e-mail, pas un compte de connexion).
+
+### Tests
+Vérification syntaxique de l'ensemble des fichiers JavaScript, vérification JSON des index, vérification d'équilibre de `firestore.rules`, vérification croisée des identifiants DOM et fonctions exposées, relecture manuelle complète. **Aucun test fonctionnel réel sur un projet Firebase** (non disponible dans cet environnement) — à exécuter avant publication, voir `RAPPORT_SPRINT14.md`, section 9.
+
+---
+
 ## v2.4.0 — Sprint 13 (Banque des compétences)
 
 ### Fonctionnalités ajoutées

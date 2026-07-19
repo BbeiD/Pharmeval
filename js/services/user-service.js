@@ -20,6 +20,8 @@ import {
   updateDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { completeUserBusinessFields } from "./user-profile-metadata-service.js";
+import { getPendingInviteByEmail, markInviteConsumed } from "./user-invite-service.js";
 
 // ---------------------------------------------------------------------------
 // Listes de reference partagees entre le service et l'assistant de premiere
@@ -52,7 +54,14 @@ export const ORGANIZATION_TYPE_OPTIONS = [
 // ajoutes plus tard sans casser cette structure, tant que les mises a jour
 // utilisent la notation pointee ("profile.xxx") plutot qu'un remplacement
 // integral du sous-objet (voir saveOnboardingProfile ci-dessous).
-function buildDefaultUserDocument(user, provider) {
+//
+// AJOUT ADDITIF (Sprint 14, module Utilisateurs) : completeUserBusinessFields()
+// ajoute les champs de gestion metier (firstName/lastName/organizationId/
+// profileId/groupIds/createdBy + les champs "prepares pour le futur" -
+// assignedParcoursIds, validatedCompetencyIds, progress, badges,
+// certificates, trainingHistory, evaluationResults). Aucun champ existant
+// (profile.*, role, status...) n'est modifie ou renomme.
+function buildDefaultUserDocument(user, provider, businessFieldsOverride) {
   return {
     uid: user.uid,
     email: user.email || '',
@@ -75,6 +84,8 @@ function buildDefaultUserDocument(user, provider) {
     status: 'active',
     profileCompleted: false,
     version: 1,
+
+    ...completeUserBusinessFields(businessFieldsOverride),
   };
 }
 
@@ -103,8 +114,26 @@ export async function ensureUserDocument(user) {
   const provider = currentProviderId(user);
 
   if (!snap.exists()) {
-    const newDoc = buildDefaultUserDocument(user, provider);
+    // AJOUT ADDITIF (Sprint 14) : si un administrateur a pré-provisionné
+    // une fiche métier pour cette adresse e-mail (voir user-invite-
+    // service.js, createPendingInvite()), elle est reprise ICI, une seule
+    // fois, au moment exact de la toute première création réelle du
+    // compte - jamais rejouée ensuite. Aucune incidence sur les comptes
+    // déjà existants (cette branche ne s'exécute que si `!snap.exists()`).
+    let businessFieldsOverride = null;
+    let matchedInvite = null;
+    if (user.email) {
+      matchedInvite = await getPendingInviteByEmail(user.email);
+      if (matchedInvite) businessFieldsOverride = matchedInvite;
+    }
+
+    const newDoc = buildDefaultUserDocument(user, provider, businessFieldsOverride);
     await setDoc(ref, newDoc);
+
+    if (matchedInvite) {
+      markInviteConsumed(user.email, user.uid).catch(function() {});
+    }
+
     return { ...newDoc, createdAt: new Date(), lastLogin: new Date() };
   }
 

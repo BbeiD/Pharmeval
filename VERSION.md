@@ -1,21 +1,25 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.4.0 (Sprint 13 — Banque des compétences)
+## Pharmeval — version actuelle : v2.5.0 (Sprint 14 — Module Utilisateurs)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.3.1 (correctif Sprint 12 — Parcours) |
-| Version actuelle | **v2.4.0** |
+| Version précédente | v2.4.0 (Sprint 13 — Banque des compétences) |
+| Version actuelle | **v2.5.0** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : nouvelle « Banque des compétences » (fiches indépendantes et réutilisables, collection Firestore `competencies`), adaptation des Parcours pour sélectionner une compétence existante dans cette banque au lieu d'en créer une en texte libre, migration automatique des anciennes compétences texte. Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT13.md`, section 8). |
+| Objectif de cette version | MINOR : premier module de gestion des utilisateurs (fiche métier, organisation, profil référencé, groupes multiples, désactivation), nouvelle Banque des organisations (créée dans ce sprint, voir écart constaté), nouvelle Banque des profils (référence, plus de saisie libre), nouvelle Banque des groupes, pré-provisionnement par e-mail. Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT14.md`, section 9). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.4.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT13.md` et `GUIDE_MIGRATION_SPRINT13.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.5.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT14.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0)
 
-**v2.4.0 (Sprint 13)** — voir `RAPPORT_SPRINT13.md` :
+**v2.5.0 (Sprint 14)** — voir `RAPPORT_SPRINT14.md` :
+- Créés : `js/services/reference-bank-service.js`, `organizations-bank-service.js`, `profiles-bank-service.js`, `groups-bank-service.js`, `user-profile-metadata-service.js`, `user-invite-service.js`, `user-directory-service.js`, `admin/reference-banks.html`, `admin/reference-banks.js`, `admin/users.html`, `admin/users.js`.
+- Modifiés : `js/services/authorization-service.js` (permissions MANAGE_REFERENCE_DATA/PURGE_REFERENCE_DATA), `js/services/user-service.js` (champs métier additifs, pré-provisionnement), `js/services/user-management-service.js` (updateUserBusinessFields), `js/services/admin-service.js` (updateUserBusinessProfile), `js/services/audit-service.js` (filtre targetUid), `index.html`, `firestore.rules` (nouvelle règle métier + 5 nouvelles collections), `firestore.indexes.json` (9 nouveaux index).
+
+
 - Modifiés : `js/services/authorization-service.js` (permissions MANAGE_COMPETENCIES/PURGE_COMPETENCIES), `js/services/parcours-metadata-service.js` (champ additif `competencyId`), `js/services/parcours-service.js` (`addCompetencyFromBank()`, `resolveParcoursCompetenciesDisplay()` ; ancien texte libre conservé pour compatibilité/migration, non exposé côté interface), `admin/parcours.js`, `admin/parcours.html` (sélection depuis la banque), `index.html`, `css/styles.css` (additif), `firestore.rules` (nouvelles collections, aucune règle existante modifiée), `firestore.indexes.json` (6 nouveaux index).
 - Créés : `js/services/competency-metadata-service.js`, `competency-catalog-service.js`, `competency-audit-service.js`, `competency-service.js`, `competency-migration-service.js`, `admin/competencies.html`, `admin/competencies.js`.
 
@@ -97,5 +101,9 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 17. **Sélection d'une compétence de la banque depuis un parcours exige la permission `MANAGE_COMPETENCIES` en plus de `MANAGE_PARCOURS`** (Sprint 13) : sans conséquence aujourd'hui (seul le rôle admin existe réellement et possède les deux), mais un futur rôle gérant les parcours sans gérer la banque de compétences ne pourrait pas encore lier de compétence depuis cet écran.
 18. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 13** : cet environnement de livraison n'a pas accès à un projet Firebase réel ; seules des vérifications statiques (syntaxe, JSON, cohérence des identifiants/exports) ont pu être effectuées — voir `RAPPORT_SPRINT13.md`, section 8. Statut proposé : À_TESTER.
 19. **Migration des anciennes compétences texte non exécutée automatiquement** (Sprint 13, comme demandé) : reste une action manuelle, déclenchée depuis `admin/competencies.html` — voir `GUIDE_MIGRATION_SPRINT13.md`.
+20. **Banque des organisations créée au Sprint 14, pas au Sprint 13** (écart constaté et documenté, voir `RAPPORT_SPRINT14.md` section 1) : le cadrage du Sprint 14 supposait à tort son existence préalable.
+21. **« Création » d'un utilisateur (Sprint 14) = pré-provisionnement par e-mail**, jamais un compte de connexion : conséquence assumée de « ne pas créer de système d'authentification supplémentaire ».
+22. **Deux écrans de gestion des utilisateurs coexistent** (Sprint 8 : tableau simple rôle/statut dans `index.html`/`js/admin.js` ; Sprint 14 : module complet `admin/users.html`) — non consolidés dans ce sprint.
+23. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 14** : mêmes limites d'environnement que le Sprint 13 — voir `RAPPORT_SPRINT14.md`, section 9. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

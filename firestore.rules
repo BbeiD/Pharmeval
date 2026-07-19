@@ -157,6 +157,20 @@ service cloud.firestore {
                     && request.resource.data.role in ['user', 'admin']
                     && request.resource.data.status in ['pending', 'active', 'suspended'];
 
+      // --- Mise a jour n°3 (Sprint 14) : champs METIER du module
+      // Utilisateurs (firstName/lastName/organizationId/profileId/
+      // groupIds) par un ADMINISTRATEUR, sur N'IMPORTE QUEL document (y
+      // compris le sien - contrairement a la regle n°2 ci-dessus, aucune
+      // incidence sur les permissions ou la securite de la plateforme,
+      // donc aucune restriction "jamais sur soi-meme" ici, voir
+      // js/services/admin-service.js, updateUserBusinessProfile()). Aucun
+      // autre champ ne peut etre modifie par cette regle - en particulier
+      // jamais role/status, qui restent strictement reserves a la regle
+      // n°2 ci-dessus. ---
+      allow update: if request.auth != null
+                    && isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'organizationId', 'profileId', 'groupIds']);
+
       // --- Suppression (Sprint 3, inchangee) ---
       allow delete: if false;
 
@@ -469,6 +483,115 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 14) : Banques de référence (Organisations / Profils /
+    // Groupes) - js/services/reference-bank-service.js
+    // =========================================================================
+    // Trois collections STRUCTURELLEMENT IDENTIQUES (id stable prefixe,
+    // nom, description, statut, auteur, dates - + un champ additionnel
+    // propre a chacune, ex. `organizationType`). Memes 3 regles de mise a
+    // jour, meme suppression securisee que competencies/ (Sprint 13) et
+    // parcours/ (Sprint 12) : reprend fidelement la structure deja
+    // etablie. Un seul bloc par collection est neanmoins necessaire (le
+    // langage des regles Firestore ne permet pas de factoriser un `match`
+    // sur plusieurs noms de collection a la fois).
+    match /organizations/{orgId} {
+      allow read: if isRequesterAdmin();
+      allow create: if isRequesterAdmin() && request.resource.data.id == orgId && request.resource.data.status == 'draft';
+      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && resource.data.status != 'trash'
+                    && request.resource.data.status in ['draft', 'published', 'archived'];
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
+                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
+      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+    }
+
+    match /profiles/{profileId} {
+      allow read: if isRequesterAdmin();
+      allow create: if isRequesterAdmin() && request.resource.data.id == profileId && request.resource.data.status == 'draft';
+      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && resource.data.status != 'trash'
+                    && request.resource.data.status in ['draft', 'published', 'archived'];
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
+                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
+      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+    }
+
+    match /groups/{groupId} {
+      allow read: if isRequesterAdmin();
+      allow create: if isRequesterAdmin() && request.resource.data.id == groupId && request.resource.data.status == 'draft';
+      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && resource.data.status != 'trash'
+                    && request.resource.data.status in ['draft', 'published', 'archived'];
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.id == resource.data.id
+                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
+                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
+      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+    }
+
+    // Journal d'audit PARTAGE des trois banques ci-dessus (champ `bankType`
+    // distinguant organization/profile/group + `entityId`) - factorisation
+    // deliberee plutot que trois collections d'audit quasi vides, voir
+    // reference-bank-service.js.
+    match /reference_bank_audit_logs/{logId} {
+      allow read: if isRequesterAdmin();
+      allow create: if isRequesterAdmin() && request.resource.data.adminUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 14) : pré-provisionnement des utilisateurs
+    // (js/services/user-invite-service.js)
+    // =========================================================================
+    // Identifiant de document = adresse e-mail normalisée (minuscules).
+    // Un administrateur gère librement cette collection (création,
+    // consultation, annulation). Une personne PAS ENCORE administratrice -
+    // y compris avant même la création de son propre document `users/{uid}`
+    // (voir user-service.js, ensureUserDocument()) - peut UNIQUEMENT lire
+    // et marquer comme consommée la pré-provision correspondant à SA
+    // PROPRE adresse e-mail authentifiée (jamais celle de quelqu'un
+    // d'autre, jamais aucun autre champ que consumedAt/consumedByUid).
+    match /pending_user_invites/{email} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && request.auth.token.email != null && request.auth.token.email.lower() == email);
+
+      allow create: if isRequesterAdmin() && request.resource.data.email == email;
+      allow delete: if isRequesterAdmin();
+
+      // Mise a jour par un administrateur (tout champ, ex. avant
+      // consommation) - identique a create en granularité de contrôle.
+      allow update: if isRequesterAdmin();
+
+      // Mise a jour de "consommation" par la personne invitée elle-même,
+      // au moment exact de la création réelle de son compte - jamais
+      // aucun autre champ que consumedAt/consumedByUid, jamais pour une
+      // pré-provision déjà consommée.
+      allow update: if request.auth != null
+                    && request.auth.token.email != null && request.auth.token.email.lower() == email
+                    && resource.data.consumedAt == null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumedAt', 'consumedByUid'])
+                    && request.resource.data.consumedByUid == request.auth.uid;
+    }
+
 
     // =========================================================================
     // NOUVEAU (Sprint 10, demande complementaire) : journal des imports

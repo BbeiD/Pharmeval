@@ -146,6 +146,15 @@ export const PERMISSIONS = Object.freeze({
   // jamais geter les parcours eux-memes, et inversement.
   MANAGE_COMPETENCIES: 'manage_competencies',
   PURGE_COMPETENCIES: 'purge_competencies',
+  // Sprint 14 : Banque des organisations / Banque des profils / Banque des
+  // groupes (js/services/reference-bank-service.js) partagent volontairement
+  // UNE SEULE paire de permissions - ce sont trois banques structurellement
+  // identiques, gerees par le meme profil d'administrateur ("donnees de
+  // reference de la plateforme"), distinctes de MANAGE_USERS (qui gere les
+  // FICHES UTILISATEUR elles-memes, pas les listes de reference qu'elles
+  // consomment).
+  MANAGE_REFERENCE_DATA: 'manage_reference_data',
+  PURGE_REFERENCE_DATA: 'purge_reference_data',
 });
 
 /**
@@ -172,7 +181,7 @@ const ROLE_PERMISSIONS = Object.freeze({
   // reellement implemente - une permission peut etre accordee a plusieurs
   // roles a la fois, c'est precisement l'interet d'une matrice plutot que
   // d'un lien direct role -> fonctionnalite.
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES]),
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA]),
   editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours ni de la banque de competences pour l'instant (types de contenu distincts, voir Sprint 12/13)
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
   super_admin: Object.freeze([
@@ -185,6 +194,8 @@ const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.PURGE_PARCOURS,
     PERMISSIONS.MANAGE_COMPETENCIES,
     PERMISSIONS.PURGE_COMPETENCIES,
+    PERMISSIONS.MANAGE_REFERENCE_DATA,
+    PERMISSIONS.PURGE_REFERENCE_DATA,
   ]),
 });
 

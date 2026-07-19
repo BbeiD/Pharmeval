@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Organisations / Profils / Groupes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="refbanks-loading">Vérification des droits d'accès…</div>
+
+<div id="refbanks-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La gestion des données de référence est réservée aux administrateurs.</p>
+    <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
+  </div>
+</div>
+
+<div id="refbanks-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2 id="refbanks-title">🏷️ Données de référence</h2>
+      <div class="btn-row" style="margin:0;">
+        <a href="users.html" class="btn-secondary">👥 Utilisateurs</a>
+        <a href="../index.html" class="btn-secondary">← Retour à l'administration</a>
+      </div>
+    </div>
+
+    <!-- Onglets : une meme interface pour les trois banques (Sprint 14) -->
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn-secondary" id="refbanks-tab-organizations" onclick="switchBank('organizations')">🏢 Organisations</button>
+      <button class="btn-secondary" id="refbanks-tab-profiles" onclick="switchBank('profiles')">🎓 Profils</button>
+      <button class="btn-secondary" id="refbanks-tab-groups" onclick="switchBank('groups')">👥 Groupes</button>
+    </div>
+
+    <div id="refbanks-message" class="admin-message" style="display:none;"></div>
+
+    <div class="bank-toolbar">
+      <input type="text" id="refbanks-search-input" class="admin-users-search-input bank-search-input"
+             placeholder="Rechercher (nom, description)…" oninput="onSearchInput()">
+      <select id="refbanks-filter-status" class="bank-select" onchange="onFilterChange()">
+        <option value="">Statut : Tous</option>
+        <option value="draft">🟡 Brouillon</option>
+        <option value="published">🟢 Publié</option>
+        <option value="archived">⚫ Archivé</option>
+        <option value="trash">🔴 Corbeille</option>
+      </select>
+      <select id="refbanks-sort-field" class="bank-select" onchange="onFilterChange()">
+        <option value="createdAt">Trier : Date de création</option>
+        <option value="updatedAt">Date de modification</option>
+        <option value="name">Nom</option>
+      </select>
+      <button class="btn-secondary bank-sort-dir-btn" id="refbanks-sort-dir-btn" onclick="toggleSortDirection()" title="Inverser l'ordre">⬇️</button>
+      <button class="btn-primary" onclick="openCreateForm()">+ Nouveau</button>
+    </div>
+
+    <div id="refbanks-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
+
+    <div id="refbanks-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
+      <h3 id="refbanks-create-title">Nouvel élément</h3>
+      <div id="refbanks-create-suggestions" style="margin-bottom:8px;"></div>
+      <label class="bank-edit-label">Nom</label>
+      <input type="text" id="refbanks-create-name" class="bank-select" placeholder="Nom">
+      <label class="bank-edit-label">Description</label>
+      <textarea id="refbanks-create-description" class="bank-edit-textarea"></textarea>
+      <div id="refbanks-create-extra"></div>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="closeCreateForm()">Annuler</button>
+        <button class="btn-primary" onclick="submitCreate()">Créer</button>
+      </div>
+    </div>
+
+    <div class="bank-columns">
+      <div class="bank-list-column">
+        <div id="refbanks-list-empty" class="bank-list-empty" style="display:none;"></div>
+        <div id="refbanks-list" class="bank-list"></div>
+        <div id="refbanks-pagination" class="bank-pagination"></div>
+      </div>
+      <div class="bank-detail-column">
+        <div id="refbanks-detail-placeholder" class="bank-detail-placeholder">Sélectionnez un élément dans la liste pour afficher sa fiche complète.</div>
+        <div id="refbanks-detail" class="bank-detail" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="refbanks-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Confirmation</h3>
+    <p id="refbanks-confirm-message"></p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelAction()">Annuler</button>
+      <button class="btn-primary" onclick="confirmAction()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="reference-banks.js"></script>
+
+</body>
+</html>
