@@ -760,6 +760,11 @@ function describeParcoursAuditEntry(entry) {
   if (entry.actionType === 'reorder_competency') return 'Réordonnancement des compétences';
   if (entry.actionType === 'link_question') return 'Question liée à « ' + entry.oldValue + ' »';
   if (entry.actionType === 'unlink_question') return 'Liaison retirée de « ' + entry.newValue + ' »';
+  // CORRECTIF (post-Sprint 15) : journalisation des attributions
+  // (assignment-service.js, REUTILISE ce meme journal - voir
+  // RAPPORT_CORRECTIF_SPRINT15.md).
+  if (entry.actionType === 'assign') return 'Attribution ajoutée (' + entry.newValue + ')';
+  if (entry.actionType === 'unassign') return 'Attribution retirée (' + entry.oldValue + ')';
   if (entry.actionType === 'purge') return 'Suppression définitive';
   return 'Action (' + entry.actionType + ')';
 }

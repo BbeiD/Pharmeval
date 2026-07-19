@@ -19,7 +19,7 @@
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import {
-  ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_STATUSES,
+  ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_TARGET_TYPE_LABELS, ASSIGNMENT_STATUSES,
   completeAssignmentMetadata, validateAssignmentMetadata,
 } from "./assignment-metadata-service.js";
 import {
@@ -28,6 +28,7 @@ import {
   assignmentExists,
 } from "./assignment-catalog-service.js";
 import { getParcoursById } from "./parcours-catalog-service.js";
+import { logParcoursAction } from "./parcours-audit-service.js";
 import { getUserByUid, fetchAllUsersBounded } from "./user-management-service.js";
 import { formatUserFullName } from "./user-profile-metadata-service.js";
 import { profilesBank } from "./profiles-bank-service.js";
@@ -166,23 +167,57 @@ export async function createAssignment(fields) {
   if (!result.success) return errorResult('L\'attribution a échoué. Veuillez réessayer.');
 
   const targetLabel = await resolveTargetLabel(metadata.type, metadata.targetId);
+
+  // CORRECTIF (post-Sprint 15) : "écrire l'action dans l'historique si le
+  // système d'audit le permet" - REUTILISE le journal d'audit deja
+  // existant des parcours (parcours_audit_logs, Sprint 12), qui alimente
+  // deja la section "Historique" de la fiche du parcours. Ecriture "best
+  // effort", jamais bloquante pour l'attribution elle-meme (meme principe
+  // que tous les autres appels a logParcoursAction() dans le projet).
+  const typeLabel = ASSIGNMENT_TARGET_TYPE_LABELS[metadata.type] || metadata.type;
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: metadata.parcoursId, actionType: 'assign',
+    oldValue: null, newValue: typeLabel + ' : ' + targetLabel,
+  }).catch(function() {});
+
   return success('Parcours attribué avec succès à ' + targetLabel + '.', { assignment: Object.assign({}, metadata, { targetLabel: targetLabel }) });
 }
 
 /**
  * Supprime une attribution ("supprimer une attribution" - suppression
  * réelle et immédiate, voir assignment-catalog-service.js en-tête).
- * @param {string} assignmentId
+ * Ne supprime JAMAIS le parcours lui-même - uniquement le document
+ * `assignments/{id}` correspondant. Fonctionne indifféremment pour une
+ * attribution utilisateur, groupe ou profil (la suppression ne dépend pas
+ * du `type`).
+ *
+ * @param {object} assignment - l'attribution complète à retirer (au minimum {id, parcoursId, type, targetId}, idéalement avec `targetLabel` déjà résolu pour un historique lisible)
  * @returns {Promise<object>}
  */
-export async function removeAssignment(assignmentId) {
+export async function removeAssignment(assignment) {
   const access = checkAccess();
   if (access.status !== 'authorized') return denied(access.message);
-  if (!assignmentId) return errorResult('Attribution cible introuvable.');
+  if (!assignment || !assignment.id) return errorResult('Attribution cible introuvable.');
 
-  const result = await deleteAssignmentDocument(assignmentId);
+  const result = await deleteAssignmentDocument(assignment.id);
   if (!result.success) return errorResult('La suppression de l\'attribution a échoué. Veuillez réessayer.');
-  return success('Attribution supprimée avec succès.');
+
+  // CORRECTIF (post-Sprint 15) : meme journalisation "best effort" que la
+  // creation ci-dessus, dans le meme historique de parcours (jamais une
+  // nouvelle collection - voir RAPPORT_SPRINT15.md, limite 5, desormais
+  // levee par reutilisation de l'audit existant plutot que par invention
+  // d'un nouveau systeme).
+  const ctx = getCurrentUserContext();
+  const typeLabel = ASSIGNMENT_TARGET_TYPE_LABELS[assignment.type] || assignment.type;
+  const targetLabel = assignment.targetLabel || assignment.targetId;
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: assignment.parcoursId, actionType: 'unassign',
+    oldValue: typeLabel + ' : ' + targetLabel, newValue: null,
+  }).catch(function() {});
+
+  return success('Attribution retirée avec succès.');
 }
 
 // ---------------------------------------------------------------------------

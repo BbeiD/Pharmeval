@@ -20,7 +20,8 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { syncPendingEvaluations } from "./services/evaluation-service.js";
 import { startOnboarding } from "./onboarding.js";
-import { updateAdminUI } from "./admin.js";
+import { updateAdminUI, openAdminZone } from "./admin.js";
+import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
 
@@ -159,6 +160,36 @@ function revealApp(user) {
   // que si le contexte (deja peuple par setCurrentUserContext ci-dessous)
   // indique un role administrateur.
   updateAdminUI();
+
+  // CORRECTIF (post-Sprint 15) : "Retour à l'administration" depuis un
+  // ecran d'administration secondaire (admin/parcours.html, admin/bank.html...)
+  // renvoyait vers "../index.html", qui rechargeait l'application au tout
+  // debut - c'est-a-dire l'ecran de selection Étudiant/Pharmacien
+  // (#profile-selector, plein ecran, toujours visible par defaut tant que
+  // selectProfile() n'a pas ete appelee), au lieu du veritable tableau de
+  // bord d'administration. Ces liens pointent desormais explicitement vers
+  // "../index.html?admin=1" (voir admin/*.html) ; ce parametre, detecte
+  // ICI, declenche l'ouverture DIRECTE de la zone d'administration
+  // (openAdminZone(), Sprint 3/8 - reutilisee telle quelle, aucune
+  // nouvelle route ni aucun nouveau tableau de bord n'est cree) et masque
+  // l'ecran de selection de profil - jamais l'inverse.
+  //
+  // Double garde volontaire : le parametre seul ne suffit jamais a acceder
+  // a l'administration - openAdminZone() revalide de toute facon elle-meme
+  // la permission (voir js/admin.js) et refuse silencieusement si
+  // l'utilisateur n'est pas administrateur, exactement comme un clic
+  // normal sur le bouton "Administration". La verification hasPermission()
+  // ci-dessous n'est qu'une precaution supplementaire pour ne jamais
+  // masquer l'ecran de selection de profil a un utilisateur standard qui
+  // aurait tape cette URL au hasard.
+  if (hasPermission(PERMISSIONS.MANAGE_USERS)) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('admin') === '1') {
+      var selectorEl = document.getElementById('profile-selector');
+      if (selectorEl) selectorEl.style.display = 'none';
+      openAdminZone();
+    }
+  }
 }
 
 // Point central de la garde d'authentification : tant que Firebase n'a pas

@@ -466,24 +466,33 @@ async function renderTimeline(p) {
 // NOUVEAU (Sprint 15) : Attributions (utilisateur / groupe / profil)
 // ---------------------------------------------------------------------------
 
+let currentParcoursAssignments = []; // derniere liste resolue (avec targetLabel), pour retrouver l'objet complet lors d'une suppression
+
 async function renderAssignments(p) {
   const container = document.getElementById('parcours-assignments-container');
   if (!container) return;
   const result = await listParcoursAssignments(p.id);
   if (!result.authorized) { container.textContent = result.message || 'Accès refusé.'; return; }
   if (result.error) { container.textContent = result.message; return; }
+
+  currentParcoursAssignments = result.items;
+
   if (result.items.length === 0) { container.textContent = 'Ce parcours n\'est attribué à personne pour l\'instant.'; return; }
 
-  container.innerHTML = '<ul class="bank-timeline-list">' + result.items.map(function(a) {
+  container.innerHTML = '<div class="parcours-competency-list">' + result.items.map(function(a) {
     const typeLabel = ASSIGNMENT_TARGET_TYPE_LABELS[a.type] || a.type;
-    const dueLabel = a.dueDate ? ' · échéance : ' + escapeHtml(formatDateFr(a.dueDate)) : '';
-    const mandatoryLabel = a.mandatory ? ' · obligatoire' : '';
-    return '<li class="bank-timeline-item">' +
-      '<div class="bank-timeline-date">' + escapeHtml(typeLabel) + '</div>' +
-      '<div class="bank-timeline-label">' + escapeHtml(a.targetLabel) + dueLabel + mandatoryLabel +
-      ' <a href="#" onclick="requestRemoveAssignment(\'' + escapeHtml(a.id) + '\');return false;" title="Retirer">✕</a></div>' +
-      '</li>';
-  }).join('') + '</ul>';
+    const dueLabel = a.dueDate ? '<span class="bank-chip">Échéance : ' + escapeHtml(formatDateFr(a.dueDate)) + '</span>' : '';
+    const mandatoryLabel = a.mandatory ? '<span class="bank-chip">Obligatoire</span>' : '';
+    return '<div class="parcours-competency-card">' +
+      '<div class="parcours-competency-header">' +
+        '<strong>' + escapeHtml(typeLabel) + ' — ' + escapeHtml(a.targetLabel) + '</strong>' +
+        dueLabel + mandatoryLabel +
+        '<div class="parcours-competency-actions">' +
+          '<button class="btn-secondary bank-delete-btn" onclick="requestRemoveAssignment(\'' + escapeHtml(a.id) + '\')">Retirer l\'attribution</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '</div>';
 }
 
 let assignmentPickerType = ASSIGNMENT_TARGET_TYPES.USER;
@@ -554,8 +563,11 @@ export async function confirmAssignmentPicker() {
 }
 
 export function requestRemoveAssignment(assignmentId) {
-  pendingAction = { kind: 'remove_assignment', assignmentId: assignmentId };
-  document.getElementById('parcours-confirm-message').textContent = 'Voulez-vous vraiment retirer cette attribution ?';
+  const assignment = currentParcoursAssignments.find(function(a) { return a.id === assignmentId; });
+  if (!assignment) return;
+  pendingAction = { kind: 'remove_assignment', assignment: assignment };
+  document.getElementById('parcours-confirm-message').textContent =
+    'Voulez-vous vraiment retirer l\'attribution de « ' + assignment.targetLabel + ' » ? Le parcours lui-même ne sera pas supprimé.';
   document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
@@ -794,7 +806,7 @@ export async function confirmParcoursAction() {
   // transitions de statut du parcours ci-dessous (ne concerne jamais le
   // parcours lui-même, seulement le lien assignments/{id}).
   if (action.kind === 'remove_assignment') {
-    const result = await removeAssignment(action.assignmentId);
+    const result = await removeAssignment(action.assignment);
     showParcoursMessage(result.status, result.message);
     if (result.status === 'success') {
       const p = state.items.find(function(item) { return item.id === state.selectedId; });

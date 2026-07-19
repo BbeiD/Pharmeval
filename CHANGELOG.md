@@ -4,6 +4,23 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.6.1 — Correctif Sprint 15 (Attribution des parcours)
+
+### Corrections apportées
+- **Suppression d'une attribution** : bouton clair « Retirer l'attribution » (remplace un lien « ✕ » trop discret), confirmation explicite précisant que le parcours n'est pas supprimé, actualisation immédiate de la liste, et journalisation dans l'historique du parcours (réutilise `parcours_audit_logs`, Sprint 12 — aucune nouvelle collection). Fonctionne pour les attributions utilisateur, groupe et profil.
+- **Navigation « Retour à l'administration »** : les six écrans d'administration secondaires renvoient désormais réellement vers le tableau de bord d'administration (`../index.html?admin=1`, ouverture directe via `openAdminZone()`, Sprint 3/8) au lieu de l'écran de sélection Étudiant/Pharmacien.
+
+### Fichiers modifiés
+`js/services/assignment-service.js`, `js/services/parcours-service.js`, `admin/parcours.js`, `js/auth.js`, `admin/bank.html`, `admin/import.html`, `admin/parcours.html`, `admin/competencies.html`, `admin/users.html`, `admin/reference-banks.html`.
+
+### Compatibilité
+Aucune modification de l'architecture du moteur d'attribution, de la déduplication « Mes parcours », des règles Firestore, des index, ni d'aucune autre fonctionnalité validée.
+
+### Tests
+Vérification syntaxique complète, vérification croisée des identifiants DOM et fonctions exposées, relecture manuelle. Voir `NOTE_CORRECTIF_SPRINT15.md`.
+
+---
+
 ## v2.6.0 — Sprint 15 (Attribution des parcours)
 
 ### Fonctionnalités ajoutées

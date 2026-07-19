@@ -1,21 +1,24 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.6.0 (Sprint 15 — Attribution des parcours)
+## Pharmeval — version actuelle : v2.6.1 (correctif Sprint 15 — Attribution des parcours)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.5.0 (Sprint 14 — Module Utilisateurs) |
-| Version actuelle | **v2.6.0** |
+| Version précédente | v2.6.0 (Sprint 15 — Attribution des parcours) |
+| Version actuelle | **v2.6.1** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : moteur d'attribution des parcours (utilisateur/groupe/profil), nouvelle collection `assignments`, résolution dédupliquée pour l'espace utilisateur, section « Attributions » dans la fiche parcours, nouvelle page « Mes parcours ». Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT15.md`, section 8). |
+| Objectif de cette version | Correctif (PATCH) : bouton clair « Retirer l'attribution » + historique + actualisation immédiate ; navigation « Retour à l'administration » corrigée pour ouvrir réellement le tableau de bord d'administration au lieu de l'écran de sélection Étudiant/Pharmacien. Aucune modification de l'architecture, des règles Firestore ni des index. |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.6.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT15.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.6.1) est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `NOTE_CORRECTIF_SPRINT15.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1)
 
-**v2.6.0 (Sprint 15)** — voir `RAPPORT_SPRINT15.md` :
+**v2.6.1 (correctif Sprint 15)** — voir `NOTE_CORRECTIF_SPRINT15.md` :
+- Modifiés : `js/services/assignment-service.js`, `js/services/parcours-service.js`, `admin/parcours.js`, `js/auth.js`, `admin/bank.html`, `admin/import.html`, `admin/parcours.html`, `admin/competencies.html`, `admin/users.html`, `admin/reference-banks.html`.
+
+
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
 - Modifiés : `admin/parcours.js`, `admin/parcours.html` (section Attributions), `index.html` (lien Mes parcours), `css/styles.css` (additif), `firestore.rules` (nouvelle collection `assignments/`), `firestore.indexes.json` (3 nouveaux index).
 
