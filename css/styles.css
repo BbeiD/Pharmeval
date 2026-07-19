@@ -1540,4 +1540,17 @@
   @media (max-width: 600px) {
     .er-score-card { flex-direction: column; text-align: center; }
   }
+
+  /* ---- NOUVEAU (Sprint 19) : page "Mes compétences" ---- */
+  .mc-radar-card {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .mc-radar-legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1; min-width: 180px; }
+  .mc-radar-legend-item { color: var(--text2); }
+
+  @media (max-width: 600px) {
+    .mc-radar-card { flex-direction: column; text-align: center; }
+  }
   

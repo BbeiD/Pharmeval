@@ -1,23 +1,23 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.9.0 (Sprint 18 — Correction automatique et résultats)
+## Pharmeval — version actuelle : v2.10.0 (Sprint 19 — Progression des compétences)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.8.0 (Sprint 17 — Moteur de session d'évaluation) |
-| Version actuelle | **v2.9.0** |
+| Version précédente | v2.9.0 (Sprint 18 — Correction automatique et résultats) |
+| Version actuelle | **v2.10.0** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : correction automatique d'une évaluation soumise, CorrectionPolicy centralisée, architecture EvaluationSession→EvaluationResult→CompetencyResult→QuestionResult, nouvelle collection `evaluation_results` (écriture unique), nouvelle page de résultat avec score, graphique simple et détail par question. Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT18.md`, section 15). |
+| Objectif de cette version | MINOR : progression des compétences dans le temps (collection `competency_progress`, mise à jour incrémentale uniquement à la création d'un résultat), ProgressionPolicy centralisée (tendance, niveaux, score de confiance), page « Mes compétences » (radar + détail + évolution). Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT19.md`, section 13). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.9.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT18.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.10.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT19.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0 + v2.8.0 + v2.9.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0 + v2.8.0 + v2.9.0 + v2.10.0)
 
-**v2.9.0 (Sprint 18)** — voir `RAPPORT_SPRINT18.md` :
-- Créés : `js/services/correction-policy-service.js`, `evaluation-correction-service.js`, `evaluation-result-catalog-service.js`, `evaluation-result-service.js`, `evaluation-result.html`, `js/evaluation-result.js`.
-- Modifiés : `js/evaluation.js` (redirection vers correction+résultat), `evaluation.html` (retrait de l'état minimal Sprint 17), `css/styles.css` (additif), `firestore.rules` (nouvelle collection `evaluation_results/`).
+**v2.10.0 (Sprint 19)** — voir `RAPPORT_SPRINT19.md` :
+- Créés : `js/services/progression-policy-service.js`, `competency-progress-metadata-service.js`, `competency-progress-catalog-service.js`, `competency-progress-service.js`, `mes-competences.html`, `js/mes-competences.js`.
+- Modifiés : `js/services/evaluation-result-service.js` (déclenchement de la progression), `evaluation-result.html`/`js/evaluation-result.js` (lien Voir ma progression), `index.html` (lien Mes compétences), `css/styles.css` (additif), `firestore.rules` (nouvelle collection `competency_progress/`), `firestore.indexes.json` (1 nouvel index).
 
 
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
@@ -127,5 +127,8 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 35. **Résultat calculé et écrit par le client** (Sprint 18, même famille de limite que le Sprint 17) : les règles Firestore empêchent de fabriquer un résultat hors contexte (session inexistante/d'autrui/non soumise) mais ne vérifient pas l'exactitude arithmétique du score — une garantie complète nécessiterait une fonction serveur de correction. Voir `RAPPORT_SPRINT18.md`, section 9.
 36. **Course critique mineure et préexistante** (architecture Sprint 17) : une réponse modifiée juste avant de cliquer "Terminer" pourrait, dans une fenêtre très brève, ne pas être prise en compte si la sauvegarde automatique n'a pas fini de s'exécuter. Non corrigée ce sprint (hors périmètre). Voir `RAPPORT_SPRINT18.md`, section 16.
 37. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 18** — voir `RAPPORT_SPRINT18.md`, section 15. Statut proposé : À_TESTER.
+38. **Interprétation retenue pour « Mes compétences / Performance depuis le tableau utilisateur »** (Sprint 19, cadrage ambigu) : espace personnel de l'utilisateur, pas une vue administrateur (hors périmètre explicite du sprint : "statistiques administrateur"). Voir `RAPPORT_SPRINT19.md`, section 6.
+39. **Progression calculée et écrite par le client** (Sprint 19, même famille de limite que les Sprints 17-18) : les règles Firestore protègent le rattachement utilisateur/compétence mais ne vérifient pas l'exactitude arithmétique de l'agrégation. Voir `RAPPORT_SPRINT19.md`, section 7.
+40. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 19** — voir `RAPPORT_SPRINT19.md`, section 13. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

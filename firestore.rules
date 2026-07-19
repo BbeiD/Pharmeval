@@ -823,6 +823,49 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // =========================================================================
+    // NOUVEAU (Sprint 19) : progression des compétences
+    // =========================================================================
+    // "L'utilisateur ne peut consulter que sa progression. Les
+    // administrateurs conservent leurs droits actuels." (SPRINT19,
+    // "Sécurité"). Un document = un utilisateur + une compétence,
+    // identifiant DETERMINISTE (voir js/services/competency-progress-
+    // metadata-service.js, progressionIdFor() : `${userId}_${competencyId}`)
+    // - permet de verifier directement ici, par simple egalite de chaine,
+    // que l'identifiant du document correspond bien au demandeur et a la
+    // competence declaree, sans requete.
+    //
+    // "La progression est un état. Les résultats restent des
+    // événements." : contrairement a `evaluation_results/` (Sprint 18,
+    // ecriture unique), une progression est MISE A JOUR au fil des
+    // evaluations (`allow update`, en plus de `allow create`) - mais
+    // toujours par le meme utilisateur, jamais par un tiers, jamais avec
+    // un changement de `userId` ou de `competencyId` en cours de route.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (meme famille que
+    // `evaluation_sessions`/`evaluation_results`, Sprints 17-18, voir
+    // RAPPORT_SPRINT19.md) : la progression est calculee ET ECRITE PAR LE
+    // CLIENT (aucune fonction serveur dans Pharmeval) - ces regles
+    // empechent d'ecrire dans la progression de quelqu'un d'autre ou avec
+    // un identifiant de document incoherent, mais ne verifient pas
+    // l'exactitude arithmetique de l'agregation (moyenne, tendance,
+    // niveau, score de confiance) elle-meme.
+    match /competency_progress/{progressId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && progressId == (request.auth.uid + '_' + request.resource.data.competencyId);
+
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.competencyId == resource.data.competencyId
+                    && progressId == (request.auth.uid + '_' + request.resource.data.competencyId);
+
+      allow delete: if false;
+    }
 
     // =========================================================================
     // NOUVEAU (Sprint 10, demande complementaire) : journal des imports

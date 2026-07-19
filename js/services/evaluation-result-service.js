@@ -22,6 +22,7 @@ import { submitSession } from "./evaluation-session-service.js";
 import { correctEvaluationSession } from "./evaluation-correction-service.js";
 import { createResultDocument, getResultById } from "./evaluation-result-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
+import { updateProgressionFromResult } from "./competency-progress-service.js";
 
 function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
 
@@ -57,6 +58,16 @@ export async function finalizeEvaluation(session) {
   if (!writeResult.success) {
     return { status: 'submitted_no_result', message: 'Votre évaluation a bien été soumise, mais le rapport n\'a pas pu être enregistré. Contactez un administrateur si le problème persiste.' };
   }
+
+  // SPRINT19 : "La mise à jour de la progression doit avoir lieu
+  // uniquement lors de la création d'un nouveau résultat" - c'est ICI,
+  // et seulement ici, que ce déclenchement a lieu dans tout le projet.
+  // "Best effort" : un échec de la progression ne remet jamais en cause
+  // le résultat déjà enregistré (déjà définitif et consultable) - juste
+  // journalisé, jamais bloquant pour l'utilisateur.
+  updateProgressionFromResult(evaluationResult).catch(function(err) {
+    console.error('[evaluation-result-service] mise à jour de la progression impossible', err);
+  });
 
   return success('Évaluation soumise et corrigée avec succès.', { resultId: evaluationResult.id, result: evaluationResult });
 }

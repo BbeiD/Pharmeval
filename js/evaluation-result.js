@@ -65,6 +65,7 @@ async function render(result) {
   qs('er-breadcrumb-parcours').href = parcoursLink;
   qs('er-competency-name').textContent = competencyName + (result.createdAt ? ' — soumise le ' + formatDateFr(result.createdAt) : '');
   qs('er-back-parcours').href = parcoursLink;
+  qs('er-progression-link').href = 'mes-competences.html?competencyId=' + encodeURIComponent(result.competencyId);
 
   renderScoreCard(result.score);
   renderCompetencyResults(result.competencyResults, competencyName);

@@ -4,6 +4,39 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.10.0 — Sprint 19 (Progression des compétences)
+
+### Fonctionnalités ajoutées
+- **Progression des compétences dans le temps** : nouvelle collection `competency_progress` (un document par utilisateur + compétence, identifiant déterministe), mise à jour incrémentale déclenchée uniquement à la création d'un nouveau résultat d'évaluation (Sprint 18) — jamais un recalcul global.
+- **ProgressionPolicy** (`progression-policy-service.js`) : seuils de tendance, bandes de niveau (Découverte à Expert, exigeant à la fois un score moyen et un nombre minimal d'évaluations), formule de score de confiance — centralisés, jamais codés en dur.
+- **Score de confiance** (le petit plus demandé) : combine volume, récence et régularité des évaluations, pour éviter qu'une seule bonne évaluation soit interprétée comme une maîtrise experte.
+- **Nouvelle page « Mes compétences »** (`mes-competences.html`) : radar simple des compétences principales, liste avec niveau/tendance/performances, détail par compétence avec graphique d'évolution et historique complet (jamais perdu).
+- **Intégrations** : lien « Voir ma progression » depuis le résultat d'une évaluation, lien « Mes compétences » dans l'en-tête de l'application.
+
+### Fichiers créés
+- `js/services/progression-policy-service.js`, `competency-progress-metadata-service.js`, `competency-progress-catalog-service.js`, `competency-progress-service.js`
+- `mes-competences.html`, `js/mes-competences.js`
+- `RAPPORT_SPRINT19.md`
+
+### Fichiers modifiés
+- `js/services/evaluation-result-service.js` (Sprint 18) — déclenchement (best-effort) de la mise à jour de progression après la création d'un résultat.
+- `evaluation-result.html`, `js/evaluation-result.js` — lien « Voir ma progression ».
+- `index.html` — lien « Mes compétences ».
+- `css/styles.css` — styles additifs, responsive.
+- `firestore.rules` — nouvelle collection `competency_progress/`.
+- `firestore.indexes.json` — 1 nouvel index composite.
+
+### Compatibilité
+Aucune modification du moteur de session/correction (Sprints 17-18), du moteur d'attribution, du module Utilisateurs, ni de la Banque des compétences.
+
+### Sécurité — limite documentée
+Même famille de limite que les Sprints 17-18 : la progression est calculée et écrite par le client ; les règles protègent le rattachement utilisateur/compétence mais ne vérifient pas l'exactitude arithmétique de l'agrégation — voir `RAPPORT_SPRINT19.md`, section 7.
+
+### Tests
+Vérification syntaxique complète, validité JSON des index, équilibre des règles/CSS, cohérence croisée des identifiants DOM, relecture manuelle du moteur de calcul. **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_SPRINT19.md`, section 13.
+
+---
+
 ## v2.9.0 — Sprint 18 (Correction automatique et résultats)
 
 ### Fonctionnalités ajoutées

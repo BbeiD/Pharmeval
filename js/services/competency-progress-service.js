@@ -1,0 +1,141 @@
+// ===================== SERVICE D'ORCHESTRATION DE LA PROGRESSION (Sprint 19) =====================
+// Point d'entree UNIQUE pour :
+//   - evaluation-result-service.js (Sprint 18) : updateProgressionFromResult(),
+//     appelee UNE SEULE FOIS, juste apres la creation d'un EvaluationResult
+//     ("La mise à jour de la progression doit avoir lieu uniquement lors
+//     de la création d'un nouveau résultat", SPRINT19) ;
+//   - mes-competences.js (Sprint 19, page utilisateur) : lecture seule.
+//
+// "Ne jamais recalculer la progression à partir des résultats à chaque
+// ouverture." (SPRINT19, "Séparation des responsabilités") : ce fichier
+// ne relit JAMAIS l'ensemble de `evaluation_results` pour reconstruire une
+// progression - seule la MISE A JOUR INCREMENTALE (etat precedent + UN
+// nouveau resultat -> nouvel etat) est jamais calculee, et uniquement au
+// moment ou updateProgressionFromResult() est appelee.
+
+import { getCurrentUserContext } from "./app-context.js";
+import { getUserByUid } from "./user-management-service.js";
+import {
+  progressionIdFor, completeProgressionMetadata, completeHistoryEntry,
+} from "./competency-progress-metadata-service.js";
+import { getProgressionById, saveProgressionDocument, listProgressionsByUser } from "./competency-progress-catalog-service.js";
+import {
+  getProgressionPolicy, computeTrend, computeLevel, computeConfidenceScore,
+} from "./progression-policy-service.js";
+import { computeCompetencyStatus } from "./correction-policy-service.js";
+
+function nowIso() { return new Date().toISOString(); }
+
+/**
+ * Met a jour (ou cree, a la premiere evaluation) la progression d'UNE
+ * competence a partir d'UN EvaluationResult tout juste calcule (Sprint
+ * 18). Appelee pour CHAQUE CompetencyResult du resultat (aujourd'hui
+ * toujours un seul, voir evaluation-correction-service.js, Sprint 18,
+ * "NOTE D'ÉVOLUTIVITÉ").
+ *
+ * Ecriture "best effort" du point de vue de l'appelant (evaluation-
+ * result-service.js) : un echec ici n'annule jamais la creation du
+ * resultat lui-meme, deja enregistre et definitif - voir la gestion
+ * d'erreur cote appelant.
+ *
+ * @param {object} evaluationResult - un EvaluationResult complet (Sprint 18)
+ * @returns {Promise<{success:boolean, error:boolean}>}
+ */
+export async function updateProgressionFromResult(evaluationResult) {
+  try {
+    const user = await getUserByUid(evaluationResult.userId);
+    const organizationId = (user && user.organizationId) || evaluationResult.organizationId || null;
+
+    for (const competencyResult of evaluationResult.competencyResults) {
+      await updateOneCompetencyProgression(evaluationResult, competencyResult, organizationId);
+    }
+    return { success: true, error: false };
+  } catch (err) {
+    console.error('[competency-progress-service] échec de la mise à jour de la progression', err);
+    return { success: false, error: true };
+  }
+}
+
+async function updateOneCompetencyProgression(evaluationResult, competencyResult, organizationId) {
+  const progressId = progressionIdFor(evaluationResult.userId, competencyResult.competencyId);
+  const existing = await getProgressionById(progressId);
+  const policy = getProgressionPolicy();
+  const now = nowIso();
+
+  const newHistoryEntry = completeHistoryEntry({
+    date: evaluationResult.createdAt || now,
+    percent: competencyResult.percent,
+    resultId: evaluationResult.id,
+  });
+
+  const previous = existing ? completeProgressionMetadata(existing) : null;
+  const history = previous ? previous.history.concat([newHistoryEntry]) : [newHistoryEntry]; // "Ne jamais perdre les anciennes valeurs" - toujours un ajout, jamais un remplacement
+
+  const evaluationCount = history.length;
+  const bestPercent = Math.max(competencyResult.percent, previous ? previous.bestPercent : 0);
+  const lastPercent = competencyResult.percent;
+  const averagePercent = Math.round(history.reduce(function(acc, h) { return acc + h.percent; }, 0) / evaluationCount);
+  const trend = computeTrend(previous ? previous.lastPercent : null, lastPercent, policy);
+  const currentLevel = computeLevel(averagePercent, evaluationCount, policy);
+  const masteryStatus = computeCompetencyStatus(lastPercent); // reutilise CorrectionPolicy (Sprint 18), jamais une nouvelle echelle
+  const confidenceScore = computeConfidenceScore({
+    evaluationCount: evaluationCount, history: history, lastEvaluationAt: now,
+  }, policy);
+
+  const events = (previous ? previous.events.slice() : []).concat([{ type: 'competency_progress_updated', at: now }]);
+
+  const progression = completeProgressionMetadata({
+    id: progressId,
+    userId: evaluationResult.userId,
+    competencyId: competencyResult.competencyId,
+    organizationId: organizationId,
+    evaluationCount: evaluationCount,
+    bestPercent: bestPercent,
+    lastPercent: lastPercent,
+    averagePercent: averagePercent,
+    trend: trend,
+    firstEvaluationAt: previous ? previous.firstEvaluationAt : now,
+    lastEvaluationAt: now,
+    updatedAt: now,
+    currentLevel: currentLevel,
+    masteryStatus: masteryStatus,
+    confidenceScore: confidenceScore,
+    history: history,
+    createdBy: evaluationResult.userId,
+    version: previous ? previous.version + 1 : 1,
+    events: events,
+  });
+
+  return saveProgressionDocument(progression);
+}
+
+/**
+ * Liste toutes les compétences rencontrées par l'utilisateur courant
+ * ("Mes compétences", SPRINT19).
+ * @returns {Promise<{authorized:boolean, message?:string, items:Array<object>}>}
+ */
+export async function getMyCompetencyProgress() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter vos compétences.', items: [] };
+  const result = await listProgressionsByUser(ctx.uid);
+  if (result.error) return { authorized: true, error: true, message: 'Impossible de charger vos compétences pour le moment. Réessayez plus tard.', items: [] };
+  return { authorized: true, items: result.items };
+}
+
+/**
+ * Relit la progression d'UNE compétence pour l'utilisateur courant
+ * UNIQUEMENT ("L'utilisateur ne peut consulter que sa progression",
+ * SPRINT19, "Sécurité") - défense en profondeur, en plus des règles
+ * Firestore.
+ * @param {string} competencyId
+ * @returns {Promise<{authorized:boolean, message?:string, progression?:object}>}
+ */
+export async function getCompetencyProgressDetail(competencyId) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter cette progression.' };
+  const progressId = progressionIdFor(ctx.uid, competencyId);
+  const progression = await getProgressionById(progressId);
+  if (!progression) return { authorized: false, message: 'Aucune progression enregistrée pour cette compétence.' };
+  if (progression.userId !== ctx.uid) return { authorized: false, message: 'Cette progression ne vous appartient pas.' };
+  return { authorized: true, progression: progression };
+}

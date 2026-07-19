@@ -141,6 +141,10 @@
       { "fieldPath": "parcoursId", "order": "ASCENDING" },
       { "fieldPath": "competencyId", "order": "ASCENDING" },
       { "fieldPath": "startedAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "competency_progress", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "userId", "order": "ASCENDING" },
+      { "fieldPath": "lastEvaluationAt", "order": "DESCENDING" }
     ]}
   ],
   "fieldOverrides": []

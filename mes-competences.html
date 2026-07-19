@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Mes compétences</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="mc-loading">Chargement…</div>
+
+<div id="mc-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>🧠 Mes compétences</h2>
+      <a href="index.html" class="btn-secondary">← Retour à l'accueil</a>
+    </div>
+
+    <p class="admin-users-disclaimer">Cette page rassemble la progression mesurée à travers vos évaluations, compétence par compétence. Le niveau affiché tient compte à la fois de vos performances et du nombre d'évaluations réalisées.</p>
+
+    <div id="mc-message" class="admin-message" style="display:none;"></div>
+
+    <div id="mc-empty" class="bank-list-empty" style="display:none;">Vous n'avez encore réalisé aucune évaluation. Vos compétences apparaîtront ici dès votre première évaluation terminée.</div>
+
+    <div id="mc-content" style="display:none;">
+      <!-- RADAR DE COMPETENCES (SPRINT19) -->
+      <section class="pv-section">
+        <h3>Vue d'ensemble</h3>
+        <div class="mc-radar-card">
+          <div id="mc-radar-chart" aria-hidden="true"></div>
+          <div id="mc-radar-legend" class="mc-radar-legend"></div>
+        </div>
+      </section>
+
+      <div class="bank-columns">
+        <div class="bank-list-column">
+          <div id="mc-list" class="bank-list"></div>
+        </div>
+        <div class="bank-detail-column">
+          <div id="mc-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une compétence pour voir son évolution détaillée.</div>
+          <div id="mc-detail" class="bank-detail" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/mes-competences.js"></script>
+
+</body>
+</html>
