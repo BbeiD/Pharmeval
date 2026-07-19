@@ -4,6 +4,37 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.9.0 — Sprint 18 (Correction automatique et résultats)
+
+### Fonctionnalités ajoutées
+- **Correction automatique** d'une évaluation soumise (Sprint 17) : moteur pur (`evaluation-correction-service.js`), registre extensible par type de question (seul « qcm » implémenté, seul type réel).
+- **CorrectionPolicy** (`correction-policy-service.js`) : seuils de maîtrise, règle des questions sans réponse, mode d'arrondi, méthode de notation multi-choix (préparée) — centralisés, jamais codés en dur ; chaque résultat enregistre la politique réellement appliquée pour rester historiquement exact.
+- **Architecture EvaluationSession → EvaluationResult → CompetencyResult → QuestionResult**, conçue pour accueillir demain plusieurs compétences par session sans refonte.
+- **Nouvelle collection `evaluation_results`**, séparée de `evaluation_sessions`, écriture unique (jamais recalculée, jamais modifiée).
+- **Nouvelle page « Résultat de l'évaluation »** (`evaluation-result.html`) : score global avec graphique simple (donut SVG), résultats par compétence (statut Maîtrisée/À renforcer/Non acquise), détail des questions avec explication si disponible, navigation vers le parcours ou « Mes parcours » (jamais l'administration).
+
+### Fichiers créés
+- `js/services/correction-policy-service.js`, `evaluation-correction-service.js`, `evaluation-result-catalog-service.js`, `evaluation-result-service.js`
+- `evaluation-result.html`, `js/evaluation-result.js`
+- `RAPPORT_SPRINT18.md`
+
+### Fichiers modifiés
+- `js/evaluation.js` (Sprint 17) — soumission redirige désormais vers la correction puis le résultat, retrait propre de l'état local devenu inutile.
+- `evaluation.html` — retrait du bloc de confirmation minimal du Sprint 17.
+- `css/styles.css` — styles additifs, responsive.
+- `firestore.rules` — nouvelle collection `evaluation_results/` (écriture unique, rattachement vérifié à une session soumise et possédée par le demandeur).
+
+### Compatibilité
+Aucune modification du moteur de session d'évaluation (Sprint 17, `evaluation-session-service.js` et fichiers associés non touchés), du moteur d'attribution, du module Utilisateurs, de la Banque des compétences, ni de l'administration des parcours. Aucun index Firestore modifié.
+
+### Sécurité — limite documentée
+Le résultat est calculé et écrit par le client (pas de fonction serveur dans l'architecture actuelle) ; les règles empêchent de fabriquer un résultat hors contexte mais ne vérifient pas l'exactitude arithmétique du score — voir `RAPPORT_SPRINT18.md`, section 9.
+
+### Tests
+Vérification syntaxique complète, équilibre des règles/CSS, cohérence croisée des identifiants DOM, relecture manuelle du moteur de calcul. **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_SPRINT18.md`, section 15.
+
+---
+
 ## v2.8.0 — Sprint 17 (Moteur de session d'évaluation)
 
 ### Fonctionnalités ajoutées

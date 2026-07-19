@@ -1510,4 +1510,34 @@
     .ev-actions-row button { width: 100%; }
     .ev-nav-btn { min-width: 40px; height: 40px; }
   }
+
+  /* ---- NOUVEAU (Sprint 18) : page de résultat d'évaluation ---- */
+  .er-score-card {
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+    padding: 20px; margin-bottom: 24px;
+  }
+  .er-score-chart { flex-shrink: 0; }
+  .er-score-details { flex: 1; min-width: 200px; }
+  .er-score-percent { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .er-score-breakdown { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .er-legend { display: flex; align-items: center; gap: 8px; }
+  .er-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .er-dot-correct { background: #1D9E75; }
+  .er-dot-incorrect { background: #E24B4A; }
+  .er-dot-unanswered { background: #B0B7C3; }
+
+  .er-question-list { display: flex; flex-direction: column; gap: 12px; }
+  .er-question-card { border: 1px solid var(--border); border-left-width: 5px; border-radius: var(--radius); background: var(--surface); padding: 16px; }
+  .er-q-correct { border-left-color: #1D9E75; }
+  .er-q-incorrect { border-left-color: #E24B4A; }
+  .er-q-unanswered { border-left-color: #B0B7C3; }
+  .er-question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .er-question-statement { font-weight: 600; margin: 0 0 10px 0; }
+  .er-question-answers { font-size: 13px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .er-question-explanation { font-size: 13px; color: var(--text2); background: rgba(29,158,117,.08); border-radius: 6px; padding: 10px 12px; }
+
+  @media (max-width: 600px) {
+    .er-score-card { flex-direction: column; text-align: center; }
+  }
   

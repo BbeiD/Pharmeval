@@ -15,11 +15,11 @@ import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
-import { formatDateFr } from "./services/date-utils.js";
 import {
   getActiveSession, startNewSession, resumeSession, restartSession,
-  saveAnswer, saveCurrentQuestionIndex, submitSession,
+  saveAnswer, saveCurrentQuestionIndex,
 } from "./services/evaluation-session-service.js";
+import { finalizeEvaluation } from "./services/evaluation-result-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
 import { renderQuestionOptions, readAnswerFromDom } from "./services/question-renderer-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
@@ -32,7 +32,7 @@ function escapeHtml(str) {
 }
 function qs(id) { return document.getElementById(id); }
 function showOnly(id) {
-  ['ev-loading', 'ev-denied', 'ev-session-dialog', 'ev-taking', 'ev-finished'].forEach(function(v) {
+  ['ev-loading', 'ev-denied', 'ev-session-dialog', 'ev-taking'].forEach(function(v) {
     var el = qs(v);
     if (el) el.style.display = (v === id) ? 'block' : 'none';
   });
@@ -310,29 +310,25 @@ export function cancelSubmit() {
 export async function confirmSubmit() {
   qs('ev-submit-confirm-overlay').style.display = 'none';
   showOnly('ev-loading');
-  const result = await submitSession(state.session);
+  const result = await finalizeEvaluation(state.session);
+  if (result.status === 'submitted_no_result') {
+    // SPRINT18 : la soumission elle-meme a reussi (definitive, jamais
+    // remise en cause) mais le rapport n'a pas pu etre genere/enregistre -
+    // etat honnete plutot qu'une redirection vers une page de resultat
+    // inexistante.
+    showDenied('Évaluation soumise', result.message, backLinkForParcours());
+    return;
+  }
   if (result.status !== 'success') {
     showMessage('error', result.message || 'La soumission a échoué. Veuillez réessayer.');
     showOnly('ev-taking');
     return;
   }
-  state.session.status = 'submitted';
-  state.session.submittedAt = result.submittedAt;
-  renderFinished();
-}
-
-function renderFinished() {
-  const total = state.session.questionIds.length;
-  const answeredCount = state.session.questionIds.filter(function(pid) { return isQuestionAnswered(state.session.answers[pid]); }).length;
-
-  qs('ev-finished-parcours').textContent = state.parcoursName;
-  qs('ev-finished-competency').textContent = state.competencyName;
-  qs('ev-finished-total').textContent = String(total);
-  qs('ev-finished-answered').textContent = String(answeredCount);
-  qs('ev-finished-date').textContent = state.session.submittedAt ? formatDateFr(state.session.submittedAt) : '—';
-  qs('ev-finished-back-link').href = backLinkForParcours();
-
-  showOnly('ev-finished');
+  // SPRINT18 : redirection vers la véritable page de résultat (score,
+  // détail par question) - remplace l'état local minimal du Sprint 17
+  // ("Évaluation terminée" sans score), désormais retiré (voir
+  // evaluation.html).
+  window.location.href = 'evaluation-result.html?resultId=' + encodeURIComponent(result.resultId);
 }
 
 // ---------------------------------------------------------------------------

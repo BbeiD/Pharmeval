@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Résultat de l'évaluation</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="er-loading">Chargement…</div>
+
+<div id="er-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Résultat indisponible</h2>
+    <p id="er-denied-message"></p>
+    <div class="btn-row"><a class="btn-primary" href="mes-parcours.html">← Retour à mes parcours</a></div>
+  </div>
+</div>
+
+<div id="er-view" style="display:none;">
+  <div class="bank-page ev-page">
+
+    <nav class="pv-breadcrumb" aria-label="Fil d'Ariane">
+      <a href="mes-parcours.html">Mes parcours</a>
+      <span aria-hidden="true">›</span>
+      <a id="er-breadcrumb-parcours" href="#"></a>
+      <span aria-hidden="true">›</span>
+      <span>Résultat</span>
+    </nav>
+
+    <h1>📊 Résultat de l'évaluation</h1>
+    <p id="er-competency-name" class="pv-header-description"></p>
+
+    <!-- SCORE GLOBAL + GRAPHIQUE SIMPLE -->
+    <div class="er-score-card">
+      <div class="er-score-chart" id="er-score-chart" aria-hidden="true"></div>
+      <div class="er-score-details">
+        <div class="er-score-percent" id="er-score-percent"></div>
+        <div class="er-score-breakdown">
+          <span class="er-legend"><span class="er-dot er-dot-correct"></span> <span id="er-score-correct"></span> bonnes réponses</span>
+          <span class="er-legend"><span class="er-dot er-dot-incorrect"></span> <span id="er-score-incorrect"></span> mauvaises réponses</span>
+          <span class="er-legend"><span class="er-dot er-dot-unanswered"></span> <span id="er-score-unanswered"></span> sans réponse</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTATS PAR COMPETENCE -->
+    <section class="pv-section">
+      <h2>Résultats par compétence</h2>
+      <div class="pv-competency-grid" id="er-competency-results"></div>
+    </section>
+
+    <!-- DETAIL DES QUESTIONS -->
+    <section class="pv-section">
+      <h2>Détail des questions</h2>
+      <div class="er-question-list" id="er-question-list"></div>
+    </section>
+
+    <div class="btn-row" style="margin-top:24px;">
+      <a id="er-back-parcours" href="mes-parcours.html" class="btn-secondary">← Retour au parcours</a>
+      <a href="mes-parcours.html" class="btn-primary">Retour à mes parcours</a>
+    </div>
+
+  </div>
+</div>
+
+<script type="module" src="js/evaluation-result.js"></script>
+
+</body>
+</html>

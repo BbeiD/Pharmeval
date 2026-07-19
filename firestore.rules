@@ -770,6 +770,59 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // =========================================================================
+    // NOUVEAU (Sprint 18) : résultats d'évaluation (calculés)
+    // =========================================================================
+    // "Elle doit contenir uniquement les résultats calculés. Ne pas
+    // modifier les réponses enregistrées dans evaluation_sessions... Une
+    // session représente ce que l'utilisateur a répondu. Un résultat
+    // représente ce que le système a calculé." (SPRINT18, section 6) :
+    // collection totalement SEPAREE de `evaluation_sessions/` ci-dessus,
+    // jamais lue ni ecrite par les memes regles.
+    //
+    // IDENTIFIANT DE DOCUMENT = IDENTIFIANT DE LA SESSION CORRIGEE (voir
+    // js/services/evaluation-correction-service.js, resultIdForSession())
+    // - un resultat par session, jamais deux, verifiable directement ici
+    // par egalite entre `sessionId` et l'identifiant du document.
+    //
+    // "Le calcul doit être réalisé une seule fois... Ne jamais recalculer"
+    // (SPRINT18, section 12) : ECRITURE UNIQUE, aucune mise a jour
+    // possible une fois cree (`allow update: if false`) - un resultat
+    // erronement calcule ne se corrige jamais sur place, il faudrait une
+    // toute nouvelle logique de recalcul dans un futur sprint, jamais une
+    // modification silencieuse d'un resultat deja rendu a l'utilisateur.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT18.md) :
+    // le resultat est CALCULE ET ECRIT PAR LE CLIENT (aucune fonction
+    // serveur dans Pharmeval, meme limite deja documentee pour
+    // `evaluation_sessions`/`questions` au Sprint 17) - la regle
+    // ci-dessous verifie que le resultat est bien rattache a UNE SESSION
+    // REELLEMENT SOUMISE ET APPARTENANT AU DEMANDEUR (via `get()`), ce qui
+    // empeche de fabriquer un resultat pour une session inexistante,
+    // appartenant a quelqu'un d'autre, ou pas encore soumise - mais ne
+    // verifie PAS l'exactitude arithmetique du score lui-meme (reproduire
+    // toute la logique de correction en langage de regles serait fragile
+    // et hors de portee raisonnable). Une garantie complete necessiterait
+    // une fonction serveur de correction (Cloud Function), hors perimetre
+    // explicite de ce sprint.
+    match /evaluation_results/{resultId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.id == resultId
+                    && request.resource.data.sessionId == resultId
+                    && exists(/databases/$(database)/documents/evaluation_sessions/$(resultId))
+                    && get(/databases/$(database)/documents/evaluation_sessions/$(resultId)).data.userId == request.auth.uid
+                    && get(/databases/$(database)/documents/evaluation_sessions/$(resultId)).data.status == 'submitted';
+
+      // Ecriture unique : aucune mise a jour, aucune suppression, meme
+      // par un administrateur (integrite du resultat deja rendu).
+      allow update: if false;
+      allow delete: if false;
+    }
+
 
     // =========================================================================
     // NOUVEAU (Sprint 10, demande complementaire) : journal des imports
