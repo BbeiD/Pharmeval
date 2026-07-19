@@ -363,11 +363,32 @@ service cloud.firestore {
     // fidelement la structure de questions/ ci-dessus, appliquee a ce
     // nouveau type de contenu.
     //
-    // Acces reserve aux administrateurs (aucune interface ne consomme
-    // encore ce contenu publiquement - "progression utilisateur" est un
-    // non-objectif explicite de ce sprint).
+    // Acces ADMINISTRATEUR : libre, quel que soit le statut (ecran
+    // d'administration des parcours).
+    //
+    // AJOUT (Sprint 16, "Consultation d'un parcours") : un utilisateur
+    // authentifie STANDARD peut desormais lire un parcours dont le statut
+    // est "published" - necessaire a parcours-detail.html/js/services/
+    // parcours-view-service.js. Un parcours en brouillon/relecture/
+    // archive/corbeille reste strictement invisible pour tout non-
+    // administrateur, quelle que soit la facon dont son identifiant serait
+    // obtenu.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT16.md) :
+    // cette regle ne verifie PAS que le parcours est reellement ATTRIBUE
+    // au demandeur (Sprint 15, collection `assignments`) - Firestore ne
+    // permet pas d'exprimer une verification "un document correspondant
+    // existe quelque part dans une autre collection" sans connaitre son
+    // identifiant exact (contrairement a `assignments/{id}`, dont
+    // l'identifiant EST connu au moment de la lecture). La garantie
+    // "un utilisateur ne voit que SES parcours attribues" reste donc
+    // appliquee au niveau APPLICATIF (parcours-view-service.js,
+    // getParcoursDetailForUser(), qui revalide l'attribution AVANT
+    // d'afficher quoi que ce soit) - pas au niveau de cette regle, qui ne
+    // protege que la CONFIDENTIALITE du contenu non publie.
     match /parcours/{parcoursId} {
-      allow read: if isRequesterAdmin();
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.status == 'published');
 
       // Creation : l'identifiant du document DOIT correspondre exactement
       // a l'identifiant contenu dans le document lui-meme ; le statut ecrit
@@ -436,8 +457,15 @@ service cloud.firestore {
     // Memes 3 regles de mise a jour, meme suppression securisee que
     // parcours/ (workflow identique) : reprend fidelement la structure
     // deja etablie, appliquee a ce nouveau type de contenu.
+    //
+    // AJOUT (Sprint 16) : lecture ouverte a tout utilisateur authentifie
+    // pour une fiche PUBLIEE - meme principe et memes limites que
+    // parcours/ ci-dessus (necessaire pour afficher les competences d'un
+    // parcours consulte, jamais pour une fiche encore en brouillon/
+    // archivee/a la corbeille).
     match /competencies/{competencyId} {
-      allow read: if isRequesterAdmin();
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.status == 'published');
 
       allow create: if isRequesterAdmin()
                     && request.resource.data.id == competencyId

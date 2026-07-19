@@ -155,6 +155,54 @@ export function completeCompetency(partial) {
 }
 
 /**
+ * NOUVEAU (Sprint 16, "aller plus loin") : couche "Module", intercalée
+ * entre un Parcours et son contenu pédagogique. Aujourd'hui, un seul type
+ * existe reellement (regroupement de competences - deja ce que fait
+ * `parcours.competencies`), mais le schema est pose des maintenant pour
+ * eviter une refonte lorsque d'autres types de contenu (video, PDF,
+ * procedure, lien CBIP, cas clinique, simulation...) devront etre integres
+ * a un parcours.
+ *
+ * IMPORTANT (perimetre volontairement limite ce sprint) : `parcours.modules`
+ * est un tableau ADDITIF, vide par defaut - `parcours.competencies` reste
+ * la SEULE source reellement utilisee par l'interface (Sprint 12/13/16),
+ * aucune migration des competences existantes vers cette structure n'a ete
+ * effectuee. Cette couche n'est donc, pour l'instant, qu'un schema pret a
+ * l'emploi pour un futur sprint - "Les modules peuvent, pour l'instant,
+ * etre invisibles pour l'utilisateur" (demande explicite).
+ */
+export const MODULE_TYPES = Object.freeze({
+  COMPETENCY_GROUP: 'competency_group', // regroupement de competences (seul type reellement utilise aujourd'hui, de facon equivalente a parcours.competencies)
+  QUIZ: 'quiz',
+  CLINICAL_CASE: 'clinical_case',
+  PROCEDURE: 'procedure',
+  VIDEO: 'video',
+  DOCUMENT: 'document',
+  LINK: 'link',
+});
+
+/**
+ * Construit un module complet a partir de valeurs partielles. Utilitaire
+ * pur, meme principe que completeCompetency() ci-dessus - non consomme par
+ * l'interface ce sprint, prepare pour un futur sprint.
+ * @param {{id?:string, name?:string, type?:string, order?:number, competencyIds?:Array<string>, resourceIds?:Array<string>}} partial
+ * @returns {object}
+ */
+export function completeModule(partial) {
+  const p = partial || {};
+  return {
+    id: p.id || generateCompetencyId().replace(ID_PREFIX_COMPETENCY, 'MOD'),
+    name: (p.name || '').toString().trim(),
+    type: p.type || MODULE_TYPES.COMPETENCY_GROUP,
+    order: typeof p.order === 'number' ? p.order : 0,
+    competencyIds: Array.isArray(p.competencyIds) ? p.competencyIds.slice() : [],
+    // Reserve pour un futur contenu non lie a une competence (video, PDF,
+    // lien externe...) - vide par defaut, aucune interface ne l'exploite.
+    resourceIds: Array.isArray(p.resourceIds) ? p.resourceIds.slice() : [],
+  };
+}
+
+/**
  * Construit les metadonnees completes d'un Parcours a partir de valeurs
  * partielles, completant par des defauts surs (jamais une donnee
  * inventee : nom/description vides restent vides, pas remplaces par un
@@ -177,6 +225,7 @@ export function completeParcoursMetadata(partial) {
     color: p.color || null,
     icon: p.icon || null,
     competencies: Array.isArray(p.competencies) ? p.competencies.map(completeCompetency) : [],
+    modules: Array.isArray(p.modules) ? p.modules.map(completeModule) : [], // Sprint 16 : prepare, non exploite (voir completeModule ci-dessus)
     tags: normalizeTagList(p.tags || []), // reutilise tag-service.js (Sprint 9), au cas ou un parcours beneficierait des memes mots-cles qu'une question a l'avenir
   };
 }

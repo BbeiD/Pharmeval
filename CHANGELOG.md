@@ -4,6 +4,32 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.7.0 — Sprint 16 (Consultation d'un parcours)
+
+### Fonctionnalités ajoutées
+- **Nouvelle page « Parcours »** (`parcours-detail.html`) : point d'entrée de l'expérience pédagogique, accessible depuis « Ouvrir » (Mes parcours, Sprint 15). Fil d'Ariane, en-tête (titre, description, catégorie, niveau, durée estimée, nombre de compétences/questions, date de création, auteur), cartes de compétences, statistiques descriptives (aucun résultat utilisateur), section Évaluations avec bouton « Commencer » par compétence (« Disponible au Sprint 17 »), bouton « Retour à mes parcours ».
+- **Service dédié** `js/services/parcours-view-service.js` : revérifie l'attribution réelle du parcours avant tout affichage, calcule des indicateurs descriptifs (catégorie/niveau dérivés des compétences liées, temps estimé explicitement labellisé comme une estimation) — architecture prête pour progression/historique/recommandations/badges/certificats sans refonte.
+- **Couche « Module »** (schéma additif, non exploité) dans `parcours-metadata-service.js` : prépare l'intégration future de contenus autres que des compétences/questions (vidéo, PDF, procédure, cas clinique, lien) sans migration ni refonte des parcours existants.
+
+### Fichiers créés
+- `js/services/parcours-view-service.js`
+- `parcours-detail.html`, `js/parcours-detail.js`
+- `RAPPORT_SPRINT16.md`
+
+### Fichiers modifiés
+- `js/services/parcours-metadata-service.js` — couche Module additive.
+- `js/mes-parcours.js` — « Ouvrir » navigue réellement vers la nouvelle page.
+- `css/styles.css` — styles additifs, responsive (tablette/smartphone).
+- `firestore.rules` — lecture de `parcours/` et `competencies/` ouverte à tout utilisateur authentifié pour le contenu déjà **publié** uniquement (limite documentée : la vérification d'attribution réelle reste applicative, voir `RAPPORT_SPRINT16.md` section 7).
+
+### Compatibilité
+Aucune modification du moteur d'attribution, de la déduplication, du module Utilisateurs, de la Banque des compétences ou de l'administration des parcours. Aucun index Firestore modifié.
+
+### Tests
+Vérification syntaxique complète, vérification JSON/équilibre des règles, vérification croisée des identifiants DOM et fonctions exposées, relecture manuelle — en particulier de la revérification d'attribution. **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_SPRINT16.md`, section 9.
+
+---
+
 ## v2.6.1 — Correctif Sprint 15 (Attribution des parcours)
 
 ### Corrections apportées

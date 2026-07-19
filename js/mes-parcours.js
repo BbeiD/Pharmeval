@@ -94,17 +94,18 @@ function cardHtml(entry) {
         '<div class="bank-detail-tags-row">' +
           '<span class="bank-chip bank-badge-published">🟢 Publié</span>' + mandatoryBadge + dueBadge +
         '</div>' +
-        '<button class="btn-primary" onclick="openParcours()">Ouvrir</button>' +
+        '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +
       '</div>' +
     '</div>'
   );
 }
 
-// "Le contenu détaillé sera développé au sprint suivant" (SPRINT15) :
-// aucune navigation reelle n'existe encore vers l'interieur d'un parcours
-// (Sprint 16, "Entrer dans un parcours") - message honnete plutot qu'un
-// lien casse ou une fausse page.
-export function openParcours() {
-  showMessage('denied', 'L\'ouverture détaillée d\'un parcours (compétences, évaluations, progression) arrivera dans une prochaine mise à jour de Pharmeval.');
+// SPRINT16 : "Ouvrir" mène désormais à la véritable page de consultation
+// du parcours (parcours-detail.html), qui revérifie elle-même
+// l'attribution avant d'afficher quoi que ce soit (voir js/services/
+// parcours-view-service.js) - ce fichier ne fait que naviguer, aucune
+// logique metier ici.
+export function openParcours(parcoursId) {
+  window.location.href = 'parcours-detail.html?id=' + encodeURIComponent(parcoursId);
 }
 window.openParcours = openParcours;

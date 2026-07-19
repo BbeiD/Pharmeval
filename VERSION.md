@@ -1,22 +1,23 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.6.1 (correctif Sprint 15 — Attribution des parcours)
+## Pharmeval — version actuelle : v2.7.0 (Sprint 16 — Consultation d'un parcours)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.6.0 (Sprint 15 — Attribution des parcours) |
-| Version actuelle | **v2.6.1** |
+| Version précédente | v2.6.1 (correctif Sprint 15 — Attribution des parcours) |
+| Version actuelle | **v2.7.0** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | Correctif (PATCH) : bouton clair « Retirer l'attribution » + historique + actualisation immédiate ; navigation « Retour à l'administration » corrigée pour ouvrir réellement le tableau de bord d'administration au lieu de l'écran de sélection Étudiant/Pharmacien. Aucune modification de l'architecture, des règles Firestore ni des index. |
+| Objectif de cette version | MINOR : nouvelle page « Parcours » (consultation détaillée), service dédié `parcours-view-service.js`, couche « Module » préparée pour le futur (non exploitée). Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT16.md`, section 9). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.6.1) est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `NOTE_CORRECTIF_SPRINT15.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.7.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT16.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1)
+## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0)
 
-**v2.6.1 (correctif Sprint 15)** — voir `NOTE_CORRECTIF_SPRINT15.md` :
-- Modifiés : `js/services/assignment-service.js`, `js/services/parcours-service.js`, `admin/parcours.js`, `js/auth.js`, `admin/bank.html`, `admin/import.html`, `admin/parcours.html`, `admin/competencies.html`, `admin/users.html`, `admin/reference-banks.html`.
+**v2.7.0 (Sprint 16)** — voir `RAPPORT_SPRINT16.md` :
+- Créés : `js/services/parcours-view-service.js`, `parcours-detail.html`, `js/parcours-detail.js`.
+- Modifiés : `js/services/parcours-metadata-service.js` (couche Module additive), `js/mes-parcours.js` (navigation réelle du bouton Ouvrir), `css/styles.css` (additif, responsive), `firestore.rules` (lecture de `parcours/`/`competencies/` publiés ouverte aux utilisateurs authentifiés).
 
 
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
@@ -115,5 +116,9 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 24. **Pas d'interface de gestion des attributions depuis la fiche utilisateur/groupe/profil** (Sprint 15) : uniquement depuis la fiche du parcours, comme demandé explicitement.
 25. **Aucun journal d'audit dédié aux attributions** (Sprint 15) : `assignedBy`/`assignedAt` tracent la création, aucune trace n'est conservée après suppression — choix délibéré de sobriété, voir `RAPPORT_SPRINT15.md` section 7.
 26. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 15**, notamment la règle de sécurité utilisant `in` sur `get(...).data.groupIds` — voir `RAPPORT_SPRINT15.md`, section 8. Statut proposé : À_TESTER.
+27. **Lecture de `parcours/`/`competencies/` publiés ouverte à tout utilisateur authentifié** (Sprint 16), sans vérification d'attribution au niveau des règles Firestore (limitation technique de Firestore, la vérification réelle reste applicative) — voir `RAPPORT_SPRINT16.md`, section 7.
+28. **« Temps estimé » est une estimation calculée** (nombre de questions × une constante documentée), jamais une mesure réelle — aucune donnée de temps réel n'existe encore dans Pharmeval.
+29. **Couche « Module » (Sprint 16) posée mais non exploitée** : `parcours.modules` reste vide, `parcours.competencies` demeure la seule structure réellement utilisée par l'interface.
+30. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 16** — voir `RAPPORT_SPRINT16.md`, section 9. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

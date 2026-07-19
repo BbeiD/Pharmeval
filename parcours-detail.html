@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Parcours</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="pv-loading">Chargement…</div>
+
+<!-- Etat d'erreur (parcours introuvable / non attribue) - jamais un lien
+     casse ni un renvoi vers l'administration (voir SPRINT16, "Navigation"). -->
+<div id="pv-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Parcours indisponible</h2>
+    <p id="pv-denied-message">Ce parcours ne vous a pas été attribué, ou n'est plus disponible.</p>
+    <div class="btn-row"><a class="btn-primary" href="mes-parcours.html">← Retour à mes parcours</a></div>
+  </div>
+</div>
+
+<div id="pv-view" style="display:none;">
+  <div class="bank-page pv-page">
+
+    <!-- FIL D'ARIANE (SPRINT16, "Navigation") -->
+    <nav class="pv-breadcrumb" aria-label="Fil d'Ariane">
+      <a href="mes-parcours.html">Mes parcours</a>
+      <span aria-hidden="true">›</span>
+      <span id="pv-breadcrumb-current"></span>
+    </nav>
+
+    <div id="pv-message" class="admin-message" style="display:none;"></div>
+
+    <!-- EN-TETE : titre, description, categorie, niveau, duree estimee,
+         nombre de competences, nombre de questions, date de creation, auteur -->
+    <div class="pv-header" id="pv-header"></div>
+
+    <!-- STATISTIQUES DESCRIPTIVES (aucun resultat utilisateur) -->
+    <div class="pv-stats-grid" id="pv-stats"></div>
+
+    <!-- COMPETENCES (cartes) -->
+    <section class="pv-section">
+      <h2>Compétences</h2>
+      <div id="pv-competencies-empty" class="bank-list-empty" style="display:none;">Aucune compétence n'est encore associée à ce parcours.</div>
+      <div class="pv-competency-grid" id="pv-competencies"></div>
+    </section>
+
+    <!-- EVALUATIONS (SPRINT16 : boutons "Commencer" en attente du Sprint 17) -->
+    <section class="pv-section">
+      <h2>Évaluations</h2>
+      <div id="pv-evaluations-empty" class="bank-list-empty" style="display:none;">Aucune évaluation n'est encore disponible pour ce parcours.</div>
+      <div class="pv-evaluation-list" id="pv-evaluations"></div>
+    </section>
+
+    <div class="btn-row" style="margin-top:24px;">
+      <a href="mes-parcours.html" class="btn-secondary">← Retour à mes parcours</a>
+    </div>
+
+  </div>
+</div>
+
+<script type="module" src="js/parcours-detail.js"></script>
+
+</body>
+</html>

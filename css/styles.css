@@ -1415,4 +1415,53 @@
   .mesparcours-card-body h3 { margin: 0; font-size: 16px; }
   .mesparcours-card-body p { margin: 0; font-size: 13px; color: var(--text2); flex: 1; }
   .mesparcours-card-body .btn-primary { align-self: flex-start; margin-top: 4px; }
+
+  /* ---- NOUVEAU (Sprint 16) : page de consultation d'un parcours ---- */
+  .pv-page { max-width: 960px; margin: 0 auto; }
+
+  .pv-breadcrumb { font-size: 13px; color: var(--text2); margin-bottom: 14px; display: flex; gap: 8px; align-items: center; }
+  .pv-breadcrumb a { color: var(--text2); text-decoration: none; }
+  .pv-breadcrumb a:hover { text-decoration: underline; }
+
+  .pv-header-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; margin-bottom: 20px; }
+  .pv-header-stripe { height: 6px; background: var(--border); }
+  .pv-header-card h1 { margin: 16px 20px 4px 20px; font-size: 24px; }
+  .pv-header-description { margin: 0 20px 12px 20px; color: var(--text2); font-size: 14px; }
+  .pv-header-card .bank-detail-tags-row { margin: 0 20px 12px 20px; }
+  .pv-header-meta { margin: 0 20px 16px 20px; font-size: 12px; color: var(--text2); display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .pv-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .pv-stat-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px; text-align: center; }
+  .pv-stat-value { font-size: 20px; font-weight: 700; }
+  .pv-stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; margin-top: 4px; }
+
+  .pv-section { margin-bottom: 28px; }
+  .pv-section h2 { font-size: 16px; margin-bottom: 12px; }
+
+  .pv-competency-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .pv-competency-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+  .pv-competency-card-stripe { height: 5px; background: var(--border); }
+  .pv-competency-card-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .pv-competency-card-body h3 { margin: 0; font-size: 14px; }
+  .pv-competency-card-body p { margin: 0; font-size: 12px; color: var(--text2); }
+
+  .pv-evaluation-list { display: flex; flex-direction: column; gap: 8px; }
+  .pv-evaluation-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 16px;
+  }
+  .pv-evaluation-name { font-size: 14px; font-weight: 600; }
+
+  /* Tablette : statistiques sur 2 colonnes plutot que 4 */
+  @media (max-width: 900px) {
+    .pv-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Smartphone : en-tete et evaluations reflues sur une seule colonne */
+  @media (max-width: 600px) {
+    .pv-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pv-competency-grid { grid-template-columns: 1fr; }
+    .pv-evaluation-row { flex-direction: column; align-items: flex-start; }
+    .pv-header-card h1 { font-size: 20px; }
+  }
   
