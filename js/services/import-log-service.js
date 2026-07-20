@@ -38,7 +38,15 @@ function logImportLogError(context, err) {
  * imparfait est preferable a un import bloque par une panne de
  * journalisation (meme principe que js/services/audit-service.js).
  *
- * @param {{adminUid:string, adminEmail:string, fileName:string, createdCount:number, updatedCount:number, errorCount:number, durationMs:number, simulated:boolean, schemaVersion:string}} entry
+ * @param {{adminUid:string, adminEmail:string, fileName:string, createdCount:number, updatedCount:number, errorCount:number, durationMs:number, simulated:boolean, schemaVersion:string, competenciesCreated?:number, tagsCreated?:number, sourcesCreated?:number, connectorId?:string}} entry
+ *
+ * SPRINT 21 (phase 3, CatalogSyncEngine) : 4 champs optionnels additifs -
+ * competenciesCreated, tagsCreated, sourcesCreated, connectorId. Absents
+ * (undefined) pour tout appelant existant (admin/import.js) : ces champs
+ * sont alors simplement enregistres a 0/null, comme avant ce sprint.
+ * Voir le rapport de cette phase pour une reflexion sur la pertinence du
+ * nom "import-log-service" maintenant que ce service journalise aussi des
+ * synchronisations de catalogue plus generales - non tranchee ici.
  * @returns {Promise<{success:boolean}>}
  */
 export async function logImport(entry) {
@@ -55,6 +63,10 @@ export async function logImport(entry) {
       durationMs: entry.durationMs || 0,
       simulated: !!entry.simulated,
       schemaVersion: entry.schemaVersion || null,
+      competenciesCreated: entry.competenciesCreated || 0,
+      tagsCreated: entry.tagsCreated || 0,
+      sourcesCreated: entry.sourcesCreated || 0,
+      connectorId: entry.connectorId || null,
     });
     return { success: true };
   } catch (err) {

@@ -17,6 +17,7 @@ import { hasPermission, PERMISSIONS } from "../js/services/authorization-service
 import { ExcelCatalogConnector } from "../js/services/connectors/excel-catalog-connector.js";
 import { logImport, getRecentImportLogs } from "../js/services/import-log-service.js";
 import { createCatalogSyncEngine } from "./catalog-sync-wiring.js";
+import { createAuthGateController } from "./catalog-sync-auth-gate.js";
 import {
   fingerprintFile, formatFileSize, hasAcceptedExtension, buildConfirmMessage, classifySyncStatus,
   buildCorrespondenceCsv, applyUiState,
@@ -35,38 +36,23 @@ let isSyncing = false;
 let lastReportData = null;
 
 // ---------------------------------------------------------------------------
-// Controle d'acces
+// Controle d'acces — voir catalog-sync-auth-gate.js (correctif dedie,
+// dependances injectees, garde anti-double-appel, 3 etats).
 // ---------------------------------------------------------------------------
 
-export function initAuthGate() {
-  onAuthStateChanged(auth, async function(user) {
-    const loadingEl = document.getElementById('cs-loading');
-    const deniedEl = document.getElementById('cs-denied');
-    const viewEl = document.getElementById('cs-view');
+const authGate = createAuthGateController({
+  onAuthStateChanged: onAuthStateChanged,
+  auth: auth,
+  ensureUserDocument: ensureUserDocument,
+  setCurrentUserContext: setCurrentUserContext,
+  clearCurrentUserContext: clearCurrentUserContext,
+  hasPermission: hasPermission,
+  PERMISSIONS: PERMISSIONS,
+  loadHistory: function() { loadHistory(); },
+  document: typeof document !== 'undefined' ? document : null,
+});
 
-    if (!user) {
-      clearCurrentUserContext();
-      window.location.href = '../index.html';
-      return;
-    }
-    try {
-      const userData = await ensureUserDocument(user);
-      setCurrentUserContext(user, userData);
-    } catch (err) {
-      console.error('Erreur lors de la vérification du compte :', err);
-    }
-
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) {
-      if (deniedEl) deniedEl.style.display = 'block';
-      if (viewEl) viewEl.style.display = 'none';
-      return;
-    }
-    if (deniedEl) deniedEl.style.display = 'none';
-    if (viewEl) viewEl.style.display = 'block';
-    loadHistory();
-  });
-}
+export function initAuthGate() { authGate.init(); }
 
 // ---------------------------------------------------------------------------
 // Selection du fichier

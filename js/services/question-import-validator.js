@@ -24,8 +24,15 @@ import { isRecognizedDifficultyInput } from "./question-metadata-service.js";
 
 /** Versions de schema JSON actuellement acceptees. Voir "Compatibilite" :
  * une version future pourra etre ajoutee ici sans casser les imports
- * existants, une fois le format future defini et son support ajoute. */
-export const SUPPORTED_SCHEMA_VERSIONS = Object.freeze(['1.0']);
+ * existants, une fois le format future defini et son support ajoute.
+ *
+ * SPRINT 21 : ajout de "1.1" (extension ADDITIVE de "1.0" - voir
+ * OPTIONAL_QUESTION_FIELDS ci-dessous pour les 4 nouveaux champs
+ * optionnels introduits par le CatalogSyncEngine : externalIds,
+ * sourceDocument, primaryCompetency, pendingResourceRefs). "1.0" reste
+ * pleinement supporte et INCHANGE : un fichier "1.0" n'utilisant aucun de
+ * ces champs continue de se valider exactement comme avant ce sprint. */
+export const SUPPORTED_SCHEMA_VERSIONS = Object.freeze(['1.0', '1.1']);
 
 /**
  * CORRECTIF (post-Sprint 10) : nombre maximal de questions autorisees dans
@@ -71,6 +78,8 @@ const REQUIRED_QUESTION_FIELDS = Object.freeze([
 const OPTIONAL_QUESTION_FIELDS = Object.freeze([
   'source', 'sourceVersion', 'status', 'author', 'reviewer', 'reviewDate',
   'tags', 'learningObjectives', 'keywords', 'space', 'estimatedTime', 'version',
+  // SPRINT 21 (schemaVersion "1.1", additifs — voir CatalogSyncEngine) :
+  'externalIds', 'sourceDocument', 'primaryCompetency', 'pendingResourceRefs',
 ]);
 const ALL_QUESTION_FIELDS = Object.freeze(REQUIRED_QUESTION_FIELDS.concat(OPTIONAL_QUESTION_FIELDS));
 
@@ -323,6 +332,37 @@ export function validateQuestion(rawQuestion, index) {
   }
   if (rawQuestion.learningObjectives !== undefined && !isStringArray(rawQuestion.learningObjectives)) {
     err('Le champ "learningObjectives", s\'il est fourni, doit être un tableau de chaînes.', 'learningObjectives');
+  }
+  // SPRINT 21 : validation structurelle des champs additifs "1.1". Comme
+  // le reste de ce fichier, "ne jamais faire confiance" - un champ present
+  // mais mal forme est signale, jamais ignore silencieusement.
+  if (rawQuestion.externalIds !== undefined) {
+    if (typeof rawQuestion.externalIds !== 'object' || rawQuestion.externalIds === null || Array.isArray(rawQuestion.externalIds)) {
+      err('Le champ "externalIds", s\'il est fourni, doit être un objet.', 'externalIds');
+    } else if (rawQuestion.externalIds.editorialCatalog !== undefined && !isNonEmptyString(rawQuestion.externalIds.editorialCatalog)) {
+      err('Le champ "externalIds.editorialCatalog", s\'il est fourni, doit être une chaîne non vide.', 'externalIds');
+    }
+  }
+  if (rawQuestion.sourceDocument !== undefined) {
+    if (typeof rawQuestion.sourceDocument !== 'object' || rawQuestion.sourceDocument === null || Array.isArray(rawQuestion.sourceDocument)) {
+      err('Le champ "sourceDocument", s\'il est fourni, doit être un objet.', 'sourceDocument');
+    } else {
+      ['name', 'level1', 'level2', 'level3', 'preciseReference'].forEach(function(sub) {
+        if (rawQuestion.sourceDocument[sub] !== undefined && typeof rawQuestion.sourceDocument[sub] !== 'string') {
+          err('Le champ "sourceDocument.' + sub + '", s\'il est fourni, doit être une chaîne.', 'sourceDocument');
+        }
+      });
+    }
+  }
+  if (rawQuestion.primaryCompetency !== undefined && rawQuestion.primaryCompetency !== null) {
+    if (typeof rawQuestion.primaryCompetency !== 'object' || Array.isArray(rawQuestion.primaryCompetency)) {
+      err('Le champ "primaryCompetency", s\'il est fourni, doit être un objet (ou null).', 'primaryCompetency');
+    } else if (!isNonEmptyString(rawQuestion.primaryCompetency.label)) {
+      err('Le champ "primaryCompetency.label" est obligatoire dès lors que "primaryCompetency" est fourni.', 'primaryCompetency');
+    }
+  }
+  if (rawQuestion.pendingResourceRefs !== undefined && !isStringArray(rawQuestion.pendingResourceRefs)) {
+    err('Le champ "pendingResourceRefs", s\'il est fourni, doit être un tableau de chaînes.', 'pendingResourceRefs');
   }
   if (rawQuestion.space !== undefined && (typeof rawQuestion.space !== 'string' || KNOWN_SPACES.indexOf(rawQuestion.space) === -1)) {
     err('Le champ "space", s\'il est fourni, doit être l\'un de : ' + KNOWN_SPACES.join(', ') + '.', 'space');

@@ -4,22 +4,26 @@
 // ce fichier NON PLUS : il ne fait qu'injecter des dependances deja
 // existantes dans le moteur, sans ajouter de regle metier ici.
 //
+// CORRECTIF (suite au signalement "boucle infinie de controle d'acces") :
+// ce fichier importait auparavant depuis ../tests/fake-firestore-
+// backend.mjs - une dependance de PRODUCTION vers un fichier de TEST,
+// potentiellement absent d'un hebergement reel (voir js/services/catalog-
+// sync-demo-backend.js pour le detail). Corrige : le backend de
+// demonstration vit desormais dans js/services/, aux cotes du reste du
+// code reellement deploye.
+//
 // ETAT ACTUEL (phase 3, a corriger au Sprint 22 - voir
 // NOTES_INTEGRATION_PRODUCTION.md) : les dependances Firestore reelles
-// (resolveDocumentReferential, resolveCompetency, resolveTags,
-// allocatePedagogicalId cote Firestore reel) n'ont pas encore ete cablees
-// sur de vrais services Firestore - seul writeQuestionsBatch (deja
-// existant, question-catalog-service.js) serait directement reutilisable
-// sans travail supplementaire. Ce fichier utilise donc, EXPLICITEMENT et
-// visiblement (voir bandeau #cs-demo-banner dans catalog-sync.html), le
-// MEME backend simule que les tests (tests/fake-firestore-backend.mjs) -
+// n'ont pas encore ete cablees sur de vrais services Firestore - seul
+// writeQuestionsBatch (deja existant, question-catalog-service.js) serait
+// directement reutilisable sans travail supplementaire. Ce fichier
+// utilise donc, EXPLICITEMENT et visiblement (voir bandeau #cs-demo-
+// banner dans catalog-sync.html), le MEME backend simule que les tests -
 // jamais un Firestore reel tant que le Sprint 22 n'a pas fait ce cablage.
-// Aucune ecriture Firestore reelle ne peut donc avoir lieu via cette page
-// pour l'instant, meme en cliquant "Confirmer la synchronisation".
 
 import { CatalogSyncEngine } from "../js/services/catalog-sync-engine.js";
 import { validateImportPayload } from "../js/services/question-import-validator.js";
-import { FakeFirestoreBackend } from "../tests/fake-firestore-backend.mjs";
+import { FakeFirestoreBackend } from "../js/services/catalog-sync-demo-backend.js";
 
 /**
  * @param {object} [backend] - injectable pour les tests ; par defaut, une
