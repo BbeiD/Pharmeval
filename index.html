@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pharmeval — Évaluation des connaissances officinales (Étudiant / Pharmacien)</title>
+<title>Pharmeval — Évaluation des connaissances officinales</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -53,29 +53,12 @@
      Firebase qu'un utilisateur est bien connecte (voir onAuthStateChanged). -->
 <div id="app-root" style="display:none;">
 
-<!-- SELECTEUR DE PROFIL (provisoire ; sera remplace plus tard par une gestion de roles Firebase) -->
-<div id="profile-selector">
-  <h2>Choisir votre espace</h2>
-  <div class="profile-choice-row">
-    <button class="profile-choice-btn" onclick="selectProfile('student')">
-      <span class="profile-choice-icon">🎓</span>
-      Etudiant
-    </button>
-    <button class="profile-choice-btn" onclick="selectProfile('pharmacist')">
-      <span class="profile-choice-icon">💊</span>
-      Pharmacien
-    </button>
-  </div>
-</div>
 
 
 <div class="site-header">
   <div class="logo">Fp</div>
-  <h1>Pharmeval <span style="font-size:12px;font-weight:400;color:var(--text2);margin-left:6px;">Évaluation des connaissances officinales</span><span id="active-profile-badge"></span></h1>
-  <button class="btn-secondary" id="btn-change-space" onclick="changeSpace()" style="padding:7px 14px;font-size:12px;margin-left:14px;">
-    <i class="ti ti-repeat"></i> Changer d'espace
-  </button>
-  <button class="btn-secondary" id="btn-history" onclick="openHistoryView()" style="padding:7px 14px;font-size:12px;margin-left:8px;">
+  <h1>Pharmeval <span style="font-size:12px;font-weight:400;color:var(--text2);margin-left:6px;">Évaluation des connaissances officinales</span></h1>
+  <button class="btn-secondary" id="btn-history" onclick="openHistoryView()" style="padding:7px 14px;font-size:12px;margin-left:14px;">
     <i class="ti ti-history"></i> Mes évaluations
   </button>
   <a class="btn-secondary" id="btn-mes-parcours" href="mes-parcours.html" style="padding:7px 14px;font-size:12px;margin-left:8px;">
@@ -308,12 +291,7 @@
          Simples libelles de section, aucune refonte graphique. -->
     <div class="admin-nav-menu">
       <p class="admin-nav-section-label">📚 Catalogue global <span class="admin-users-disclaimer" style="display:inline;">(commun à toutes les organisations)</span></p>
-      <!-- Ancien mecanisme d'import JSON (Sprint 10) : conserve dans le
-           projet (admin/import.html, admin/import.js) mais retire du
-           menu visible suite a l'introduction de la synchronisation du
-           catalogue editorial (Sprint 21). A supprimer definitivement
-           seulement apres la premiere synchronisation reelle validee. -->
-      <a href="admin/catalog-sync.html" class="btn-secondary">🔄 Synchronisation du catalogue</a>
+      <a href="admin/import.html" class="btn-secondary">📥 Import de questions</a>
       <a href="admin/bank.html" class="btn-secondary">🗂️ Banque de questions</a>
       <a href="admin/document-sources.html" class="btn-secondary">📚 Sources documentaires</a>
       <a href="admin/competencies.html" class="btn-secondary">🧩 Banque des compétences</a>
@@ -427,11 +405,6 @@
       <div class="history-toolbar">
         <input type="text" id="history-search" class="history-search-input"
                placeholder="Rechercher..." oninput="onHistorySearchInput()">
-        <div class="history-filters">
-          <button class="history-filter-btn active" data-space="all" onclick="setHistorySpaceFilter('all')">Tous</button>
-          <button class="history-filter-btn" data-space="pharmacist" onclick="setHistorySpaceFilter('pharmacist')">Pharmacien</button>
-          <button class="history-filter-btn" data-space="student" onclick="setHistorySpaceFilter('student')">Étudiant</button>
-        </div>
       </div>
 
       <div id="history-cards-grid" class="history-cards-grid"></div>
