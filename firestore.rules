@@ -63,6 +63,24 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
     }
 
+    // CORRECTIF (Sprint 20.2, "Catalogue documentaire global") : mirroir,
+    // au niveau des règles, de la permission JS MANAGE_GLOBAL_CATALOG
+    // (js/services/authorization-service.js) - accordée aujourd'hui aux
+    // rôles 'admin' et 'super_admin' uniquement, JAMAIS à 'editor' ni
+    // 'teacher' (un futur "administrateur d'organisation" ne doit jamais
+    // pouvoir modifier automatiquement le catalogue global, cadrage
+    // "Administration et permissions"). Les règles Firestore ne pouvant
+    // pas lire la matrice JS, cette fonction doit être tenue à jour
+    // manuellement si cette matrice change - documenté ici et dans
+    // RAPPORT_CORRECTIF_SPRINT20_2.md.
+    function isRequesterCatalogAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin') &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
     // -------------------------------------------------------------------
     // NOTE IMPORTANTE (garantie "toujours au moins un administrateur actif",
     // reconfirmee au correctif v1.9.1) : Pharmeval empeche de retrograder ou
@@ -330,7 +348,8 @@ service cloud.firestore {
                     && request.resource.data.pedagogicalId == resource.data.pedagogicalId
                     && request.resource.data.status == resource.data.status;
 
-      // --- Mise a jour n°4 (Sprint 20) : classification documentaire ---
+      // --- Mise a jour n°4 (Sprint 20 / Correctif 20.2) : classification
+      // documentaire ---
       // "La question ne doit pas porter elle-meme toute la classification
       // documentaire... elle doit principalement referencer une source et
       // une section." Seuls documentSourceId/documentSectionId/
@@ -338,10 +357,15 @@ service cloud.firestore {
       // modifies par cette voie - jamais le contenu, jamais le statut
       // "au passage" (meme discipline que la regle n°3 ci-dessus). Utilisee
       // par js/services/question-classification-service.js (rattachement
-      // individuel ET migration par lots - meme regle pour les deux, un
-      // lot n'est jamais qu'une succession d'ecritures individuelles cote
-      // Firestore).
-      allow update: if isRequesterAdmin()
+      // individuel ET migration par lots).
+      //
+      // CORRECTIF (Sprint 20.2) : isRequesterCatalogAdmin() remplace
+      // isRequesterAdmin() - classer une question dans le catalogue
+      // documentaire GLOBAL est une action de "catalogue global"
+      // (cadrage 20.2), distincte de l'édition du contenu de la question
+      // elle-même (qui reste sous isRequesterAdmin(), voir les règles
+      // ci-dessus - MANAGE_QUESTIONS).
+      allow update: if isRequesterCatalogAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['documentSourceId', 'documentSectionId', 'functionalCode', 'classificationVersion', 'updatedAt'])
                     && request.resource.data.pedagogicalId == resource.data.pedagogicalId
                     && request.resource.data.status == resource.data.status;
@@ -885,42 +909,36 @@ service cloud.firestore {
 
     // =========================================================================
     // NOUVEAU (Sprint 20) : classification documentaire
+    // CORRECTIF (Sprint 20.2, "Catalogue documentaire global") : ces
+    // collections sont désormais GLOBALES A LA PLATEFORME, jamais
+    // rattachées à une organisation - "un référentiel comme CBIP 2026 ne
+    // doit pas être recréé pour chaque organisation" (cadrage). Toute
+    // trace d'`organizationId` a été retirée des règles ci-dessous.
     // =========================================================================
     // "de quel document ou référentiel provient une question" - couche
     // ajoutée AU-DESSUS de la Banque de questions existante, jamais a la
     // place. Deux collections (document_sources/, document_sections/) +
     // une collection technique de compteurs (document_code_counters/).
     //
-    // "les administrateurs peuvent gérer sources, sections et
-    // classifications ; les utilisateurs ordinaires peuvent uniquement
-    // lire les sources et sections nécessaires aux contenus auxquels ils
-    // ont accès" (cadrage, "Sécurité Firestore") : lecture ouverte aux
-    // utilisateurs authentifiés pour le contenu ACTIF uniquement, meme
-    // principe deja applique a `parcours/`/`competencies/`/`questions/`
-    // (Sprints 16-17) - jamais un brouillon ou une source archivee.
-    //
-    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT20.md) :
-    // "l'organisation doit rester isolée" - cette regle verifie que
-    // chaque ECRITURE reste reservee a un administrateur, mais Pharmeval
-    // ne possede PAS ENCORE de role "administrateur par organisation"
-    // (seul un role global `admin`/`super_admin` existe reellement, voir
-    // authorization-service.js) : un administrateur global peut donc
-    // aujourd'hui gerer les sources de N'IMPORTE QUELLE organisation,
-    // exactement comme il peut deja gerer les utilisateurs de n'importe
-    // quelle organisation (Sprint 14). L'isolation reelle ENTRE
-    // organisations, elle, est bien garantie au niveau des DONNEES (une
-    // section verifie qu'elle appartient a la meme source ET a la meme
-    // organisation, une question ne peut referencer une section que via
-    // les services applicatifs qui verifient cette coherence).
+    // "lecture du catalogue selon les besoins de l'application ; écriture
+    // réservée aux utilisateurs autorisés à gérer le catalogue global"
+    // (cadrage 20.2, "Règles Firestore") : lecture ouverte à tout
+    // utilisateur authentifié pour le contenu ACTIF (jamais un brouillon
+    // ou une source archivée), écriture réservée à isRequesterCatalogAdmin()
+    // - PLUS SPECIFIQUE que isRequesterAdmin() : "les administrateurs
+    // d'organisation ne doivent pas pouvoir modifier automatiquement les
+    // sources globales" (cadrage) - seuls les rôles 'admin'/'super_admin'
+    // (aujourd'hui confondus avec "administrateur du catalogue global",
+    // voir isRequesterCatalogAdmin() ci-dessus) le peuvent.
     match /document_sources/{sourceId} {
-      allow read: if isRequesterAdmin()
+      allow read: if isRequesterCatalogAdmin()
                   || (request.auth != null && resource.data.status == 'active');
 
-      allow create: if isRequesterAdmin()
+      allow create: if isRequesterCatalogAdmin()
                     && request.resource.data.id == sourceId
                     && request.resource.data.status == 'draft';
 
-      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id;
+      allow update: if isRequesterCatalogAdmin() && request.resource.data.id == resource.data.id;
 
       // Jamais de suppression ("Ne pas supprimer une source contenant des
       // questions. Utiliser l'archivage.", cadrage) - vrai meme pour une
@@ -930,12 +948,12 @@ service cloud.firestore {
     }
 
     match /document_sections/{sectionId} {
-      allow read: if isRequesterAdmin()
+      allow read: if isRequesterCatalogAdmin()
                   || (request.auth != null && resource.data.status == 'active');
 
-      allow create: if isRequesterAdmin() && request.resource.data.id == sectionId;
+      allow create: if isRequesterCatalogAdmin() && request.resource.data.id == sectionId;
 
-      allow update: if isRequesterAdmin()
+      allow update: if isRequesterCatalogAdmin()
                     && request.resource.data.id == resource.data.id
                     && request.resource.data.documentSourceId == resource.data.documentSourceId;
 
@@ -944,32 +962,28 @@ service cloud.firestore {
 
     // Compteurs sequentiels des identifiants fonctionnels (voir
     // js/services/question-code-service.js) - donnee purement technique,
-    // jamais consultee ni utile en dehors de l'administration.
+    // jamais consultee ni utile en dehors de l'administration du catalogue.
     match /document_code_counters/{scopeKey} {
-      allow read: if isRequesterAdmin();
-      allow write: if isRequesterAdmin();
+      allow read: if isRequesterCatalogAdmin();
+      allow write: if isRequesterCatalogAdmin();
     }
 
     // =========================================================================
     // NOUVEAU (Correctif Sprint 20) : jobs de migration documentaire
+    // CORRECTIF (Sprint 20.2) : jobs désormais GLOBAUX (plus d'organizationId)
     // =========================================================================
     // "Pour les migrations importantes, créer ou compléter une notion de
     // job." Trace l'état d'un lot de migration (prepared -> running ->
     // completed/completed_with_errors/failed), sa progression et ses
-    // erreurs - strictement administrateur, comme toute action de
-    // classification documentaire (voir la limite deja documentee sur
-    // `document_sources/`/`document_sections/` concernant l'isolation par
-    // organisation : verifiee au niveau des donnees, pas encore au niveau
-    // du role administrateur lui-meme).
+    // erreurs - strictement réservé à l'administrateur du catalogue global.
     match /document_migration_jobs/{jobId} {
-      allow read: if isRequesterAdmin();
-      allow create: if isRequesterAdmin() && request.resource.data.id == jobId;
+      allow read: if isRequesterCatalogAdmin();
+      allow create: if isRequesterCatalogAdmin() && request.resource.data.id == jobId;
       // Mise a jour reservee a la progression du job lui-meme (statut,
-      // compteurs, erreurs) - jamais son organisation ou sa destination
-      // d'origine, qui doivent rester celles decidees a la preparation.
-      allow update: if isRequesterAdmin()
+      // compteurs, erreurs) - jamais sa destination d'origine, qui doit
+      // rester celle decidee a la preparation.
+      allow update: if isRequesterCatalogAdmin()
                     && request.resource.data.id == resource.data.id
-                    && request.resource.data.organizationId == resource.data.organizationId
                     && request.resource.data.targetSourceId == resource.data.targetSourceId;
       allow delete: if false;
     }

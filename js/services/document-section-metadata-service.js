@@ -45,7 +45,6 @@ export function completeDocumentSectionMetadata(partial) {
   const p = partial || {};
   return {
     id: p.id || generateDocumentSectionId(),
-    organizationId: p.organizationId || null,
     documentSourceId: p.documentSourceId || null,
 
     parentSectionId: p.parentSectionId || null, // null = section racine
@@ -94,7 +93,6 @@ const MIN_NAME_LENGTH = 2;
 export function validateDocumentSection(section) {
   const errors = [];
   const s = section || {};
-  if (!s.organizationId) errors.push('La section doit être rattachée à une organisation.');
   if (!s.documentSourceId) errors.push('La section doit appartenir à une source documentaire.');
   if (!s.name || s.name.toString().trim().length < MIN_NAME_LENGTH) {
     errors.push('Le nom de la section doit contenir au moins ' + MIN_NAME_LENGTH + ' caractères.');

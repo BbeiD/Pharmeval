@@ -4,6 +4,51 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.12.0 — Correctif Sprint 20.2 (Catalogue documentaire global, indépendant des organisations)
+
+### Corrections architecturales
+- **Sources et sections documentaires désormais globales** : `organizationId` retiré de `document_sources` et `document_sections` — un référentiel comme CBIP 2026 n'existe plus qu'une seule fois pour toute la plateforme, jamais recréé par organisation.
+- **Champ renommé** : `organizationName` → `sourceOrganizationName` (organisme auteur/éditeur de la source, ex. « CBIP », jamais une organisation cliente de Pharmeval).
+- **Nouvelle permission `MANAGE_GLOBAL_CATALOG`**, distincte de `MANAGE_QUESTIONS` : deux niveaux d'administration désormais séparés (catalogue global vs organisation), accordée aux rôles `admin`/`super_admin` uniquement.
+- **Jobs de migration documentaire globaux** : `organizationId` retiré de `document_migration_jobs`.
+- **Réconciliation globale** : `reconcileAllDocumentCounts()` ne prend plus d'organisation ; nouvel alias `reconcileSource(sourceId)`.
+
+### Analyse de compatibilité (demandée, réalisée, documentée)
+- **Modèle Question** : déjà compatible (jamais d'`organizationId` obligatoire) — un champ `visibility.organizationIds` préparé au Sprint 10 reste inerte et non exploité, sans impact.
+- **Modèle Compétence** : déjà compatible (jamais d'`organizationId`) — aucune refonte du Sprint 13.
+
+### Interface
+- Sélecteur d'organisation retiré de l'administration des sources documentaires, de l'import JSON et de la migration par lots.
+- Tableau de bord d'administration : distinction visuelle « 📚 Catalogue global » / « 🏢 Organisation ».
+- Nouvel outil d'analyse des anciennes données (résidus `organizationId`, doublons potentiels — jamais fusionnés automatiquement).
+- Messages d'erreur explicites en cas d'index Firestore manquant (jamais masqués).
+
+### Fichiers créés
+- `js/services/document-catalog-migration-service.js`
+- `RAPPORT_CORRECTIF_SPRINT20_2.md`
+
+### Fichiers modifiés
+- `js/services/authorization-service.js` (permission MANAGE_GLOBAL_CATALOG)
+- `js/services/document-source-metadata-service.js`, `document-source-catalog-service.js`, `document-source-service.js`
+- `js/services/document-section-metadata-service.js`, `document-section-service.js`
+- `js/services/document-count-service.js`, `document-migration-job-service.js`
+- `js/services/question-classification-service.js`, `question-migration-service.js`
+- `admin/document-sources.js`/`.html`, `admin/import.js`/`.html`
+- `index.html`, `css/styles.css`
+- `firestore.rules` (isRequesterCatalogAdmin, retrait organizationId)
+- `firestore.indexes.json` (4 index supprimés, 3 ajoutés)
+
+### Compatibilité
+Aucun impact sur le contenu des questions, les identifiants, les parcours, les évaluations, les résultats, la progression, ni sur la présentation générale de la banque. Aucune réimportation nécessaire.
+
+### Déploiement
+Procédure en deux temps : règles immédiates, index différables (fonctionnalités concernées clairement limitées en attendant, jamais masquées).
+
+### Tests
+Vérification syntaxique complète, balayage exhaustif de toute trace résiduelle d'organisation dans la couche documentaire. **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_CORRECTIF_SPRINT20_2.md`, section 19.
+
+---
+
 ## v2.11.1 — Correctif Sprint 20 (Fiabilisation des compteurs documentaires et des migrations par lots)
 
 ### Corrections

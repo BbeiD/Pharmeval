@@ -54,16 +54,20 @@ export const DOCUMENT_SOURCE_STATUSES = Object.freeze({
 
 /**
  * Construit les metadonnees completes d'une source a partir de valeurs
- * partielles, completant par des defauts surs. Reprend fidelement la
- * structure indicative du cadrage (id, organizationId, sourceType, name,
- * shortCode, organizationName, version, academicYear, language,
- * description, status, isActive, metadata{}, display{}, audit).
+ * partielles, completant par des defauts surs.
+ *
+ * CORRECTIF (Sprint 20.2, "Catalogue documentaire global") : `organizationId`
+ * a ete RETIRE - une source documentaire est desormais une entite
+ * GLOBALE de la plateforme, jamais rattachee a une organisation cliente
+ * de Pharmeval (voir en-tete de fichier et RAPPORT_CORRECTIF_SPRINT20_2.md).
+ * Le champ `organizationName` du Sprint 20 est RENOMME
+ * `sourceOrganizationName` pour lever toute ambiguite : il designe
+ * l'organisme AUTEUR/EDITEUR de la source (ex. "CBIP", "Familia",
+ * "ULiège"), jamais une organisation Pharmeval.
  *
  * "Tous les champs ne sont pas obligatoires pour chaque type" (cadrage) :
  * cette fonction ne rend RIEN obligatoire elle-meme (voir
- * validateDocumentSource() pour les regles reellement bloquantes) -
- * champs sans valeur reelle laisses a `null`/`''`, jamais une donnee
- * inventee.
+ * validateDocumentSource() pour les regles reellement bloquantes).
  *
  * @param {object} partial
  * @returns {object}
@@ -73,13 +77,12 @@ export function completeDocumentSourceMetadata(partial) {
   const now = null; // les dates sont fournies par l'appelant (document-source-service.js), jamais generees ici (utilitaire pur, sans horloge implicite)
   return {
     id: p.id || generateDocumentSourceId(),
-    organizationId: p.organizationId || null, // isolation multi-organisation (Sprint 14) - jamais null pour une source reellement utilisable, voir validateDocumentSource()
 
     sourceType: p.sourceType || null, // REF | PROC | ETU
 
     name: (p.name || '').toString().trim(),
     shortCode: (p.shortCode || '').toString().trim().toUpperCase(), // reutilise par question-code-service.js pour l'identifiant fonctionnel (ex. "CBIP")
-    organizationName: (p.organizationName || '').toString().trim(), // "organisme" (ex. "CBIP", "Familia", "ULiège") - distinct de `organizationId` (l'organisation Pharmeval proprietaire, Sprint 14)
+    sourceOrganizationName: (p.sourceOrganizationName || '').toString().trim(), // "organisme auteur/editeur" (ex. "CBIP", "Familia", "ULiège") - AUCUN lien avec une organisation cliente de Pharmeval
     version: (p.version || '').toString().trim(),
     academicYear: (p.academicYear || '').toString().trim(), // surtout utile pour ETU
     language: p.language || 'fr',
@@ -105,9 +108,7 @@ export function completeDocumentSourceMetadata(partial) {
     },
 
     // "Prévoir des compteurs maintenus" (cadrage, "Performance") : jamais
-    // recalcules en parcourant `questions` a chaque affichage - voir
-    // document-source-service.js pour la maniere dont ils sont
-    // incrementes/decrementes de facon ciblee.
+    // recalcules en parcourant `questions` a chaque affichage.
     sectionCount: (typeof p.sectionCount === 'number') ? p.sectionCount : 0,
     questionCount: (typeof p.questionCount === 'number') ? p.questionCount : 0,
 
@@ -122,6 +123,8 @@ const MIN_NAME_LENGTH = 2;
 
 /**
  * Valide une source documentaire. Ne leve jamais d'exception.
+ * CORRECTIF (Sprint 20.2) : plus aucune exigence d'`organizationId` -
+ * une source globale n'appartient à aucune organisation.
  * @param {object} source
  * @returns {{valid:boolean, errors:Array<string>}}
  */
@@ -129,7 +132,6 @@ export function validateDocumentSource(source) {
   const errors = [];
   const s = source || {};
 
-  if (!s.organizationId) errors.push('La source doit être rattachée à une organisation.');
   if (Object.values(DOCUMENT_SOURCE_TYPES).indexOf(s.sourceType) === -1) {
     errors.push('Type de source invalide : "' + s.sourceType + '" (attendu : ' + Object.values(DOCUMENT_SOURCE_TYPES).join(', ') + ').');
   }

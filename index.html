@@ -297,13 +297,24 @@
     <!-- MENU ADMINISTRATION (Sprint 10) : navigue vers les ecrans dedies.
          Lien relatif (compatibilite GitHub Pages) - la page cible
          revalide elle-meme l'acces (voir admin/import.js), ce lien
-         n'est qu'une commodite de navigation, pas un controle d'acces. -->
+         n'est qu'une commodite de navigation, pas un controle d'acces.
+
+         CORRECTIF (Sprint 20.2, "Catalogue documentaire global") :
+         distinction visuelle minimale entre "Catalogue global" (jamais
+         rattache a une organisation - sources, sections, banque de
+         questions, banque de competences) et "Organisation" (utilisateurs,
+         profils, groupes, parcours - propres a chaque organisation
+         cliente de Pharmeval), demandee explicitement par le cadrage.
+         Simples libelles de section, aucune refonte graphique. -->
     <div class="admin-nav-menu">
+      <p class="admin-nav-section-label">📚 Catalogue global <span class="admin-users-disclaimer" style="display:inline;">(commun à toutes les organisations)</span></p>
       <a href="admin/import.html" class="btn-secondary">📥 Import de questions</a>
       <a href="admin/bank.html" class="btn-secondary">🗂️ Banque de questions</a>
       <a href="admin/document-sources.html" class="btn-secondary">📚 Sources documentaires</a>
-      <a href="admin/parcours.html" class="btn-secondary">🧭 Parcours</a>
       <a href="admin/competencies.html" class="btn-secondary">🧩 Banque des compétences</a>
+
+      <p class="admin-nav-section-label" style="margin-top:14px;">🏢 Organisation <span class="admin-users-disclaimer" style="display:inline;">(propre à chaque organisation cliente)</span></p>
+      <a href="admin/parcours.html" class="btn-secondary">🧭 Parcours</a>
       <a href="admin/users.html" class="btn-secondary">👥 Utilisateurs</a>
       <a href="admin/reference-banks.html" class="btn-secondary">🏷️ Organisations / Profils / Groupes</a>
     </div>

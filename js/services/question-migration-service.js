@@ -42,7 +42,7 @@ function errorResult(message) { return { status: 'error', message: message }; }
 function checkAccess() {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour effectuer une migration.');
-  if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return denied('La migration documentaire est réservée aux administrateurs.');
+  if (!hasPermission(PERMISSIONS.MANAGE_GLOBAL_CATALOG)) return denied('La migration documentaire est réservée aux administrateurs du catalogue global.');
   return { status: 'authorized' };
 }
 
@@ -116,7 +116,6 @@ export async function prepareMigration(questions, destination, originFilters) {
   const prepared = await prepareBulkDeltas(questions, newDest);
 
   const job = await createMigrationJob({
-    organizationId: source.organizationId,
     targetSourceId: newDest.sourceId,
     targetSectionId: newDest.sectionId,
     totalQuestions: questions.length,

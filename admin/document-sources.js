@@ -10,7 +10,6 @@ import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
-import { organizationsBank } from "../js/services/organizations-bank-service.js";
 import {
   DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES,
 } from "../js/services/document-source-metadata-service.js";
@@ -23,6 +22,7 @@ import {
 import { previewMigrationBatch, prepareMigration, applyMigration } from "../js/services/question-migration-service.js";
 import { classifyQuestion, getQuestionForClassification } from "../js/services/question-classification-service.js";
 import { rebuildSourceCounts, rebuildSectionCounts, applyReconciliation, reconcileAllDocumentCounts } from "../js/services/document-count-service.js";
+import { analyzeLegacyCatalogData, stripLegacyOrganizationField, stripLegacyOrganizationFieldBulk } from "../js/services/document-catalog-migration-service.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -48,7 +48,6 @@ function showMessage(status, message) {
 
 let state = {
   activeTab: 'sources',
-  organizations: [],
   sourceItems: [], selectedSourceId: null, sectionItems: [],
   migrationMatches: [], migrationFilters: null, pendingMigration: null,
 };
@@ -70,7 +69,7 @@ onAuthStateChanged(auth, async function(user) {
   } catch (err) { console.error('Erreur lors de la vérification du compte :', err); }
 
   if (loadingEl) loadingEl.style.display = 'none';
-  if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) {
+  if (!hasPermission(PERMISSIONS.MANAGE_GLOBAL_CATALOG)) {
     if (deniedEl) deniedEl.style.display = 'block';
     if (viewEl) viewEl.style.display = 'none';
     return;
@@ -78,21 +77,8 @@ onAuthStateChanged(auth, async function(user) {
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
 
-  await loadOrganizations();
   await loadSources();
 });
-
-async function loadOrganizations() {
-  const result = await organizationsBank.browse({ filters: { status: 'published' }, sortField: 'name', sortDirection: 'asc', pageSize: 100 });
-  state.organizations = (result && result.items) || [];
-  const optionsHtml = state.organizations.map(function(o) {
-    return '<option value="' + escapeHtml(o.id) + '">' + escapeHtml(o.name) + '</option>';
-  }).join('');
-  qs('ds-filter-org').innerHTML = '<option value="">Organisation…</option>' + optionsHtml;
-  qs('ds-create-org').innerHTML = '<option value="">—</option>' + optionsHtml;
-  qs('mig-dest-org').innerHTML = '<option value="">—</option>' + optionsHtml;
-  qs('single-dest-org').innerHTML = '<option value="">—</option>' + optionsHtml;
-}
 
 // ---------------------------------------------------------------------------
 // Onglets
@@ -107,13 +93,15 @@ export function switchTab(tab) {
   if (tab === 'unclassified') loadUnclassifiedCount();
 }
 
+/**
+ * CORRECTIF (Sprint 20.2) : réconciliation du catalogue GLOBAL entier
+ * (remplace l'ancienne vérification "par organisation" - il n'y a plus
+ * qu'un seul catalogue à vérifier, jamais un par organisation).
+ */
 export async function checkAllOrgCounts() {
-  const orgId = qs('ds-filter-org').value;
   const container = qs('ds-org-reconcile-report');
-  if (!orgId) { container.innerHTML = '<p class="admin-message admin-message-error">Choisissez d\'abord une organisation.</p>'; return; }
-
-  container.innerHTML = '<div class="bank-list-loading">Calcul en cours pour toutes les sources de cette organisation (peut prendre un moment)…</div>';
-  const result = await reconcileAllDocumentCounts(orgId);
+  container.innerHTML = '<div class="bank-list-loading">Calcul en cours pour toutes les sources du catalogue (peut prendre un moment)…</div>';
+  const result = await reconcileAllDocumentCounts();
 
   const rows = result.items.map(function(entry) {
     const inconsistentSections = entry.sectionCounts.items.filter(function(i) { return i.diffDirect !== 0 || i.diffTotal !== 0; });
@@ -125,27 +113,73 @@ export async function checkAllOrgCounts() {
     '<p class="admin-users-disclaimer">Ouvrez une source pour appliquer sa correction individuellement.</p></div>';
 }
 
+/**
+ * CORRECTIF (Sprint 20.2) : "Prévoir une migration propre" pour les
+ * données existantes - détecte les sources portant encore un ancien
+ * `organizationId` (résidu Sprint 20) et les doublons potentiels
+ * (créés séparément par organisation avant ce correctif). Ne fusionne
+ * JAMAIS automatiquement - rapport uniquement, décision manuelle.
+ */
+export async function analyzeLegacyData() {
+  const container = qs('ds-legacy-report');
+  container.innerHTML = '<div class="bank-list-loading">Analyse du catalogue en cours…</div>';
+
+  const result = await analyzeLegacyCatalogData();
+  if (!result.authorized) { container.innerHTML = '<p class="admin-message admin-message-denied">' + escapeHtml(result.message) + '</p>'; return; }
+
+  let html = '<div class="bank-detail-card"><h4>Rapport (sur ' + result.totalScanned + ' source(s) analysée(s)' + (result.truncated ? ', balayage limité' : '') + ')</h4>';
+
+  html += '<h5>Sources avec un ancien champ « organisation » résiduel</h5>';
+  if (result.legacyOrgFieldSources.length === 0) {
+    html += '<p>✅ Aucune — le catalogue est déjà entièrement global.</p>';
+  } else {
+    html += '<ul>' + result.legacyOrgFieldSources.map(function(s) {
+      return '<li>' + escapeHtml(s.name) + ' (' + escapeHtml(s.id) + ') <button class="btn-secondary" onclick="cleanupOneLegacySource(\'' + escapeHtml(s.id) + '\')">Nettoyer</button></li>';
+    }).join('') + '</ul>';
+    html += '<div class="btn-row"><button class="btn-primary" onclick="cleanupAllLegacySources()">Nettoyer toutes ces sources (' + result.legacyOrgFieldSources.length + ')</button></div>';
+  }
+
+  html += '<h5 style="margin-top:14px;">Doublons potentiels (même type + code court + version)</h5>';
+  if (result.duplicateGroups.length === 0) {
+    html += '<p>✅ Aucun doublon détecté.</p>';
+  } else {
+    html += '<p class="import-report-error">⚠️ ' + result.duplicateGroups.length + ' groupe(s) détecté(s) — décision manuelle requise, jamais fusionné automatiquement.</p>';
+    html += '<ul>' + result.duplicateGroups.map(function(g) {
+      return '<li>' + escapeHtml(g.key) + ' — ' + g.sources.length + ' sources : ' + g.sources.map(function(s) { return escapeHtml(s.id); }).join(', ') + '</li>';
+    }).join('') + '</ul>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+export async function cleanupOneLegacySource(sourceId) {
+  const result = await stripLegacyOrganizationField(sourceId);
+  showMessage(result.status, result.message);
+  if (result.status === 'success') await analyzeLegacyData();
+}
+
+export async function cleanupAllLegacySources() {
+  const result = await analyzeLegacyCatalogData();
+  if (!result.authorized || result.legacyOrgFieldSources.length === 0) return;
+  const ids = result.legacyOrgFieldSources.map(function(s) { return s.id; });
+  const cleanup = await stripLegacyOrganizationFieldBulk(ids);
+  showMessage(cleanup.failedIds.length === 0 ? 'success' : 'denied', cleanup.succeededCount + ' source(s) nettoyée(s)' + (cleanup.failedIds.length ? ', ' + cleanup.failedIds.length + ' échec(s)' : '') + '.');
+  await analyzeLegacyData();
+}
+
 // ---------------------------------------------------------------------------
 // Onglet Sources
 // ---------------------------------------------------------------------------
 
-export async function onSourcesOrgChange() { await loadSources(); }
 export async function onSourcesFilterChange() { await loadSources(); }
 
 async function loadSources() {
-  const organizationId = qs('ds-filter-org').value;
   const listEl = qs('ds-list');
   const emptyEl = qs('ds-list-empty');
-  if (!organizationId) {
-    listEl.innerHTML = '';
-    emptyEl.style.display = 'block';
-    emptyEl.textContent = 'Choisissez une organisation pour afficher ses sources documentaires.';
-    return;
-  }
   listEl.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
 
   const result = await browseDocumentSources({
-    organizationId: organizationId,
     sourceType: qs('ds-filter-type').value || undefined,
     status: qs('ds-filter-status').value || undefined,
   });
@@ -186,21 +220,18 @@ export function closeCreateSourceForm() { qs('ds-create-card').style.display = '
 
 export async function submitCreateSource() {
   const fields = {
-    organizationId: qs('ds-create-org').value,
     sourceType: qs('ds-create-type').value,
     name: valueOf('ds-create-name'),
     shortCode: valueOf('ds-create-shortcode'),
-    organizationName: valueOf('ds-create-orgname'),
+    sourceOrganizationName: valueOf('ds-create-orgname'),
     version: valueOf('ds-create-version'),
     academicYear: valueOf('ds-create-academicyear'),
     description: valueOf('ds-create-description'),
   };
-  if (!fields.organizationId) { showMessage('error', 'Choisissez une organisation.'); return; }
   const result = await createDocumentSource(fields);
   showMessage(result.status, result.message + (result.warnings && result.warnings.length ? ' (' + result.warnings.join(' ') + ')' : ''));
   if (result.status === 'success') {
     closeCreateSourceForm();
-    qs('ds-filter-org').value = fields.organizationId;
     await loadSources();
   }
 }
@@ -231,7 +262,7 @@ function sourceDetailHtml(s, sections) {
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Informations</h4>';
-  html += '<div class="bank-detail-row"><strong>Organisme :</strong> ' + escapeHtml(s.organizationName || '—') + '</div>';
+  html += '<div class="bank-detail-row"><strong>Organisme auteur/éditeur :</strong> ' + escapeHtml(s.sourceOrganizationName || '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Description :</strong> ' + escapeHtml(s.description || '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Questions rattachées :</strong> ' + s.questionCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Sections :</strong> ' + s.sectionCount + '</div>';
@@ -368,21 +399,24 @@ export async function loadSingleQuestion() {
     '<div class="bank-row-question">' + escapeHtml((singleQuestion.question || '').slice(0, 120)) + '</div>' +
     '<div class="bank-row-meta">Classification actuelle : ' + (singleQuestion.documentSourceId ? escapeHtml(singleQuestion.documentSourceId) + (singleQuestion.documentSectionId ? ' › ' + escapeHtml(singleQuestion.documentSectionId) : '') : 'Non classée') + '</div></div>';
   actionsEl.style.display = 'block';
+  await populateGlobalSourceSelect('single-dest-source');
 }
 
-export async function onSingleDestOrgChange() {
-  const orgId = qs('single-dest-org').value;
-  const sourceSelect = qs('single-dest-source');
-  const sectionSelect = qs('single-dest-section');
-  sectionSelect.innerHTML = '<option value="">—</option>'; sectionSelect.disabled = true;
-  if (!orgId) { sourceSelect.innerHTML = '<option value="">—</option>'; sourceSelect.disabled = true; return; }
-  const result = await browseDocumentSources({ organizationId: orgId, status: 'active' });
+/**
+ * CORRECTIF (Sprint 20.2) : remplace l'ancienne cascade organisation →
+ * source par un chargement DIRECT des sources globales actives - le
+ * catalogue documentaire n'a plus de notion d'organisation.
+ * @param {string} selectId
+ */
+async function populateGlobalSourceSelect(selectId) {
+  const sourceSelect = qs(selectId);
+  const result = await browseDocumentSources({ status: 'active' });
   const items = (result && result.items) || [];
-  sourceSelect.innerHTML = '<option value="">—</option>' + items.map(function(s) {
-    return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
+  sourceSelect.innerHTML = '<option value="">— Aucune destination —</option>' + items.map(function(s) {
+    return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + ' (' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + ')</option>';
   }).join('');
-  sourceSelect.disabled = items.length === 0;
 }
+
 export async function onSingleDestSourceChange() {
   const sourceId = qs('single-dest-source').value;
   const sectionSelect = qs('single-dest-section');
@@ -483,21 +517,9 @@ export async function previewMigration() {
   qs('mig-delta-card').style.display = 'none';
   qs('mig-report-card').style.display = 'none';
   state.pendingMigration = null;
+  await populateGlobalSourceSelect('mig-dest-source');
 }
 
-export async function onMigDestOrgChange() {
-  const orgId = qs('mig-dest-org').value;
-  const sourceSelect = qs('mig-dest-source');
-  const sectionSelect = qs('mig-dest-section');
-  sectionSelect.innerHTML = '<option value="">—</option>'; sectionSelect.disabled = true;
-  if (!orgId) { sourceSelect.innerHTML = '<option value="">—</option>'; sourceSelect.disabled = true; return; }
-  const result = await browseDocumentSources({ organizationId: orgId, status: 'active' });
-  const items = (result && result.items) || [];
-  sourceSelect.innerHTML = '<option value="">—</option>' + items.map(function(s) {
-    return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
-  }).join('');
-  sourceSelect.disabled = items.length === 0;
-}
 export async function onMigDestSourceChange() {
   const sourceId = qs('mig-dest-source').value;
   const sectionSelect = qs('mig-dest-section');
@@ -605,7 +627,9 @@ async function loadUnclassifiedCount() {
 
 window.switchTab = switchTab;
 window.checkAllOrgCounts = checkAllOrgCounts;
-window.onSourcesOrgChange = onSourcesOrgChange;
+window.analyzeLegacyData = analyzeLegacyData;
+window.cleanupOneLegacySource = cleanupOneLegacySource;
+window.cleanupAllLegacySources = cleanupAllLegacySources;
 window.onSourcesFilterChange = onSourcesFilterChange;
 window.openCreateSourceForm = openCreateSourceForm;
 window.closeCreateSourceForm = closeCreateSourceForm;
@@ -621,11 +645,9 @@ window.requestReconciliationConfirm = requestReconciliationConfirm;
 window.cancelDsAction = cancelDsAction;
 window.confirmDsAction = confirmDsAction;
 window.loadSingleQuestion = loadSingleQuestion;
-window.onSingleDestOrgChange = onSingleDestOrgChange;
 window.onSingleDestSourceChange = onSingleDestSourceChange;
 window.attachSingleQuestion = attachSingleQuestion;
 window.previewMigration = previewMigration;
-window.onMigDestOrgChange = onMigDestOrgChange;
 window.onMigDestSourceChange = onMigDestSourceChange;
 window.prepareMigrationStep = prepareMigrationStep;
 window.confirmApplyMigration = confirmApplyMigration;

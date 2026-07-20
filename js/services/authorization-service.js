@@ -155,6 +155,20 @@ export const PERMISSIONS = Object.freeze({
   // consomment).
   MANAGE_REFERENCE_DATA: 'manage_reference_data',
   PURGE_REFERENCE_DATA: 'purge_reference_data',
+  // Correctif Sprint 20.2 ("Catalogue documentaire global") : distincte de
+  // MANAGE_QUESTIONS. Le catalogue pédagogique commun (sources
+  // documentaires, sections, questions, compétences) n'appartient à
+  // AUCUNE organisation - sa gestion est donc un niveau d'administration
+  // séparé de la gestion d'une organisation (utilisateurs, profils,
+  // groupes, parcours, attributions). Un futur "administrateur
+  // d'organisation" pourra un jour posséder MANAGE_PARCOURS/
+  // MANAGE_REFERENCE_DATA sans jamais posséder MANAGE_GLOBAL_CATALOG -
+  // ces deux capacités ne doivent jamais être fusionnées, même si,
+  // aujourd'hui, seul le rôle `admin` possède réellement les deux à la
+  // fois ("le compte administrateur principal peut recevoir la
+  // permission de catalogue global afin de ne pas bloquer les tests",
+  // cadrage).
+  MANAGE_GLOBAL_CATALOG: 'manage_global_catalog',
 });
 
 /**
@@ -181,7 +195,7 @@ const ROLE_PERMISSIONS = Object.freeze({
   // reellement implemente - une permission peut etre accordee a plusieurs
   // roles a la fois, c'est precisement l'interet d'une matrice plutot que
   // d'un lien direct role -> fonctionnalite.
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA]),
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA, PERMISSIONS.MANAGE_GLOBAL_CATALOG]),
   editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours ni de la banque de competences pour l'instant (types de contenu distincts, voir Sprint 12/13)
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
   super_admin: Object.freeze([
@@ -196,6 +210,7 @@ const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.PURGE_COMPETENCIES,
     PERMISSIONS.MANAGE_REFERENCE_DATA,
     PERMISSIONS.PURGE_REFERENCE_DATA,
+    PERMISSIONS.MANAGE_GLOBAL_CATALOG,
   ]),
 });
 

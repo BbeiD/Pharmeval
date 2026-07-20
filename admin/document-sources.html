@@ -14,7 +14,7 @@
 <div id="ds-denied" style="display:none;">
   <div class="admin-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
-    <p>La gestion des sources documentaires est réservée aux administrateurs.</p>
+    <p>La gestion du catalogue documentaire global est réservée aux administrateurs du catalogue.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
   </div>
 </div>
@@ -22,7 +22,7 @@
 <div id="ds-view" style="display:none;">
   <div class="bank-page">
     <div class="bank-header">
-      <h2>📚 Sources documentaires</h2>
+      <h2>📚 Catalogue global — Sources documentaires</h2>
       <div class="btn-row" style="margin:0;">
         <a href="bank.html" class="btn-secondary">🗂️ Banque de questions</a>
         <a href="../index.html?admin=1" class="btn-secondary">← Retour à l'administration</a>
@@ -30,8 +30,10 @@
     </div>
 
     <p class="admin-users-disclaimer">
-      Cette couche documentaire vient s'ajouter à la présentation existante de la banque de questions (Familia, Référentiels, Étudiant…),
-      qui reste inchangée. Elle permet de savoir précisément d'où vient chaque question et de la faire évoluer proprement au fil des éditions.
+      Ce catalogue (sources documentaires, sections, questions, compétences) est <strong>global à la plateforme</strong> —
+      il n'appartient à aucune organisation cliente et n'a donc pas besoin d'en choisir une pour être consulté ou administré.
+      Les organisations l'utilisent ensuite dans leurs parcours et attributions, sans jamais le dupliquer.
+      La présentation existante de la banque de questions (Familia, Référentiels, Étudiant…) reste inchangée.
     </p>
 
     <div class="btn-row" style="margin-bottom:14px;">
@@ -45,7 +47,6 @@
     <!-- ===================== ONGLET SOURCES & SECTIONS ===================== -->
     <div id="ds-panel-sources">
       <div class="bank-toolbar">
-        <select id="ds-filter-org" class="bank-select" onchange="onSourcesOrgChange()"><option value="">Organisation…</option></select>
         <select id="ds-filter-type" class="bank-select" onchange="onSourcesFilterChange()">
           <option value="">Type : Tous</option>
           <option value="REF">Référentiel</option>
@@ -59,15 +60,15 @@
           <option value="archived">⚫ Archivé</option>
         </select>
         <button class="btn-primary" onclick="openCreateSourceForm()">+ Nouvelle source</button>
-        <button class="btn-secondary" onclick="checkAllOrgCounts()">🔍 Vérifier toutes les sources</button>
+        <button class="btn-secondary" onclick="checkAllOrgCounts()">🔍 Vérifier tout le catalogue</button>
+        <button class="btn-secondary" onclick="analyzeLegacyData()">🧹 Analyser les anciennes données</button>
       </div>
       <div id="ds-org-reconcile-report" style="margin-bottom:12px;"></div>
+      <div id="ds-legacy-report" style="margin-bottom:12px;"></div>
 
       <!-- FORMULAIRE DE CREATION D'UNE SOURCE -->
       <div id="ds-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
         <h3>Nouvelle source documentaire</h3>
-        <label class="bank-edit-label">Organisation</label>
-        <select id="ds-create-org" class="bank-select"><option value="">—</option></select>
         <label class="bank-edit-label">Type</label>
         <select id="ds-create-type" class="bank-select">
           <option value="REF">Référentiel (ex. CBIP, BAPCOC, FTM)</option>
@@ -78,7 +79,7 @@
         <input type="text" id="ds-create-name" class="bank-select" placeholder="Ex. CBIP">
         <label class="bank-edit-label">Code court (majuscules, pour les identifiants fonctionnels)</label>
         <input type="text" id="ds-create-shortcode" class="bank-select" placeholder="Ex. CBIP">
-        <label class="bank-edit-label">Organisme</label>
+        <label class="bank-edit-label">Organisme auteur ou éditeur</label>
         <input type="text" id="ds-create-orgname" class="bank-select" placeholder="Ex. CBIP, Familia, ULiège">
         <label class="bank-edit-label">Version</label>
         <input type="text" id="ds-create-version" class="bank-select" placeholder="Ex. 2026, v3">
@@ -116,14 +117,10 @@
         </div>
         <div id="single-question-info" style="margin-top:10px;"></div>
         <div id="single-question-actions" style="display:none;margin-top:10px;">
-          <div class="import-preview-grid" style="grid-template-columns:1fr 1fr 1fr;">
-            <div>
-              <label class="bank-edit-label">Organisation</label>
-              <select id="single-dest-org" class="bank-select" onchange="onSingleDestOrgChange()"><option value="">—</option></select>
-            </div>
+          <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
             <div>
               <label class="bank-edit-label">Source</label>
-              <select id="single-dest-source" class="bank-select" onchange="onSingleDestSourceChange()" disabled><option value="">—</option></select>
+              <select id="single-dest-source" class="bank-select" onchange="onSingleDestSourceChange()"><option value="">—</option></select>
             </div>
             <div>
               <label class="bank-edit-label">Section</label>
@@ -171,14 +168,10 @@
         <div id="mig-preview-truncated" class="admin-users-disclaimer" style="display:none;"></div>
 
         <h3 style="margin-top:16px;">3. Choisir la destination</h3>
-        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr 1fr;">
-          <div>
-            <label class="bank-edit-label">Organisation</label>
-            <select id="mig-dest-org" class="bank-select" onchange="onMigDestOrgChange()"><option value="">—</option></select>
-          </div>
+        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
           <div>
             <label class="bank-edit-label">Source</label>
-            <select id="mig-dest-source" class="bank-select" onchange="onMigDestSourceChange()" disabled><option value="">—</option></select>
+            <select id="mig-dest-source" class="bank-select" onchange="onMigDestSourceChange()"><option value="">—</option></select>
           </div>
           <div>
             <label class="bank-edit-label">Section</label>
