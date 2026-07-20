@@ -29,10 +29,13 @@ function errorResult(message) { return { status: 'error', message: message }; }
 function checkAccess() {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour classer des questions.');
-  // "un utilisateur ne peut pas reclasser une question" (cadrage,
-  // "Sécurité Firestore") : reutilise MANAGE_QUESTIONS, deja strictement
-  // reservee aux administrateurs.
-  if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return denied('La classification documentaire est réservée aux administrateurs.');
+  // "un utilisateur ne peut pas reclasser une question" (cadrage Sprint
+  // 20, "Sécurité Firestore") - CORRECTIF (Sprint 20.2) : la
+  // classification documentaire rattache une question au catalogue
+  // GLOBAL (sources/sections), une action distincte de l'édition du
+  // contenu de la question elle-même (MANAGE_QUESTIONS) - voir
+  // "Administration et permissions" du cadrage 20.2.
+  if (!hasPermission(PERMISSIONS.MANAGE_GLOBAL_CATALOG)) return denied('La classification documentaire est réservée aux administrateurs du catalogue global.');
   return { status: 'authorized' };
 }
 

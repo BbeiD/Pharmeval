@@ -30,6 +30,22 @@ function logCatalogError(context, err) {
   console.error('[document-source-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
 }
 
+/**
+ * "Ne pas masquer une erreur Firestore d'index manquant" (cadrage 20.2,
+ * "Index Firestore") : détecte le cas précis d'une requête composée dont
+ * l'index n'a pas encore été déployé (`firestore.indexes.json` présent
+ * dans le ZIP mais pas encore appliqué côté Firebase, cadrage "Déploiement
+ * ultérieur des index") et retourne un message EXPLICITE plutôt qu'un
+ * message générique de panne réseau - l'erreur d'origine reste, dans tous
+ * les cas, intégralement journalisée en console (voir logCatalogError()).
+ * @param {*} err
+ * @returns {boolean}
+ */
+function isIndexMissingError(err) {
+  return !!err && err.code === 'failed-precondition' && /index/i.test(err.message || '');
+}
+const INDEX_MISSING_MESSAGE = 'Cette fonctionnalité nécessite un index Firestore qui n\'est pas encore déployé (voir firestore.indexes.json et la procédure de déploiement). Contactez l\'administrateur technique.';
+
 /** @param {object} sourceDocument @returns {Promise<{success:boolean, error:boolean}>} */
 export async function createDocumentSourceDoc(sourceDocument) {
   try {
@@ -67,16 +83,20 @@ export async function getDocumentSourcesByIds(sourceIds) {
 }
 
 /**
- * Liste les sources d'une organisation, avec filtres optionnels (type,
- * statut) - "filtrer par type : REF, PROC, ETU" (cadrage, "Administration
- * des sources documentaires").
- * @param {{organizationId:string, sourceType?:string, status?:string, pageSize?:number}} options
+ * Liste les sources documentaires GLOBALES, avec filtres optionnels
+ * (type, statut) - "filtrer par type : REF, PROC, ETU" (cadrage,
+ * "Administration des sources documentaires").
+ *
+ * CORRECTIF (Sprint 20.2) : ne filtre plus par organisation - une source
+ * documentaire est une entité globale de la plateforme (voir
+ * RAPPORT_CORRECTIF_SPRINT20_2.md).
+ * @param {{sourceType?:string, status?:string, pageSize?:number}} [options]
  * @returns {Promise<{items:Array<object>, error:boolean}>}
  */
 export async function queryDocumentSources(options) {
   const opts = options || {};
   try {
-    const clauses = [where('organizationId', '==', opts.organizationId)];
+    const clauses = [];
     if (opts.sourceType) clauses.push(where('sourceType', '==', opts.sourceType));
     if (opts.status) clauses.push(where('status', '==', opts.status));
     clauses.push(orderBy('display.order', 'asc'));
@@ -86,7 +106,7 @@ export async function queryDocumentSources(options) {
     return { items: items, error: false };
   } catch (err) {
     logCatalogError('liste des sources', err);
-    return { items: [], error: true };
+    return { items: [], error: true, indexMissing: isIndexMissingError(err), message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : undefined };
   }
 }
 

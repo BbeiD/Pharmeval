@@ -33,7 +33,7 @@ function nowIso() { return new Date().toISOString(); }
 function checkAccess() {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour gérer les sections documentaires.');
-  if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return denied('La gestion des sections documentaires est réservée aux administrateurs.');
+  if (!hasPermission(PERMISSIONS.MANAGE_GLOBAL_CATALOG)) return denied('La gestion du catalogue documentaire global est réservée aux administrateurs du catalogue.');
   return { status: 'authorized' };
 }
 
@@ -80,7 +80,6 @@ export async function createDocumentSection(fields) {
   const ctx = getCurrentUserContext();
   const now = nowIso();
   const section = completeDocumentSectionMetadata({
-    organizationId: source.organizationId,
     documentSourceId: fields.documentSourceId,
     parentSectionId: fields.parentSectionId || null,
     level: parent ? parent.level + 1 : 0,

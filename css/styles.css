@@ -1223,6 +1223,7 @@
 
   /* ---- Ecran d'import de questions (Sprint 10, admin/import.html) ---- */
   .admin-nav-menu { margin: 14px 0 6px 0; }
+  .admin-nav-section-label { width: 100%; margin: 4px 0 6px 0; font-weight: 700; font-size: 13px; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; }
   #import-loading, #import-denied { text-align: center; padding: 60px 20px; color: var(--text2); }
   .import-page { max-width: 760px; margin: 0 auto; padding: 24px 20px; }
   .import-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }

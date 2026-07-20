@@ -557,13 +557,18 @@ export async function applyReconciliation(sourceId, rebuilt) {
 }
 
 /**
- * Réconcilie TOUTES les sources d'une organisation (boucle sur
+ * Réconcilie TOUTES les sources du catalogue GLOBAL (boucle sur
  * rebuildSourceCounts()/rebuildSectionCounts(), sans rien appliquer).
- * @param {string} organizationId
+ *
+ * CORRECTIF (Sprint 20.2) : ne prend plus d'organisation en paramètre -
+ * le catalogue documentaire est global, une seule réconciliation
+ * complète couvre désormais l'ensemble des sources de la plateforme
+ * (alias demandé par le cadrage : reconcileSource() ci-dessous pour une
+ * source unique).
  * @returns {Promise<{items:Array<object>}>}
  */
-export async function reconcileAllDocumentCounts(organizationId) {
-  const result = await queryDocumentSources({ organizationId: organizationId });
+export async function reconcileAllDocumentCounts() {
+  const result = await queryDocumentSources({});
   const sources = result.items || [];
 
   const items = [];
@@ -572,4 +577,17 @@ export async function reconcileAllDocumentCounts(organizationId) {
     items.push({ source: source, sourceCounts: sourceCounts, sectionCounts: sectionCounts });
   }
   return { items: items };
+}
+
+/**
+ * Alias explicite demandé par le cadrage (Sprint 20.2, "Réconciliation
+ * des compteurs") : réconcilie (prévisualisation) UNE seule source -
+ * combine rebuildSourceCounts()/rebuildSectionCounts() en un seul appel,
+ * dans la forme directement consommée par applyReconciliation().
+ * @param {string} sourceId
+ * @returns {Promise<{sourceCounts:object, sectionCounts:object}>}
+ */
+export async function reconcileSource(sourceId) {
+  const [sourceCounts, sectionCounts] = await Promise.all([rebuildSourceCounts(sourceId), rebuildSectionCounts(sourceId)]);
+  return { sourceCounts: sourceCounts, sectionCounts: sectionCounts };
 }

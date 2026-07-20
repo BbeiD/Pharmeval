@@ -1,27 +1,27 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.11.1 (Correctif Sprint 20 — Fiabilisation des compteurs documentaires)
+## Pharmeval — version actuelle : v2.12.0 (Correctif Sprint 20.2 — Catalogue documentaire global)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.11.0 (Sprint 20 — Classification documentaire) |
-| Version actuelle | **v2.11.1** |
-| Date | 19 juillet 2026 |
-| Objectif de cette version | PATCH : correction de la logique de compteurs documentaires (propagation aux ancêtres, delta exact pour la migration par lots, transactions atomiques, protection contre les compteurs négatifs) + outillage de réconciliation. Aucune nouvelle fonctionnalité éditoriale ou graphique. À exécuter avant toute migration réelle des ~900 questions. Statut proposé : À_TESTER, avec exigence renforcée (voir `RAPPORT_CORRECTIF_SPRINT20.md`, section 17). |
+| Version précédente | v2.11.1 (Correctif Sprint 20 — Fiabilisation des compteurs documentaires) |
+| Version actuelle | **v2.12.0** |
+| Date | 20 juillet 2026 |
+| Objectif de cette version | MINOR : sources et sections documentaires transformées en catalogue GLOBAL (retrait d'`organizationId`, renommage `organizationName`→`sourceOrganizationName`), nouvelle permission `MANAGE_GLOBAL_CATALOG` distincte de `MANAGE_QUESTIONS`, jobs de migration globaux, réconciliation globale, interface simplifiée (plus de sélecteur d'organisation dans l'administration documentaire/import/migration), analyse de compatibilité des modèles Question et Compétence (déjà globaux, aucune refonte). Statut proposé : À_TESTER — ne pas migrer les ~900 questions réelles avant exécution complète des 13 tests (voir `RAPPORT_CORRECTIF_SPRINT20_2.md`, section 19). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `RAPPORT_CORRECTIF_SPRINT20.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `RAPPORT_CORRECTIF_SPRINT20_2.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 → v2.11.1)
+## Fichiers modifiés / créés (cumulé v1.9.0 → v2.12.0)
+
+**v2.12.0 (Correctif Sprint 20.2)** — voir `RAPPORT_CORRECTIF_SPRINT20_2.md` :
+- Créé : `js/services/document-catalog-migration-service.js`.
+- Modifiés : `js/services/authorization-service.js`, `document-source-metadata-service.js`, `document-source-catalog-service.js`, `document-source-service.js`, `document-section-metadata-service.js`, `document-section-service.js`, `document-count-service.js`, `document-migration-job-service.js`, `question-classification-service.js`, `question-migration-service.js`, `admin/document-sources.js`/`.html`, `admin/import.js`/`.html`, `index.html`, `css/styles.css`, `firestore.rules`, `firestore.indexes.json`.
 
 **v2.11.1 (Correctif Sprint 20)** — voir `RAPPORT_CORRECTIF_SPRINT20.md` :
 - Créés : `js/services/document-count-service.js`, `document-migration-job-service.js`.
-- Modifiés : `js/services/document-source-catalog-service.js`, `document-section-catalog-service.js`, `question-catalog-service.js` (références pour transactions), `question-classification-service.js`, `question-migration-service.js` (réécriture des chemins de compteurs), `admin/document-sources.js`/`.html`, `firestore.rules` (nouvelle collection `document_migration_jobs/`).
-
-**v2.11.0 (Sprint 20)** — voir `RAPPORT_SPRINT20.md` :
-- Créés : `js/services/document-source-metadata-service.js`, `document-source-catalog-service.js`, `document-source-service.js`, `document-section-metadata-service.js`, `document-section-catalog-service.js`, `document-section-service.js`, `question-code-service.js`, `question-classification-service.js`, `question-migration-service.js`, `admin/document-sources.html`, `admin/document-sources.js`.
-- Modifiés : `js/services/question-metadata-service.js`, `question-parser.js`, `import-service.js`, `admin/import.html`, `admin/import.js`, `admin/bank.js`, `index.html`, `firestore.rules`, `firestore.indexes.json`.
+- Modifiés : `js/services/document-source-catalog-service.js`, `document-section-catalog-service.js`, `question-catalog-service.js`, `question-classification-service.js`, `question-migration-service.js`, `admin/document-sources.js`/`.html`, `firestore.rules`.
 
 
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
@@ -141,5 +141,10 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 45. **CORRIGÉ en v2.11.1** (voir `RAPPORT_CORRECTIF_SPRINT20.md`) : les compteurs documentaires n'étaient pas propagés aux sections ancêtres et la migration par lots supposait à tort que toutes les questions étaient non classées. Ne plus utiliser v2.11.0 pour toute migration réelle.
 46. **Réconciliation des compteurs documentaires bornée à 2000 questions par source** (v2.11.1) — largement suffisant pour le volume actuel.
 47. **Aucun test fonctionnel réel sur un projet Firebase pour le correctif Sprint 20** — voir `RAPPORT_CORRECTIF_SPRINT20.md`, section 19. Migration réelle des ~900 questions à ne lancer qu'après exécution complète de la procédure de test (section 17). Statut proposé : À_TESTER.
+48. **CORRIGÉ en v2.12.0** (voir `RAPPORT_CORRECTIF_SPRINT20_2.md`) : les sources et sections documentaires étaient rattachées à une organisation (`organizationId`), obligeant à recréer un même référentiel pour chaque organisation cliente. Le catalogue documentaire est désormais global. Ne pas utiliser v2.11.x pour toute création réelle de sources documentaires.
+49. **`isRequesterCatalogAdmin()` (règles Firestore) doit être maintenue manuellement synchronisée** avec la matrice de permissions JS (`authorization-service.js`) — aucune synchronisation automatique entre les deux couches.
+50. **Détection d'erreur d'index Firestore manquant** appliquée à la requête la plus directement concernée par le correctif 20.2 (liste des sources documentaires), pas encore généralisée à toutes les requêtes du projet.
+51. **Détection de doublons de sources documentaires limitée à l'égalité stricte** de (type, code court, version) — une source dupliquée sous un nom légèrement différent ne serait pas détectée automatiquement.
+52. **Aucun test fonctionnel réel sur un projet Firebase pour le correctif Sprint 20.2** — voir `RAPPORT_CORRECTIF_SPRINT20_2.md`, section 19. Migration réelle des ~900 questions à ne lancer qu'après exécution complète des 13 tests. Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

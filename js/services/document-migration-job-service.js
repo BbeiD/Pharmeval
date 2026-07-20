@@ -29,7 +29,11 @@ function generateJobId() {
 /**
  * Crée un job de migration au statut `prepared` - avant toute écriture
  * réelle sur les questions ou les compteurs.
- * @param {{organizationId:string, targetSourceId:string, targetSectionId:(string|null), totalQuestions:number, originFilters:object}} fields
+ *
+ * CORRECTIF (Sprint 20.2) : plus d'`organizationId` - les jobs de
+ * migration documentaire sont désormais globaux, comme le catalogue
+ * qu'ils manipulent (voir RAPPORT_CORRECTIF_SPRINT20_2.md).
+ * @param {{targetSourceId:string, targetSectionId:(string|null), totalQuestions:number, originFilters:object}} fields
  * @returns {Promise<object>} le job créé
  */
 export async function createMigrationJob(fields) {
@@ -38,7 +42,6 @@ export async function createMigrationJob(fields) {
   const job = {
     id: generateJobId(),
     type: 'question_classification_migration',
-    organizationId: fields.organizationId || null,
     createdBy: (ctx && ctx.email) || null,
     createdAt: now,
     status: MIGRATION_JOB_STATUSES.PREPARED,

@@ -22,7 +22,6 @@ import { formatThemeLabel } from "../js/services/theme-utils.js";
 import { browseDocumentSources } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { DOCUMENT_SOURCE_TYPE_LABELS } from "../js/services/document-source-metadata-service.js";
-import { organizationsBank } from "../js/services/organizations-bank-service.js";
 
 // Etat en memoire de l'analyse en cours (necessaire pour que les boutons
 // "Simuler"/"Importer" reutilisent exactement le meme fichier deja
@@ -180,34 +179,12 @@ export async function proceedToDestinationStep() {
   if (!card) return;
   card.style.display = 'block';
 
-  const orgSelect = document.getElementById('import-dest-org');
-  if (orgSelect.options.length <= 1) {
-    const orgs = await organizationsBank.browse({ filters: { status: 'published' }, sortField: 'name', sortDirection: 'asc', pageSize: 100 });
-    const items = (orgs && orgs.items) || [];
-    orgSelect.innerHTML = '<option value="">— Aucune destination (brouillon non classé) —</option>' +
-      items.map(function(o) { return '<option value="' + escapeHtml(o.id) + '">' + escapeHtml(o.name) + '</option>'; }).join('');
-  }
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-export async function onImportDestOrgChange() {
-  const orgId = document.getElementById('import-dest-org').value;
   const sourceSelect = document.getElementById('import-dest-source');
-  const sectionSelect = document.getElementById('import-dest-section');
-  sectionSelect.innerHTML = '<option value="">—</option>';
-  sectionSelect.disabled = true;
-
-  if (!orgId) {
-    sourceSelect.innerHTML = '<option value="">—</option>';
-    sourceSelect.disabled = true;
-    return;
-  }
-
-  const result = await browseDocumentSources({ organizationId: orgId, status: 'active' });
+  const result = await browseDocumentSources({ status: 'active' });
   const items = (result && result.items) || [];
   sourceSelect.innerHTML = '<option value="">— Aucune destination (brouillon non classé) —</option>' +
     items.map(function(s) { return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + ' (' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + ')</option>'; }).join('');
-  sourceSelect.disabled = items.length === 0;
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 export async function onImportDestSourceChange() {
@@ -355,7 +332,6 @@ function escapeHtml(s) {
 window.onImportFileSelected = onImportFileSelected;
 window.analyzeSelectedFile = analyzeSelectedFile;
 window.proceedToDestinationStep = proceedToDestinationStep;
-window.onImportDestOrgChange = onImportDestOrgChange;
 window.onImportDestSourceChange = onImportDestSourceChange;
 window.confirmDestinationAndPreview = confirmDestinationAndPreview;
 window.runImport = runImport;
