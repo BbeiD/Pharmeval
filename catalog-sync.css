@@ -1,0 +1,56 @@
+.cs-page { max-width: 920px; }
+
+.cs-source-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cs-source-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+}
+.cs-source-available { background: rgba(29,158,117,.12); color: var(--green-dark); border: 1px solid var(--green); }
+.cs-source-note { font-size: 12px; color: var(--text2); }
+
+.cs-progress-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cs-progress-steps li { font-size: 13px; color: var(--text2); padding-left: 22px; position: relative; }
+.cs-progress-steps li::before {
+  content: ''; position: absolute; left: 0; top: 3px; width: 12px; height: 12px;
+  border-radius: 50%; border: 2px solid #ccc;
+}
+.cs-progress-steps li.cs-step-active { color: var(--text1); font-weight: 700; }
+.cs-progress-steps li.cs-step-active::before { border-color: var(--green); background: var(--green); }
+.cs-progress-steps li.cs-step-done { color: var(--green-dark); }
+.cs-progress-steps li.cs-step-done::before { border-color: var(--green); background: var(--green); }
+
+.cs-warnings-list { color: #8a5608 !important; }
+
+.cs-archived-note { font-size: 12px; color: var(--text2); margin: 6px 0 0 0; }
+
+.cs-detail-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.cs-tab-btn {
+  border: 1px solid #ddd; background: var(--surface2); color: var(--text2);
+  border-radius: 999px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+.cs-tab-btn.cs-tab-active { background: var(--green); color: #fff; border-color: var(--green); }
+
+.cs-detail-filters { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.cs-detail-filters input, .cs-detail-filters select { flex: 1; min-width: 200px; }
+
+.cs-detail-body { max-height: 480px; overflow-y: auto; }
+.cs-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cs-detail-table th, .cs-detail-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--surface2); vertical-align: top; }
+.cs-detail-table th { position: sticky; top: 0; background: #fff; }
+.cs-diff-old { text-decoration: line-through; color: #b33332; }
+.cs-diff-new { color: var(--green-dark); font-weight: 600; }
+.cs-dupe-pill { display: inline-block; background: rgba(184,114,10,.12); color: #8a5608; border-radius: 999px; padding: 1px 8px; font-size: 11px; margin-right: 4px; }
+
+.cs-btn-danger { background: #B8720A !important; }
+.cs-btn-danger:hover { background: #96590a !important; }
+
+.cs-stale-notice { color: #b33332; font-size: 12px; margin-top: 8px; }
+
+.cs-history-empty { font-size: 13px; color: var(--text2); }
+.cs-history-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cs-history-table th, .cs-history-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--surface2); }
+
+@media (max-width: 640px) {
+  .cs-detail-filters { flex-direction: column; }
+  .cs-detail-table { font-size: 11px; }
+}

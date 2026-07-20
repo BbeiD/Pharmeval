@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Synchronisation du catalogue</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="../css/catalog-sync.css">
+<!-- SheetJS (lecture Excel côté navigateur) — chargé via CDN, jamais de bundler
+     (voir CHARTE_DEVELOPPEMENT_PHARMEVAL.md section 13). Même principe que
+     tabler-icons ci-dessus. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div id="cs-loading">Vérification des droits d'accès…</div>
+
+<!-- ACCES REFUSE : meme principe que admin/import.html - reserve a
+     MANAGE_QUESTIONS, aucune nouvelle permission creee. -->
+<div id="cs-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La synchronisation du catalogue éditorial est réservée aux administrateurs.</p>
+    <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
+  </div>
+</div>
+
+<div id="cs-view" style="display:none;">
+  <div class="import-page cs-page">
+    <div class="import-header">
+      <h2>🔄 Synchronisation du catalogue éditorial</h2>
+      <a href="../index.html?admin=1" class="btn-secondary">← Retour à l'administration</a>
+    </div>
+    <p class="import-intro">
+      Le catalogue éditorial est la <strong>source de référence</strong> des questions Pharmeval.
+      L'analyse ci-dessous ne modifie <strong>aucune donnée</strong> : elle compare simplement le fichier
+      choisi à ce que contient déjà Pharmeval. La synchronisation réelle ne sera exécutée
+      qu'après une <strong>confirmation explicite</strong> de votre part.
+    </p>
+
+    <div class="admin-message admin-message-denied" style="display:block;">
+      ⚠️ <strong>Mode démonstration :</strong> cette page utilise pour l'instant un backend Firestore <strong>simulé</strong> (même moteur, mêmes règles de dédoublonnage, mais aucune écriture réelle dans Pharmeval). Le câblage sur Firestore réel est prévu au Sprint 22 — voir le rapport de cette phase.
+    </div>
+
+    <!-- SOURCE DU CATALOGUE -->
+    <div class="import-card">
+      <h3>1. Source du catalogue</h3>
+      <div class="cs-source-row">
+        <span class="cs-source-badge cs-source-available"><i class="ti ti-file-spreadsheet"></i> Excel — disponible</span>
+        <span class="cs-source-note">D'autres connecteurs (Google Sheets, API…) pourront être ajoutés ultérieurement.</span>
+      </div>
+    </div>
+
+    <!-- SELECTION DU FICHIER -->
+    <div class="import-card">
+      <h3>2. Sélectionner le fichier</h3>
+      <input type="file" id="cs-file-input" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <div id="cs-file-info" class="import-file-name"></div>
+      <div class="btn-row">
+        <button class="btn-primary" id="cs-analyze-btn" disabled>Analyser le catalogue</button>
+      </div>
+    </div>
+
+    <!-- PROGRESSION (visible uniquement pendant l'analyse) -->
+    <div id="cs-progress-card" class="import-card" style="display:none;">
+      <h3>Analyse en cours…</h3>
+      <ol id="cs-progress-steps" class="cs-progress-steps">
+        <li data-step="read">Lecture du catalogue</li>
+        <li data-step="validate">Validation du contenu</li>
+        <li data-step="compare">Comparaison avec Pharmeval</li>
+        <li data-step="resolve">Analyse des compétences et des tags</li>
+        <li data-step="report">Préparation du rapport</li>
+      </ol>
+    </div>
+
+    <!-- ERREURS BLOQUANTES -->
+    <div id="cs-errors-card" class="import-card import-errors-card" style="display:none;">
+      <h3>❌ La synchronisation ne peut pas continuer</h3>
+      <p class="import-errors-intro">Ces points bloquants doivent être corrigés dans le fichier avant de réessayer :</p>
+      <ul id="cs-errors-list" class="import-errors-list"></ul>
+    </div>
+
+    <!-- AVERTISSEMENTS (non bloquants) -->
+    <div id="cs-warnings-card" class="import-card" style="display:none;">
+      <h3>⚠️ Avertissements (n'empêchent pas la synchronisation)</h3>
+      <p class="import-errors-intro">Ces lignes ont été ignorées, le reste du catalogue a pu être analysé :</p>
+      <ul id="cs-warnings-list" class="import-errors-list cs-warnings-list"></ul>
+    </div>
+
+    <!-- RESUME DE L'ANALYSE -->
+    <div id="cs-summary-card" class="import-card" style="display:none;">
+      <h3>3. Résumé de l'analyse</h3>
+
+      <div class="cs-summary-block">
+        <strong>Catalogue</strong>
+        <div class="import-preview-grid">
+          <div class="import-preview-stat"><span id="cs-stat-lines">0</span><label>lignes lues</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-valid">0</span><label>questions valides</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-errors">0</span><label>erreurs</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-warnings">0</span><label>avertissements</label></div>
+        </div>
+      </div>
+
+      <div class="cs-summary-block">
+        <strong>Questions</strong>
+        <div class="import-preview-grid">
+          <div class="import-preview-stat import-preview-new"><span id="cs-stat-create">0</span><label>à créer</label></div>
+          <div class="import-preview-stat import-preview-update"><span id="cs-stat-update">0</span><label>à modifier</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-unchanged">0</span><label>inchangées</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-archived">0</span><label>absentes du catalogue</label></div>
+        </div>
+        <p class="cs-archived-note">Détectées uniquement — <strong>aucune suppression ni aucun archivage</strong> ne sera effectué dans cette phase.</p>
+      </div>
+
+      <div class="cs-summary-block">
+        <strong>Compétences</strong>
+        <div class="import-preview-grid">
+          <div class="import-preview-stat import-preview-new"><span id="cs-stat-comp-new">0</span><label>nouvelles</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-comp-reused">0</span><label>réutilisées</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-comp-dupes">0</span><label>doublons potentiels</label></div>
+        </div>
+      </div>
+
+      <div class="cs-summary-block">
+        <strong>Tags</strong>
+        <div class="import-preview-grid">
+          <div class="import-preview-stat import-preview-new"><span id="cs-stat-tag-new">0</span><label>nouveaux</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-tag-reused">0</span><label>réutilisés</label></div>
+        </div>
+      </div>
+
+      <div class="cs-summary-block">
+        <strong>Référentiels documentaires</strong>
+        <div class="import-preview-grid">
+          <div class="import-preview-stat import-preview-new"><span id="cs-stat-src-new">0</span><label>sources nouvelles</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-src-reused">0</span><label>sources réutilisées</label></div>
+          <div class="import-preview-stat import-preview-new"><span id="cs-stat-sec-new">0</span><label>sections nouvelles</label></div>
+          <div class="import-preview-stat"><span id="cs-stat-sec-reused">0</span><label>sections réutilisées</label></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DETAIL -->
+    <div id="cs-detail-card" class="import-card" style="display:none;">
+      <h3>4. Détail des changements</h3>
+      <div class="cs-detail-tabs" id="cs-detail-tabs">
+        <button class="cs-tab-btn cs-tab-active" data-tab="create">À créer</button>
+        <button class="cs-tab-btn" data-tab="update">À modifier</button>
+        <button class="cs-tab-btn" data-tab="unchanged">Inchangées</button>
+        <button class="cs-tab-btn" data-tab="archived">Absentes du catalogue</button>
+        <button class="cs-tab-btn" data-tab="errors">Erreurs</button>
+        <button class="cs-tab-btn" data-tab="warnings">Avertissements</button>
+        <button class="cs-tab-btn" data-tab="newCompetencies">Nouvelles compétences</button>
+        <button class="cs-tab-btn" data-tab="dupeCompetencies">Doublons potentiels</button>
+        <button class="cs-tab-btn" data-tab="newTags">Nouveaux tags</button>
+      </div>
+
+      <div class="cs-detail-filters">
+        <input type="text" id="cs-detail-search" placeholder="Rechercher (identifiant, énoncé, libellé…)">
+        <select id="cs-detail-source-filter"><option value="">Toutes les sources documentaires</option></select>
+      </div>
+
+      <div id="cs-detail-body" class="cs-detail-body"></div>
+    </div>
+
+    <!-- ACTION DE SYNCHRONISATION -->
+    <div id="cs-sync-action-card" class="import-card" style="display:none;">
+      <h3>5. Synchroniser</h3>
+      <p class="import-intro">La synchronisation appliquera réellement les changements ci-dessus dans Pharmeval, après confirmation.</p>
+      <div class="btn-row">
+        <button class="btn-primary" id="cs-open-confirm-btn" disabled>Synchroniser</button>
+      </div>
+      <p id="cs-stale-notice" class="cs-stale-notice" style="display:none;">Le fichier a changé depuis la dernière analyse — relancez une analyse avant de synchroniser.</p>
+    </div>
+
+    <!-- MODALE DE CONFIRMATION -->
+    <div id="cs-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+      <div class="admin-modal admin-confirm-modal">
+        <h3>Confirmer la synchronisation</h3>
+        <p id="cs-confirm-message"></p>
+        <p class="cs-archived-note">Les questions absentes du catalogue ne seront ni supprimées ni archivées.</p>
+        <div class="btn-row">
+          <button class="btn-secondary" id="cs-cancel-sync-btn">Annuler</button>
+          <button class="btn-primary cs-btn-danger" id="cs-confirm-sync-btn">Confirmer la synchronisation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYNCHRONISATION EN COURS -->
+    <div id="cs-syncing-card" class="import-card" style="display:none;">
+      <h3>Synchronisation en cours…</h3>
+      <p>Merci de ne pas fermer cette page ni de relancer une analyse pendant l'opération.</p>
+    </div>
+
+    <!-- RAPPORT FINAL -->
+    <div id="cs-report-card" class="import-card" style="display:none;">
+      <h3 id="cs-report-title">6. Rapport de synchronisation</h3>
+      <div id="cs-report-body"></div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="cs-download-json-btn">Télécharger le rapport (JSON)</button>
+        <button class="btn-secondary" id="cs-download-csv-btn">Télécharger la correspondance (CSV)</button>
+        <button class="btn-secondary" id="cs-reset-btn">Synchroniser un autre fichier</button>
+      </div>
+    </div>
+
+    <!-- HISTORIQUE -->
+    <div class="import-card">
+      <h3>7. Dernières synchronisations</h3>
+      <div id="cs-history-empty" class="cs-history-empty" style="display:none;">Aucune synchronisation n'a encore été effectuée.</div>
+      <table id="cs-history-table" class="cs-history-table" style="display:none;">
+        <thead>
+          <tr><th>Date</th><th>Fichier</th><th>Statut</th><th>Créées</th><th>Modifiées</th><th>Erreurs</th><th>Utilisateur</th></tr>
+        </thead>
+        <tbody id="cs-history-body"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script type="module" src="catalog-sync.js"></script>
+
+</body>
+</html>
