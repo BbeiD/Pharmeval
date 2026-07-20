@@ -24,6 +24,8 @@ import { parseImportFile, buildQuestionDocument, classifyQuestions } from "./que
 import { validateImportPayload } from "./question-import-validator.js";
 import { getExistingQuestionsByPedagogicalIds, writeQuestionsBatch } from "./question-catalog-service.js";
 import { logImport } from "./import-log-service.js";
+import { resolveImportDestination } from "./question-classification-service.js";
+import { logAction } from "./audit-service.js";
 
 function denied(message) {
   return { authorized: false, message: message };
@@ -144,7 +146,11 @@ export async function analyzeImportFile(rawText, fileMetadata) {
  *
  * @param {object} payload - le JSON valide (tel que retourne par analyzeImportFile)
  * @param {{fileName:string}} fileMetadata
- * @param {{simulate?:boolean}} [options]
+ * @param {{simulate?:boolean, destination?:{documentSourceId:string, documentSectionId:(string|null)}}} [options]
+ *   Sprint 20 : `destination` est la destination CHOISIE DANS L'INTERFACE
+ *   ("2ème priorité" - voir question-classification-service.js,
+ *   resolveImportDestination(), pour la règle de priorité complète face à
+ *   une destination éventuellement fournie par le fichier lui-même).
  * @returns {Promise<{
  *   authorized: boolean, message?: string,
  *   success: boolean,
@@ -152,11 +158,13 @@ export async function analyzeImportFile(rawText, fileMetadata) {
  *   createdCount: number, updatedCount: number, errorCount: number,
  *   durationMs: number,
  *   createdIds: Array<string>, updatedIds: Array<string>,
+ *   classificationWarnings: Array<string>,
  * }>}
  */
 export async function commitImport(payload, fileMetadata, options) {
   const startedAt = Date.now();
   const simulate = !!(options && options.simulate);
+  const uiDestination = (options && options.destination) || null;
 
   const access = checkAccess();
   if (!access.authorized) {
@@ -197,15 +205,23 @@ export async function commitImport(payload, fileMetadata, options) {
     importedByEmail: ctx && ctx.email,
   };
 
+  // Sprint 20 : resolution de la destination documentaire, question par
+  // question (priorite fichier > interface > non classee) - un seul
+  // cache partage pour tout le lot, jamais une relecture repetee de la
+  // meme source/section.
+  const destinationCache = new Map();
   const documentsByPedagogicalId = new Map();
   const createdIds = [];
   const updatedIds = [];
-  payload.questions.forEach(function(q) {
+  const classificationWarnings = [];
+  for (const q of payload.questions) {
     const existingDoc = existing.map.get(q.pedagogicalId) || null;
-    const builtDoc = buildQuestionDocument(q, importContext, existingDoc);
+    const resolved = await resolveImportDestination(q, uiDestination, destinationCache);
+    if (resolved.warning) classificationWarnings.push(resolved.warning);
+    const builtDoc = buildQuestionDocument(q, importContext, existingDoc, resolved.destination);
     documentsByPedagogicalId.set(q.pedagogicalId, builtDoc);
     if (existingDoc) updatedIds.push(q.pedagogicalId); else createdIds.push(q.pedagogicalId);
-  });
+  }
 
   let writeResult = { success: true, writtenCount: documentsByPedagogicalId.size, error: false };
   if (!simulate) {
@@ -228,6 +244,20 @@ export async function commitImport(payload, fileMetadata, options) {
     schemaVersion: payload.schemaVersion,
   }).catch(function() { /* deja journalise en console par import-log-service.js */ });
 
+  // Sprint 20 : trace de LOT (pas un evenement par question, "eviter de
+  // creer un journal illisible" - cadrage, "Audit") pour la classification
+  // documentaire appliquee par CET import, uniquement si une destination
+  // a reellement ete utilisee et que l'ecriture a reussi.
+  if (!simulate && writeResult.success && uiDestination && uiDestination.documentSourceId) {
+    logAction({
+      adminUid: importContext.importedByUid, adminEmail: importContext.importedByEmail,
+      targetUid: null, targetEmail: null,
+      actionType: 'question_imported_to_document_section',
+      oldValue: (createdIds.length + updatedIds.length) + ' question(s)',
+      newValue: uiDestination.documentSourceId + (uiDestination.documentSectionId ? ' > ' + uiDestination.documentSectionId : ''),
+    }).catch(function() {});
+  }
+
   return {
     authorized: true,
     success: writeResult.success,
@@ -238,5 +268,6 @@ export async function commitImport(payload, fileMetadata, options) {
     durationMs: durationMs,
     createdIds: writeResult.success ? createdIds : [],
     updatedIds: writeResult.success ? updatedIds : [],
+    classificationWarnings: classificationWarnings,
   };
 }

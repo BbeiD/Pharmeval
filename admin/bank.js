@@ -23,6 +23,8 @@ import {
   editQuestionMetadata, getQuestionTimeline,
 } from "../js/services/question-bank-service.js";
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
+import { getDocumentSourceById } from "../js/services/document-source-catalog-service.js";
+import { getDocumentSectionById } from "../js/services/document-section-catalog-service.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -265,6 +267,29 @@ export async function selectBankQuestion(pedagogicalId) {
   detailEl.innerHTML = detailHtml(q);
 
   await renderTimeline(q);
+  await renderClassification(q);
+}
+
+/**
+ * NOUVEAU (Sprint 20) : resout et affiche le nom de la source/section
+ * documentaire liees a cette question (ou "Non classée"). Lecture seule -
+ * jamais d'ecriture depuis ce fichier (voir admin/document-sources.js).
+ */
+async function renderClassification(q) {
+  const container = document.getElementById('bank-classification-container');
+  if (!container) return;
+  if (!q.documentSourceId) {
+    container.innerHTML = '<span class="bank-chip">Non classée</span>';
+    return;
+  }
+  const [source, section] = await Promise.all([
+    getDocumentSourceById(q.documentSourceId),
+    q.documentSectionId ? getDocumentSectionById(q.documentSectionId) : null,
+  ]);
+  let html = '<div class="bank-detail-row"><strong>Source :</strong> ' + escapeHtml(source ? source.name : q.documentSourceId + ' (introuvable)') + '</div>';
+  html += '<div class="bank-detail-row"><strong>Section :</strong> ' + escapeHtml(section ? section.pathLabels.concat([section.name]).join(' › ') : (q.documentSectionId ? q.documentSectionId + ' (introuvable)' : '—')) + '</div>';
+  if (q.functionalCode) html += '<div class="bank-detail-row"><strong>Identifiant fonctionnel :</strong> ' + escapeHtml(q.functionalCode) + '</div>';
+  container.innerHTML = html;
 }
 
 /**
@@ -336,6 +361,15 @@ function detailHtml(q) {
   html += '<div class="bank-detail-row"><strong>Créée le :</strong> ' + escapeHtml(q.createdAt ? formatDateFr(q.createdAt) : '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Modifiée le :</strong> ' + escapeHtml(q.updatedAt ? formatDateFr(q.updatedAt) : '—') + '</div>';
   html += '</div>';
+
+  // NOUVEAU (Sprint 20) : classification documentaire, en LECTURE SEULE
+  // ici (le rattachement lui-meme se fait depuis admin/document-sources.html,
+  // "rattachement individuel" ou "migration par lots" - jamais deux
+  // endroits differents ne modifient la meme donnee). Rempli de facon
+  // asynchrone par renderClassification(), meme principe que le
+  // conteneur d'historique ci-dessous.
+  html += '<div class="bank-detail-section"><h4>Classification documentaire</h4><div id="bank-classification-container">Chargement…</div>';
+  html += '<div class="btn-row"><a class="btn-secondary" href="document-sources.html">Gérer dans Sources documentaires →</a></div></div>';
 
   // Completude ("coup de coeur")
   html += '<div class="bank-detail-section"><h4>Complétude</h4>';

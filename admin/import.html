@@ -79,14 +79,54 @@
         </div>
       </div>
       <div class="btn-row">
+        <button class="btn-primary" onclick="proceedToDestinationStep()">Continuer →</button>
+      </div>
+    </div>
+
+    <!-- SPRINT 20 : DESTINATION DOCUMENTAIRE -->
+    <div id="import-destination-card" class="import-card" style="display:none;">
+      <h3>3. Choisir la destination documentaire</h3>
+      <p class="import-intro">
+        Optionnel : une question sans destination reste importée comme brouillon <strong>non classé</strong>
+        (rattachable plus tard, voir l'administration des sources documentaires).
+        Une destination déjà présente dans le fichier JSON prévaut sur ce choix.
+      </p>
+      <div class="import-preview-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div>
+          <label class="bank-edit-label">Organisation</label>
+          <select id="import-dest-org" class="bank-select" onchange="onImportDestOrgChange()"><option value="">—</option></select>
+        </div>
+        <div>
+          <label class="bank-edit-label">Source documentaire</label>
+          <select id="import-dest-source" class="bank-select" onchange="onImportDestSourceChange()" disabled><option value="">—</option></select>
+        </div>
+        <div>
+          <label class="bank-edit-label">Section (optionnel)</label>
+          <select id="import-dest-section" class="bank-select" disabled><option value="">—</option></select>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;">
+        <input type="checkbox" id="import-dest-gencode"> Générer un identifiant fonctionnel (ex. « REF-CBIP-HTA-000001 ») pour les questions sans identifiant déjà assigné
+      </label>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="confirmDestinationAndPreview()">Prévisualiser</button>
+      </div>
+    </div>
+
+    <!-- SPRINT 20 : RECAPITULATIF DE LA DESTINATION AVANT IMPORT -->
+    <div id="import-destination-summary-card" class="import-card" style="display:none;">
+      <h3>4. Aperçu de la destination</h3>
+      <p id="import-destination-summary-text"></p>
+      <div id="import-destination-warnings"></div>
+      <div class="btn-row">
         <button class="btn-secondary" id="import-simulate-btn" onclick="runImport(true)">🧪 Simuler l'import</button>
-        <button class="btn-primary" id="import-commit-btn" onclick="runImport(false)">Importer</button>
+        <button class="btn-primary" id="import-commit-btn" onclick="runImport(false)">Importer comme brouillon</button>
       </div>
     </div>
 
     <!-- RAPPORT FINAL -->
     <div id="import-report-card" class="import-card" style="display:none;">
-      <h3 id="import-report-title">3. Rapport d'import</h3>
+      <h3 id="import-report-title">5. Rapport d'import</h3>
       <div id="import-report-body"></div>
       <div class="btn-row">
         <button class="btn-secondary" onclick="resetImportScreen()">Importer un autre fichier</button>

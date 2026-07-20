@@ -264,6 +264,22 @@ export function getMetadata(q) {
     estimatedTime: existing.estimatedTime || (DEFAULT_ESTIMATED_TIME_BY_TYPE[questionType] || FALLBACK_ESTIMATED_TIME),
     learningObjectives: Array.isArray(existing.learningObjectives) ? existing.learningObjectives : [],
     keywords: normalizeTagList(existing.keywords || []),
+
+    // --- Sprint 20 : classification documentaire (additif, jamais
+    // obligatoire - "Non classée" reste un état valide, voir
+    // question-classification-service.js). Une question existante sans
+    // ces champs est simplement "non classée", jamais en erreur. ---
+    documentSourceId: existing.documentSourceId || null,
+    documentSectionId: existing.documentSectionId || null,
+    functionalCode: existing.functionalCode || null, // distinct de `pedagogicalId` - voir question-code-service.js
+    classificationVersion: existing.classificationVersion || 0, // 0 = jamais classée ; incrémenté a chaque reclassification (voir question-classification-service.js)
+    // Conserve les anciennes informations de classification pendant la
+    // transition ("legacyClassification ou un équivalent", cadrage) -
+    // jamais recalculé, une simple photographie prise au moment de la
+    // premiere lecture par ce service si elle n'existe pas deja.
+    legacyClassification: existing.legacyClassification || {
+      theme: domain, subtheme: (q && q.sub) || null, difficulty: existing.difficulty || normalizeDifficulty(q && q.d),
+    },
   };
 }
 
@@ -308,6 +324,14 @@ export function completeMetadata(partial) {
     estimatedTime: p.estimatedTime || (DEFAULT_ESTIMATED_TIME_BY_TYPE[questionType] || FALLBACK_ESTIMATED_TIME),
     learningObjectives: Array.isArray(p.learningObjectives) ? p.learningObjectives : [],
     keywords: normalizeTagList(p.keywords || []),
+
+    // Sprint 20 : memes champs additifs que getMetadata() ci-dessus,
+    // meme principe (jamais obligatoires).
+    documentSourceId: p.documentSourceId || null,
+    documentSectionId: p.documentSectionId || null,
+    functionalCode: p.functionalCode || null,
+    classificationVersion: p.classificationVersion || 0,
+    legacyClassification: p.legacyClassification || null,
   };
 }
 

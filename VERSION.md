@@ -1,23 +1,27 @@
 # VERSION.md
 
-## Pharmeval — version actuelle : v2.10.0 (Sprint 19 — Progression des compétences)
+## Pharmeval — version actuelle : v2.11.1 (Correctif Sprint 20 — Fiabilisation des compteurs documentaires)
 
 | Champ | Valeur |
 |---|---|
-| Version précédente | v2.9.0 (Sprint 18 — Correction automatique et résultats) |
-| Version actuelle | **v2.10.0** |
+| Version précédente | v2.11.0 (Sprint 20 — Classification documentaire) |
+| Version actuelle | **v2.11.1** |
 | Date | 19 juillet 2026 |
-| Objectif de cette version | MINOR : progression des compétences dans le temps (collection `competency_progress`, mise à jour incrémentale uniquement à la création d'un résultat), ProgressionPolicy centralisée (tendance, niveaux, score de confiance), page « Mes compétences » (radar + détail + évolution). Statut proposé : À_TESTER (aucun test fonctionnel réel sur un projet Firebase disponible dans cet environnement — voir `RAPPORT_SPRINT19.md`, section 13). |
+| Objectif de cette version | PATCH : correction de la logique de compteurs documentaires (propagation aux ancêtres, delta exact pour la migration par lots, transactions atomiques, protection contre les compteurs négatifs) + outillage de réconciliation. Aucune nouvelle fonctionnalité éditoriale ou graphique. À exécuter avant toute migration réelle des ~900 questions. Statut proposé : À_TESTER, avec exigence renforcée (voir `RAPPORT_CORRECTIF_SPRINT20.md`, section 17). |
 
-Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version (v1.0.x à v2.10.0) est documenté dans `CHANGELOG.md`. Le détail de ce sprint est documenté dans `RAPPORT_SPRINT19.md`.
+Ce fichier décrit l'état **courant** du projet. L'historique complet de chaque version est documenté dans `CHANGELOG.md`. Le détail de ce correctif est documenté dans `RAPPORT_CORRECTIF_SPRINT20.md`.
 
 ---
 
-## Fichiers modifiés / créés (cumulé v1.9.0 + v1.9.1 + v2.0.0 + v2.1.0 + v2.1.1 + v2.2.0 + v2.2.1 + v2.3.0 + v2.3.1 + v2.4.0 + v2.5.0 + v2.6.0 + v2.6.1 + v2.7.0 + v2.8.0 + v2.9.0 + v2.10.0)
+## Fichiers modifiés / créés (cumulé v1.9.0 → v2.11.1)
 
-**v2.10.0 (Sprint 19)** — voir `RAPPORT_SPRINT19.md` :
-- Créés : `js/services/progression-policy-service.js`, `competency-progress-metadata-service.js`, `competency-progress-catalog-service.js`, `competency-progress-service.js`, `mes-competences.html`, `js/mes-competences.js`.
-- Modifiés : `js/services/evaluation-result-service.js` (déclenchement de la progression), `evaluation-result.html`/`js/evaluation-result.js` (lien Voir ma progression), `index.html` (lien Mes compétences), `css/styles.css` (additif), `firestore.rules` (nouvelle collection `competency_progress/`), `firestore.indexes.json` (1 nouvel index).
+**v2.11.1 (Correctif Sprint 20)** — voir `RAPPORT_CORRECTIF_SPRINT20.md` :
+- Créés : `js/services/document-count-service.js`, `document-migration-job-service.js`.
+- Modifiés : `js/services/document-source-catalog-service.js`, `document-section-catalog-service.js`, `question-catalog-service.js` (références pour transactions), `question-classification-service.js`, `question-migration-service.js` (réécriture des chemins de compteurs), `admin/document-sources.js`/`.html`, `firestore.rules` (nouvelle collection `document_migration_jobs/`).
+
+**v2.11.0 (Sprint 20)** — voir `RAPPORT_SPRINT20.md` :
+- Créés : `js/services/document-source-metadata-service.js`, `document-source-catalog-service.js`, `document-source-service.js`, `document-section-metadata-service.js`, `document-section-catalog-service.js`, `document-section-service.js`, `question-code-service.js`, `question-classification-service.js`, `question-migration-service.js`, `admin/document-sources.html`, `admin/document-sources.js`.
+- Modifiés : `js/services/question-metadata-service.js`, `question-parser.js`, `import-service.js`, `admin/import.html`, `admin/import.js`, `admin/bank.js`, `index.html`, `firestore.rules`, `firestore.indexes.json`.
 
 
 - Créés : `js/services/assignment-metadata-service.js`, `assignment-catalog-service.js`, `assignment-service.js`, `mes-parcours.html`, `js/mes-parcours.js`.
@@ -130,5 +134,12 @@ Voir `CHANGELOG.md`, sections « v1.9.0 — Sprint 8 », « v1.9.1 — Correctif
 38. **Interprétation retenue pour « Mes compétences / Performance depuis le tableau utilisateur »** (Sprint 19, cadrage ambigu) : espace personnel de l'utilisateur, pas une vue administrateur (hors périmètre explicite du sprint : "statistiques administrateur"). Voir `RAPPORT_SPRINT19.md`, section 6.
 39. **Progression calculée et écrite par le client** (Sprint 19, même famille de limite que les Sprints 17-18) : les règles Firestore protègent le rattachement utilisateur/compétence mais ne vérifient pas l'exactitude arithmétique de l'agrégation. Voir `RAPPORT_SPRINT19.md`, section 7.
 40. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 19** — voir `RAPPORT_SPRINT19.md`, section 13. Statut proposé : À_TESTER.
+41. **Isolation d'accès administrateur entre organisations non réellement enforcée** (Sprint 20) : Pharmeval n'a pas encore de rôle « administrateur par organisation ». Voir `RAPPORT_SPRINT20.md`, section 7.
+42. **Filtrage de migration documentaire par sous-thème sur balayage borné** (1000 questions), pas un index dédié — suffisant pour le volume actuel (~900 questions).
+43. **Aucune vérification d'unicité réelle en base pour un identifiant fonctionnel saisi manuellement ou importé** — seuls les identifiants générés par `question-code-service.js` sont garantis uniques par construction.
+44. **Aucun test fonctionnel réel sur un projet Firebase pour le Sprint 20** — voir `RAPPORT_SPRINT20.md`, section 15. Statut proposé : À_TESTER.
+45. **CORRIGÉ en v2.11.1** (voir `RAPPORT_CORRECTIF_SPRINT20.md`) : les compteurs documentaires n'étaient pas propagés aux sections ancêtres et la migration par lots supposait à tort que toutes les questions étaient non classées. Ne plus utiliser v2.11.0 pour toute migration réelle.
+46. **Réconciliation des compteurs documentaires bornée à 2000 questions par source** (v2.11.1) — largement suffisant pour le volume actuel.
+47. **Aucun test fonctionnel réel sur un projet Firebase pour le correctif Sprint 20** — voir `RAPPORT_CORRECTIF_SPRINT20.md`, section 19. Migration réelle des ~900 questions à ne lancer qu'après exécution complète de la procédure de test (section 17). Statut proposé : À_TESTER.
 
 Voir chaque `RAPPORT_SPRINTx.md` (et `RAPPORT_CORRECTIF_1.9.1.md`, `RAPPORT_CORRECTIF_SPRINT10.md`) pour les limites propres à chaque version (analyse de progression plafonnée à 100 évaluations, tableau des utilisateurs plafonné à 500 comptes, etc.).

@@ -4,6 +4,74 @@ Toutes les versions notables du projet sont documentées dans ce fichier.
 
 ---
 
+## v2.11.1 — Correctif Sprint 20 (Fiabilisation des compteurs documentaires et des migrations par lots)
+
+### Corrections
+- **Propagation aux ancêtres** : un déplacement de question met désormais à jour `totalQuestionCount` de TOUTES les sections ancêtres (pas seulement la section directe), via `getSectionAncestorIds()`.
+- **Migration par lots corrigée** : ne suppose plus que toutes les questions sont non classées ; relit la classification réelle de chacune et calcule un delta agrégé exact par source/section/ancêtre (`prepareBulkDeltas()`), avec annulation naturelle des ancêtres communs.
+- **Atomicité renforcée** : le rattachement individuel d'une question (question + tous les compteurs affectés) s'effectue désormais dans une seule transaction Firestore (`applyClassificationDelta()`).
+- **Protection contre les compteurs négatifs** : détection explicite, clamp contrôlé à 0, avertissement et audit systématiques — jamais un `Math.max(0, ...)` silencieux.
+- **Idempotence** : reclassifier vers une destination identique ne modifie plus aucun compteur et ne génère plus d'audit inutile.
+
+### Fonctionnalités ajoutées (outillage de fiabilisation, pas de nouvelle fonctionnalité éditoriale)
+- **Réconciliation des compteurs** : recalcul des valeurs réelles à partir des questions classifiées, prévisualisation des écarts, correction sur confirmation explicite (par source ou pour toute une organisation).
+- **Jobs de migration** (`document_migration_jobs`) : suivi d'état (prepared/running/completed/completed_with_errors/failed), permet de relancer uniquement les questions en échec.
+- **Prévisualisation des deltas** avant toute migration par lots (résumé par source/section, dans l'esprit de l'exemple du cadrage).
+
+### Fichiers créés
+- `js/services/document-count-service.js`, `document-migration-job-service.js`
+- `RAPPORT_CORRECTIF_SPRINT20.md`
+
+### Fichiers modifiés
+- `js/services/document-source-catalog-service.js`, `document-section-catalog-service.js`, `question-catalog-service.js` (références de documents pour transactions)
+- `js/services/question-classification-service.js`, `question-migration-service.js` (réécriture des chemins de compteurs)
+- `admin/document-sources.js`, `admin/document-sources.html`
+- `firestore.rules` (nouvelle collection `document_migration_jobs/`)
+
+### Compatibilité
+Aucun impact sur le contenu des questions, les parcours, les évaluations, les résultats, la progression, ni sur la présentation générale de la banque. Aucune réimportation nécessaire. Aucune modification de `admin/bank.js` ni de l'import JSON.
+
+### Tests
+Vérification syntaxique complète, équilibre des règles, relecture manuelle approfondie de la logique de delta (5 cas + ancêtres communs). **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_CORRECTIF_SPRINT20.md`, section 19. Migration réelle des ~900 questions à ne lancer qu'après exécution complète de la procédure de test (section 17).
+
+---
+
+## v2.11.0 — Sprint 20 (Classification documentaire et structuration de la banque de questions)
+
+### Fonctionnalités ajoutées
+- **Couche documentaire** au-dessus de la banque de questions existante : nouvelles collections `document_sources` (référentiels REF, procédures internes PROC, cours ETU) et `document_sections` (arborescence hiérarchique, profondeur libre) — la présentation actuelle (Familia, Référentiels, Étudiant…) reste entièrement inchangée.
+- **Questions enrichies par référence** (`documentSourceId`, `documentSectionId`, `functionalCode`, `classificationVersion`, `legacyClassification`) — aucun champ existant supprimé, aucune question recréée ou dupliquée.
+- **Identifiants fonctionnels centralisés** (`question-code-service.js`) du type `REF-CBIP-HTA-000001`, distincts des identifiants Firestore existants, jamais imposés rétroactivement.
+- **Import JSON enrichi** (page existante conservée) : nouvelle étape de choix de destination documentaire, avec priorité fichier > interface > non classé.
+- **Migration par lots des ~900 questions existantes** sans réimport : filtrage sur l'ancienne classification, prévisualisation, application par lots bornés, reprise en cas d'échec partiel, trace d'audit structurée par lot.
+- **Nouvelle page d'administration** `admin/document-sources.html` : sources & sections, migration par lots, rattachement individuel, vue des questions non classées.
+- **Section « Classification documentaire »** en lecture seule ajoutée à la fiche de question existante (Banque de questions).
+
+### Fichiers créés
+- `js/services/document-source-metadata-service.js`, `document-source-catalog-service.js`, `document-source-service.js`
+- `js/services/document-section-metadata-service.js`, `document-section-catalog-service.js`, `document-section-service.js`
+- `js/services/question-code-service.js`, `question-classification-service.js`, `question-migration-service.js`
+- `admin/document-sources.html`, `admin/document-sources.js`
+- `RAPPORT_SPRINT20.md`
+
+### Fichiers modifiés
+- `js/services/question-metadata-service.js`, `question-parser.js`, `import-service.js`
+- `admin/import.html`, `admin/import.js`, `admin/bank.js`
+- `index.html` — lien « Sources documentaires ».
+- `firestore.rules` — nouvelle règle de classification sur `questions/` ; nouvelles collections.
+- `firestore.indexes.json` — 6 nouveaux index composites.
+
+### Compatibilité
+Aucune modification de `data/questions.js`, du moteur de quiz, des parcours, des évaluations, de la progression, ni d'aucune fonctionnalité validée des Sprints 1-19. Les questions déjà intégrées dans des parcours continuent de fonctionner à l'identique.
+
+### Sécurité — limite documentée
+L'isolation entre organisations est garantie au niveau des données (une section doit appartenir à la même source et organisation) mais pas encore au niveau de l'accès administrateur (pas de rôle « admin par organisation » à ce jour) — voir `RAPPORT_SPRINT20.md`, section 7.
+
+### Tests
+Vérification syntaxique complète, validité JSON des index, équilibre des règles, cohérence croisée des identifiants DOM et fonctions exposées, relecture manuelle. **Aucun test fonctionnel réel sur un projet Firebase** — voir `RAPPORT_SPRINT20.md`, section 15.
+
+---
+
 ## v2.10.0 — Sprint 19 (Progression des compétences)
 
 ### Fonctionnalités ajoutées

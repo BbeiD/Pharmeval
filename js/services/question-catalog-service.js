@@ -41,6 +41,19 @@ import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
 
 const QUESTIONS_COLLECTION = 'questions';
 
+/**
+ * CORRECTIF (fiabilisation des compteurs documentaires) : expose une
+ * référence de document Firestore brute pour permettre à
+ * document-count-service.js de construire ses propres transactions
+ * (`runTransaction`), qui doivent lire/écrire la question ET ses
+ * sources/sections en une seule opération atomique.
+ * @param {string} pedagogicalId
+ * @returns {import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js").DocumentReference}
+ */
+export function getQuestionRef(pedagogicalId) {
+  return doc(db, QUESTIONS_COLLECTION, pedagogicalId);
+}
+
 // Sprint 11 : taille de page par defaut pour la navigation paginee de la
 // Banque de questions (voir js/services/question-bank-service.js).
 export const DEFAULT_BANK_PAGE_SIZE = 25;

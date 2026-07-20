@@ -330,6 +330,22 @@ service cloud.firestore {
                     && request.resource.data.pedagogicalId == resource.data.pedagogicalId
                     && request.resource.data.status == resource.data.status;
 
+      // --- Mise a jour n°4 (Sprint 20) : classification documentaire ---
+      // "La question ne doit pas porter elle-meme toute la classification
+      // documentaire... elle doit principalement referencer une source et
+      // une section." Seuls documentSourceId/documentSectionId/
+      // functionalCode/classificationVersion (+ updatedAt) peuvent etre
+      // modifies par cette voie - jamais le contenu, jamais le statut
+      // "au passage" (meme discipline que la regle n°3 ci-dessus). Utilisee
+      // par js/services/question-classification-service.js (rattachement
+      // individuel ET migration par lots - meme regle pour les deux, un
+      // lot n'est jamais qu'une succession d'ecritures individuelles cote
+      // Firestore).
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['documentSourceId', 'documentSectionId', 'functionalCode', 'classificationVersion', 'updatedAt'])
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && request.resource.data.status == resource.data.status;
+
       // --- Suppression (CORRECTIF, suppression securisee) ---
       // Le Sprint 10 interdisait toute suppression ("allow delete: if
       // false"). Le Sprint 11 l'avait ensuite ouverte a tout administrateur
@@ -868,8 +884,97 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // NOUVEAU (Sprint 10, demande complementaire) : journal des imports
+    // NOUVEAU (Sprint 20) : classification documentaire
     // =========================================================================
+    // "de quel document ou référentiel provient une question" - couche
+    // ajoutée AU-DESSUS de la Banque de questions existante, jamais a la
+    // place. Deux collections (document_sources/, document_sections/) +
+    // une collection technique de compteurs (document_code_counters/).
+    //
+    // "les administrateurs peuvent gérer sources, sections et
+    // classifications ; les utilisateurs ordinaires peuvent uniquement
+    // lire les sources et sections nécessaires aux contenus auxquels ils
+    // ont accès" (cadrage, "Sécurité Firestore") : lecture ouverte aux
+    // utilisateurs authentifiés pour le contenu ACTIF uniquement, meme
+    // principe deja applique a `parcours/`/`competencies/`/`questions/`
+    // (Sprints 16-17) - jamais un brouillon ou une source archivee.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT20.md) :
+    // "l'organisation doit rester isolée" - cette regle verifie que
+    // chaque ECRITURE reste reservee a un administrateur, mais Pharmeval
+    // ne possede PAS ENCORE de role "administrateur par organisation"
+    // (seul un role global `admin`/`super_admin` existe reellement, voir
+    // authorization-service.js) : un administrateur global peut donc
+    // aujourd'hui gerer les sources de N'IMPORTE QUELLE organisation,
+    // exactement comme il peut deja gerer les utilisateurs de n'importe
+    // quelle organisation (Sprint 14). L'isolation reelle ENTRE
+    // organisations, elle, est bien garantie au niveau des DONNEES (une
+    // section verifie qu'elle appartient a la meme source ET a la meme
+    // organisation, une question ne peut referencer une section que via
+    // les services applicatifs qui verifient cette coherence).
+    match /document_sources/{sourceId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.status == 'active');
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.id == sourceId
+                    && request.resource.data.status == 'draft';
+
+      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id;
+
+      // Jamais de suppression ("Ne pas supprimer une source contenant des
+      // questions. Utiliser l'archivage.", cadrage) - vrai meme pour une
+      // source vide, par simplicite et coherence (une seule regle, jamais
+      // de cas particulier a verifier cote regles).
+      allow delete: if false;
+    }
+
+    match /document_sections/{sectionId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.status == 'active');
+
+      allow create: if isRequesterAdmin() && request.resource.data.id == sectionId;
+
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.documentSourceId == resource.data.documentSourceId;
+
+      allow delete: if false;
+    }
+
+    // Compteurs sequentiels des identifiants fonctionnels (voir
+    // js/services/question-code-service.js) - donnee purement technique,
+    // jamais consultee ni utile en dehors de l'administration.
+    match /document_code_counters/{scopeKey} {
+      allow read: if isRequesterAdmin();
+      allow write: if isRequesterAdmin();
+    }
+
+    // =========================================================================
+    // NOUVEAU (Correctif Sprint 20) : jobs de migration documentaire
+    // =========================================================================
+    // "Pour les migrations importantes, créer ou compléter une notion de
+    // job." Trace l'état d'un lot de migration (prepared -> running ->
+    // completed/completed_with_errors/failed), sa progression et ses
+    // erreurs - strictement administrateur, comme toute action de
+    // classification documentaire (voir la limite deja documentee sur
+    // `document_sources/`/`document_sections/` concernant l'isolation par
+    // organisation : verifiee au niveau des donnees, pas encore au niveau
+    // du role administrateur lui-meme).
+    match /document_migration_jobs/{jobId} {
+      allow read: if isRequesterAdmin();
+      allow create: if isRequesterAdmin() && request.resource.data.id == jobId;
+      // Mise a jour reservee a la progression du job lui-meme (statut,
+      // compteurs, erreurs) - jamais son organisation ou sa destination
+      // d'origine, qui doivent rester celles decidees a la preparation.
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.targetSourceId == resource.data.targetSourceId;
+      allow delete: if false;
+    }
+
+
     // Meme logique d'immuabilite que audit_logs/ (Sprint 8) : trace CHAQUE
     // import (date, administrateur, fichier, comptages, duree), jamais
     // modifiable ni supprimable, y compris par un administrateur.

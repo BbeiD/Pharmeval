@@ -145,6 +145,35 @@
     { "collectionGroup": "competency_progress", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "userId", "order": "ASCENDING" },
       { "fieldPath": "lastEvaluationAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "document_sources", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "organizationId", "order": "ASCENDING" },
+      { "fieldPath": "display.order", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "document_sources", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "organizationId", "order": "ASCENDING" },
+      { "fieldPath": "sourceType", "order": "ASCENDING" },
+      { "fieldPath": "display.order", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "document_sources", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "organizationId", "order": "ASCENDING" },
+      { "fieldPath": "status", "order": "ASCENDING" },
+      { "fieldPath": "display.order", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "document_sources", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "organizationId", "order": "ASCENDING" },
+      { "fieldPath": "sourceType", "order": "ASCENDING" },
+      { "fieldPath": "status", "order": "ASCENDING" },
+      { "fieldPath": "display.order", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "document_sections", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "documentSourceId", "order": "ASCENDING" },
+      { "fieldPath": "displayOrder", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "document_sections", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "documentSourceId", "order": "ASCENDING" },
+      { "fieldPath": "parentSectionId", "order": "ASCENDING" },
+      { "fieldPath": "displayOrder", "order": "ASCENDING" }
     ]}
   ],
   "fieldOverrides": []

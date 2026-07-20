@@ -19,6 +19,10 @@ import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext }
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { analyzeImportFile, commitImport } from "../js/services/import-service.js";
 import { formatThemeLabel } from "../js/services/theme-utils.js";
+import { browseDocumentSources } from "../js/services/document-source-service.js";
+import { getSectionTree } from "../js/services/document-section-service.js";
+import { DOCUMENT_SOURCE_TYPE_LABELS } from "../js/services/document-source-metadata-service.js";
+import { organizationsBank } from "../js/services/organizations-bank-service.js";
 
 // Etat en memoire de l'analyse en cours (necessaire pour que les boutons
 // "Simuler"/"Importer" reutilisent exactement le meme fichier deja
@@ -26,6 +30,8 @@ import { formatThemeLabel } from "../js/services/theme-utils.js";
 // commitImport() revalide neanmoins independamment, voir import-service.js).
 let currentPayload = null;
 let currentFileName = null;
+let selectedDestination = null; // {documentSourceId, documentSectionId, generateCode} ou null (non classé), Sprint 20
+let sectionOptionsCache = [];
 
 // ---------------------------------------------------------------------------
 // Controle d'acces
@@ -166,6 +172,85 @@ function showPreview(preview) {
 }
 
 // ---------------------------------------------------------------------------
+// SPRINT 20 : étape de destination documentaire
+// ---------------------------------------------------------------------------
+
+export async function proceedToDestinationStep() {
+  const card = document.getElementById('import-destination-card');
+  if (!card) return;
+  card.style.display = 'block';
+
+  const orgSelect = document.getElementById('import-dest-org');
+  if (orgSelect.options.length <= 1) {
+    const orgs = await organizationsBank.browse({ filters: { status: 'published' }, sortField: 'name', sortDirection: 'asc', pageSize: 100 });
+    const items = (orgs && orgs.items) || [];
+    orgSelect.innerHTML = '<option value="">— Aucune destination (brouillon non classé) —</option>' +
+      items.map(function(o) { return '<option value="' + escapeHtml(o.id) + '">' + escapeHtml(o.name) + '</option>'; }).join('');
+  }
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+export async function onImportDestOrgChange() {
+  const orgId = document.getElementById('import-dest-org').value;
+  const sourceSelect = document.getElementById('import-dest-source');
+  const sectionSelect = document.getElementById('import-dest-section');
+  sectionSelect.innerHTML = '<option value="">—</option>';
+  sectionSelect.disabled = true;
+
+  if (!orgId) {
+    sourceSelect.innerHTML = '<option value="">—</option>';
+    sourceSelect.disabled = true;
+    return;
+  }
+
+  const result = await browseDocumentSources({ organizationId: orgId, status: 'active' });
+  const items = (result && result.items) || [];
+  sourceSelect.innerHTML = '<option value="">— Aucune destination (brouillon non classé) —</option>' +
+    items.map(function(s) { return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + ' (' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + ')</option>'; }).join('');
+  sourceSelect.disabled = items.length === 0;
+}
+
+export async function onImportDestSourceChange() {
+  const sourceId = document.getElementById('import-dest-source').value;
+  const sectionSelect = document.getElementById('import-dest-section');
+
+  if (!sourceId) {
+    sectionSelect.innerHTML = '<option value="">—</option>';
+    sectionSelect.disabled = true;
+    return;
+  }
+
+  const result = await getSectionTree(sourceId);
+  sectionOptionsCache = (result && result.items) || [];
+  sectionSelect.innerHTML = '<option value="">— Aucune sous-section (rattacher directement à la source) —</option>' +
+    sectionOptionsCache.filter(function(s) { return s.status !== 'archived'; }).map(function(s) {
+      const indent = '— '.repeat(s.level);
+      return '<option value="' + escapeHtml(s.id) + '">' + indent + escapeHtml(s.name) + '</option>';
+    }).join('');
+  sectionSelect.disabled = false;
+}
+
+export function confirmDestinationAndPreview() {
+  const sourceId = document.getElementById('import-dest-source').value;
+  const sectionId = document.getElementById('import-dest-section').value;
+  const generateCode = document.getElementById('import-dest-gencode').checked;
+
+  selectedDestination = sourceId ? { documentSourceId: sourceId, documentSectionId: sectionId || null, generateCode: generateCode } : null;
+
+  const summaryEl = document.getElementById('import-destination-summary-text');
+  if (selectedDestination) {
+    const sourceLabel = document.getElementById('import-dest-source').selectedOptions[0].textContent;
+    const sectionLabel = sectionId ? document.getElementById('import-dest-section').selectedOptions[0].textContent.replace(/^—\s*/, '') : null;
+    summaryEl.textContent = 'Les questions sans destination propre (dans le fichier) seront rattachées à : ' + sourceLabel + (sectionLabel ? ' › ' + sectionLabel : '') + '.';
+  } else {
+    summaryEl.textContent = 'Aucune destination choisie : les questions sans destination propre (dans le fichier) resteront « Non classées », rattachables plus tard.';
+  }
+  document.getElementById('import-destination-warnings').innerHTML = '';
+  document.getElementById('import-destination-summary-card').style.display = 'block';
+  document.getElementById('import-destination-summary-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---------------------------------------------------------------------------
 // Simulation / import reel
 // ---------------------------------------------------------------------------
 
@@ -177,7 +262,7 @@ export async function runImport(simulate) {
   if (simulateBtn) simulateBtn.disabled = true;
   if (commitBtn) commitBtn.disabled = true;
 
-  const result = await commitImport(currentPayload, { fileName: currentFileName }, { simulate: !!simulate });
+  const result = await commitImport(currentPayload, { fileName: currentFileName }, { simulate: !!simulate, destination: selectedDestination });
 
   if (simulateBtn) simulateBtn.disabled = false;
   if (commitBtn) commitBtn.disabled = false;
@@ -185,6 +270,12 @@ export async function runImport(simulate) {
   if (!result.authorized) {
     showErrors([{ scope: 'file', message: result.message }]);
     return;
+  }
+
+  if (result.classificationWarnings && result.classificationWarnings.length > 0) {
+    document.getElementById('import-destination-warnings').innerHTML =
+      '<p class="import-report-error">' + result.classificationWarnings.length + ' avertissement(s) de classification :</p>' +
+      '<ul class="import-errors-list">' + result.classificationWarnings.map(function(w) { return '<li>' + escapeHtml(w) + '</li>'; }).join('') + '</ul>';
   }
 
   showReport(result);
@@ -196,7 +287,7 @@ function showReport(result) {
   const body = document.getElementById('import-report-body');
   if (!card || !body) return;
 
-  if (title) title.textContent = result.simulated ? '3. Rapport de simulation (aucune écriture effectuée)' : '3. Rapport d\'import';
+  if (title) title.textContent = result.simulated ? '5. Rapport de simulation (aucune écriture effectuée)' : '5. Rapport d\'import';
 
   if (!result.success) {
     body.innerHTML =
@@ -226,6 +317,7 @@ function showReport(result) {
 export function resetImportScreen() {
   currentPayload = null;
   currentFileName = null;
+  selectedDestination = null;
   const input = document.getElementById('import-file-input');
   if (input) input.value = '';
   const nameEl = document.getElementById('import-file-name');
@@ -236,7 +328,7 @@ export function resetImportScreen() {
 }
 
 function resetResultCards() {
-  ['import-errors-card', 'import-preview-card', 'import-report-card'].forEach(function(id) {
+  ['import-errors-card', 'import-preview-card', 'import-destination-card', 'import-destination-summary-card', 'import-report-card'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -262,5 +354,9 @@ function escapeHtml(s) {
 // ---------------------------------------------------------------------------
 window.onImportFileSelected = onImportFileSelected;
 window.analyzeSelectedFile = analyzeSelectedFile;
+window.proceedToDestinationStep = proceedToDestinationStep;
+window.onImportDestOrgChange = onImportDestOrgChange;
+window.onImportDestSourceChange = onImportDestSourceChange;
+window.confirmDestinationAndPreview = confirmDestinationAndPreview;
 window.runImport = runImport;
 window.resetImportScreen = resetImportScreen;

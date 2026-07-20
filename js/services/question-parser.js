@@ -61,9 +61,13 @@ export function parseImportFile(rawText) {
  * @param {object} rawQuestion - la question telle que presente dans le fichier importe (deja validee)
  * @param {{schemaVersion:string, generator:string, sourceFile:string, importedByUid:string, importedByEmail:string}} importContext
  * @param {object|null} existingDoc - le document Firestore existant pour ce pedagogicalId, ou null si nouvelle question
+ * @param {{documentSourceId:string, documentSectionId:(string|null), functionalCode:(string|null)}|null} [resolvedDestination]
+ *   Sprint 20 : destination documentaire DEJA RESOLUE ET VALIDEE par
+ *   import-service.js (ce fichier ne fait jamais d'appel Firestore).
+ *   `null`/absent = question laissee "Non classée" (brouillon autorisé).
  * @returns {object} le document Firestore complet, pret a etre ecrit tel quel
  */
-export function buildQuestionDocument(rawQuestion, importContext, existingDoc) {
+export function buildQuestionDocument(rawQuestion, importContext, existingDoc, resolvedDestination) {
   const isUpdate = !!existingDoc;
 
   const internalQuestionType = IMPORT_TYPE_TO_INTERNAL_TYPE[rawQuestion.questionType] || rawQuestion.questionType;
@@ -98,6 +102,18 @@ export function buildQuestionDocument(rawQuestion, importContext, existingDoc) {
     tags: normalizeTagList(rawQuestion.tags || []),
     keywords: normalizeTagList(rawQuestion.keywords || []),
     space: rawQuestion.space,
+
+    // Sprint 20 : classification documentaire. Une mise a jour PRESERVE
+    // la classification deja existante si aucune destination n'est
+    // resolue pour CET import precis (jamais un declassement silencieux
+    // d'une question deja classee lors d'un simple reimport de contenu).
+    documentSourceId: resolvedDestination ? resolvedDestination.documentSourceId : (isUpdate ? existingDoc.documentSourceId : null),
+    documentSectionId: resolvedDestination ? (resolvedDestination.documentSectionId || null) : (isUpdate ? existingDoc.documentSectionId : null),
+    functionalCode: resolvedDestination && resolvedDestination.functionalCode ? resolvedDestination.functionalCode : (isUpdate ? existingDoc.functionalCode : null),
+    classificationVersion: resolvedDestination ? ((isUpdate ? (existingDoc.classificationVersion || 0) : 0) + 1) : (isUpdate ? (existingDoc.classificationVersion || 0) : 0),
+    legacyClassification: isUpdate ? existingDoc.legacyClassification : {
+      theme: rawQuestion.theme || rawQuestion.domain || null, subtheme: rawQuestion.subtheme || null, difficulty: rawQuestion.difficulty || null,
+    },
   });
 
   metadata.id = rawQuestion.pedagogicalId;
