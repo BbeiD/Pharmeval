@@ -146,6 +146,38 @@
   </div>
 </div>
 
+<!-- AJOUT : panneau de selection d'une ou plusieurs sources documentaires
+     EXISTANTES - meme principe que le panneau de competences ci-dessus,
+     sans champ de recherche (peu de sources actives, liste simple). -->
+<div id="parcours-source-picker-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeSourcePickerPanel()">✕</button>
+    <h3>Ajouter une ou plusieurs sources documentaires</h3>
+    <div id="parcours-source-picker-results" style="margin-top:8px; max-height:45vh; overflow-y:auto;"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeSourcePickerPanel()">Annuler</button>
+      <button class="btn-primary" onclick="confirmSourcePicker()">Ajouter la sélection</button>
+    </div>
+  </div>
+</div>
+
+<!-- AJOUT : panneau de selection d'une ou plusieurs questions EXISTANTES de
+     la Banque de questions - meme principe que le panneau de competences. -->
+<div id="parcours-question-picker-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeQuestionPickerPanel()">✕</button>
+    <h3>Ajouter une ou plusieurs questions</h3>
+    <input type="text" id="parcours-question-picker-search" class="bank-select"
+           placeholder="Rechercher dans la banque de questions (identifiant, énoncé, thème, tags, source)…"
+           oninput="onQuestionPickerSearchInput()">
+    <div id="parcours-question-picker-results" style="margin-top:8px; max-height:45vh; overflow-y:auto;"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeQuestionPickerPanel()">Annuler</button>
+      <button class="btn-primary" onclick="confirmQuestionPicker()">Ajouter la sélection</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOUVEAU (Sprint 15) : panneau d'attribution du parcours a une cible
      (utilisateur, groupe ou profil) - "Architecture" du Sprint 15. -->
 <div id="parcours-assignment-overlay" class="admin-modal-overlay" style="display:none;">

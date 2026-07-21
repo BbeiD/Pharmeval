@@ -227,6 +227,14 @@ export function completeParcoursMetadata(partial) {
     competencies: Array.isArray(p.competencies) ? p.competencies.map(completeCompetency) : [],
     modules: Array.isArray(p.modules) ? p.modules.map(completeModule) : [], // Sprint 16 : prepare, non exploite (voir completeModule ci-dessus)
     tags: normalizeTagList(p.tags || []), // reutilise tag-service.js (Sprint 9), au cas ou un parcours beneficierait des memes mots-cles qu'une question a l'avenir
+    // AJOUT (selection directe depuis les Banques) : deux tableaux TOP-LEVEL,
+    // jamais niches sous une competence - un parcours peut referencer des
+    // sources documentaires et des questions independamment de toute
+    // competence. `directQuestionIds` est deliberement distinct de
+    // `competencies[].questionIds` (lien question<->competence existant,
+    // inchange) pour ne jamais confondre les deux notions dans le code.
+    sourceIds: Array.isArray(p.sourceIds) ? p.sourceIds.slice() : [],
+    directQuestionIds: Array.isArray(p.directQuestionIds) ? p.directQuestionIds.slice() : [],
   };
 }
 
@@ -269,6 +277,12 @@ export function validateParcoursMetadata(metadata) {
         errors.push('La compétence n°' + (i + 1) + ' (' + (c.name || '?') + ') doit avoir un tableau "questionIds".');
       }
     });
+  }
+  if (!Array.isArray(m.sourceIds)) {
+    errors.push('Le champ "sourceIds" doit être un tableau.');
+  }
+  if (!Array.isArray(m.directQuestionIds)) {
+    errors.push('Le champ "directQuestionIds" doit être un tableau.');
   }
 
   return { valid: errors.length === 0, errors: errors };

@@ -21,9 +21,15 @@ import {
   editParcoursMetadata, removeCompetency, moveCompetency,
   linkQuestionToCompetency, unlinkQuestionFromCompetency, searchQuestionsForLinking,
   addCompetencyFromBank, resolveParcoursCompetenciesDisplay,
+  addSourceToParcours, removeSourceFromParcours,
+  addQuestionDirectlyToParcours, removeQuestionDirectlyFromParcours,
+  resolveParcoursDirectContentDisplay,
   getParcoursTimeline,
 } from "../js/services/parcours-service.js";
 import { browseCompetencies } from "../js/services/competency-service.js";
+import { browseDocumentSources } from "../js/services/document-source-service.js";
+import { DOCUMENT_SOURCE_TYPE_LABELS } from "../js/services/document-source-metadata-service.js";
+import { browseQuestions } from "../js/services/question-bank-service.js";
 import { COMPETENCY_COLOR_HEX, resolveCompetencyColorHex } from "../js/services/competency-metadata-service.js";
 import {
   ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_TARGET_TYPE_LABELS,
@@ -309,17 +315,24 @@ export async function selectParcours(id) {
   // Sprint 13 : resolution des competences liees a la Banque des
   // compétences AVANT le rendu, pour toujours afficher le nom/la
   // description/la couleur A JOUR (voir resolveParcoursCompetenciesDisplay,
-  // "Reutilisation").
-  const resolvedCompetencies = await resolveParcoursCompetenciesDisplay(p);
-  detailEl.innerHTML = detailHtml(p, resolvedCompetencies);
+  // "Reutilisation"). Meme principe pour les sources/questions directement
+  // liees (resolveParcoursDirectContentDisplay) - les deux resolutions sont
+  // independantes, lancees en parallele.
+  const [resolvedCompetencies, resolvedDirect] = await Promise.all([
+    resolveParcoursCompetenciesDisplay(p),
+    resolveParcoursDirectContentDisplay(p),
+  ]);
+  detailEl.innerHTML = detailHtml(p, resolvedCompetencies, resolvedDirect);
 
   await renderTimeline(p);
   await renderAssignments(p);
 }
 
-function detailHtml(p, resolvedCompetencies) {
+function detailHtml(p, resolvedCompetencies, resolvedDirect) {
   const badge = STATUS_BADGES[p.status] || STATUS_BADGES.draft;
   const competencies = (resolvedCompetencies || p.competencies || []).slice().sort(function(a, b) { return a.order - b.order; });
+  const directSources = (resolvedDirect && resolvedDirect.sources) || [];
+  const directQuestions = (resolvedDirect && resolvedDirect.directQuestions) || [];
 
   let html = '<div class="bank-detail-card">';
 
@@ -393,6 +406,51 @@ function detailHtml(p, resolvedCompetencies) {
     html += '</div>';
   }
   html += '<div class="btn-row"><button class="btn-primary" onclick="openCompetencyPickerPanel()">+ Ajouter une compétence (banque)</button></div>';
+  html += '</div>';
+
+  // AJOUT : sources documentaires et questions directement liees -
+  // PARALLELES aux competences ci-dessus, jamais niches dedans (voir
+  // parcours-service.js#resolveParcoursDirectContentDisplay). Meme
+  // principe visuel que le bloc competences (liste + retrait direct par
+  // element, sans confirmation modale - meme choix que requestRemoveCompetency).
+  html += '<div class="bank-detail-section"><h4>Sources documentaires (' + directSources.length + ')</h4>';
+  if (directSources.length === 0) {
+    html += '<p class="bank-list-empty" style="padding:12px;">Aucune source pour l\'instant.</p>';
+  } else {
+    html += '<div class="parcours-competency-list">';
+    directSources.forEach(function(s) {
+      const bank = s.bankData;
+      html += '<div class="parcours-competency-card">';
+      html += '<div class="parcours-competency-header"><strong>' + escapeHtml(bank ? bank.name : s.id + ' (introuvable)') + '</strong>';
+      if (bank) html += '<span class="bank-chip">' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[bank.sourceType] || bank.sourceType) + '</span>';
+      html += '<div class="parcours-competency-actions">';
+      html += '<button class="btn-secondary bank-delete-btn" onclick="requestRemoveSource(\'' + escapeHtml(s.id) + '\')">Supprimer</button>';
+      html += '</div></div></div>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="btn-row"><button class="btn-primary" onclick="openSourcePickerPanel()">+ Ajouter une source documentaire</button></div>';
+  html += '</div>';
+
+  html += '<div class="bank-detail-section"><h4>Questions directement liées (' + directQuestions.length + ')</h4>';
+  if (directQuestions.length === 0) {
+    html += '<p class="bank-list-empty" style="padding:12px;">Aucune question pour l\'instant.</p>';
+  } else {
+    html += '<div class="parcours-competency-list">';
+    directQuestions.forEach(function(q) {
+      const bank = q.bankData;
+      const preview = bank ? (bank.question || '').toString().slice(0, 90) : (q.id + ' (introuvable)');
+      html += '<div class="parcours-competency-card">';
+      html += '<div class="parcours-competency-header"><strong>' + escapeHtml(q.id) + '</strong>';
+      html += '<div class="parcours-competency-actions">';
+      html += '<button class="btn-secondary bank-delete-btn" onclick="requestRemoveDirectQuestion(\'' + escapeHtml(q.id) + '\')">Supprimer</button>';
+      html += '</div></div>';
+      html += '<p class="parcours-competency-description">' + escapeHtml(preview) + '</p>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="btn-row"><button class="btn-primary" onclick="openQuestionPickerPanel()">+ Ajouter une question</button></div>';
   html += '</div>';
 
   // NOUVEAU (Sprint 15) : "Attributions" - qui reçoit ce parcours
@@ -687,6 +745,175 @@ export async function confirmCompetencyPicker() {
   await selectParcours(p.id);
 }
 
+// ---------------------------------------------------------------------------
+// AJOUT : selection d'une ou plusieurs sources documentaires EXISTANTES -
+// meme principe que le picker de competences ci-dessus, sans champ de
+// recherche serveur (browseDocumentSources() ne le supporte pas et le
+// volume de sources actives reste tres modeste) - filtre client simple.
+// ---------------------------------------------------------------------------
+
+let sourcePickerSelection = new Set();
+let sourcePickerResults = [];
+
+export async function openSourcePickerPanel() {
+  sourcePickerSelection = new Set();
+  document.getElementById('parcours-source-picker-overlay').style.display = 'flex';
+  await runSourcePickerSearch();
+}
+export function closeSourcePickerPanel() {
+  document.getElementById('parcours-source-picker-overlay').style.display = 'none';
+}
+
+async function runSourcePickerSearch() {
+  const container = document.getElementById('parcours-source-picker-results');
+  container.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  const alreadyLinkedIds = (p && Array.isArray(p.sourceIds)) ? p.sourceIds : [];
+
+  const result = await browseDocumentSources({ status: 'active' });
+  if (!result.authorized || result.error) {
+    container.innerHTML = '<p>' + escapeHtml(result.message || 'Impossible de charger les sources documentaires.') + '</p>';
+    sourcePickerResults = [];
+    return;
+  }
+
+  sourcePickerResults = result.items.filter(function(s) { return alreadyLinkedIds.indexOf(s.id) === -1; });
+
+  if (sourcePickerResults.length === 0) {
+    container.innerHTML = '<p class="bank-list-empty">Aucune source active disponible (ou déjà toutes liées à ce parcours).</p>';
+    return;
+  }
+
+  container.innerHTML = sourcePickerResults.map(function(s) {
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+      '<input type="checkbox" onchange="toggleSourcePick(\'' + escapeHtml(s.id) + '\')">' +
+      '<span><strong>' + escapeHtml(s.name) + '</strong> — ' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + '</span>' +
+      '</label>';
+  }).join('');
+}
+
+export function toggleSourcePick(sourceId) {
+  if (sourcePickerSelection.has(sourceId)) sourcePickerSelection.delete(sourceId);
+  else sourcePickerSelection.add(sourceId);
+}
+
+export async function confirmSourcePicker() {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  if (!p || sourcePickerSelection.size === 0) return;
+
+  const ids = Array.from(sourcePickerSelection);
+  let lastResult = null;
+  for (const sourceId of ids) {
+    lastResult = await addSourceToParcours(p, sourceId);
+    if (lastResult.status === 'success') p.sourceIds = lastResult.sourceIds;
+  }
+
+  showParcoursMessage(lastResult ? lastResult.status : 'error', ids.length + ' source(s) traitée(s).');
+  closeSourcePickerPanel();
+  await selectParcours(p.id);
+}
+
+export async function requestRemoveSource(sourceId) {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  if (!p) return;
+  const result = await removeSourceFromParcours(p, sourceId);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    p.sourceIds = result.sourceIds;
+    await selectParcours(p.id);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AJOUT : selection d'une ou plusieurs questions EXISTANTES de la Banque de
+// questions, liees DIRECTEMENT au parcours (distinct du panneau "Lier une
+// question" existant, qui lie une question a UNE competence precise) -
+// meme principe que le picker de competences ci-dessus.
+// ---------------------------------------------------------------------------
+
+let questionPickerSelection = new Set();
+let questionPickerResults = [];
+
+export async function openQuestionPickerPanel() {
+  questionPickerSelection = new Set();
+  document.getElementById('parcours-question-picker-search').value = '';
+  document.getElementById('parcours-question-picker-overlay').style.display = 'flex';
+  await runQuestionPickerSearch('');
+}
+export function closeQuestionPickerPanel() {
+  document.getElementById('parcours-question-picker-overlay').style.display = 'none';
+}
+
+let questionPickerDebounce = null;
+export function onQuestionPickerSearchInput() {
+  clearTimeout(questionPickerDebounce);
+  const value = valueOf('parcours-question-picker-search');
+  questionPickerDebounce = setTimeout(function() { runQuestionPickerSearch(value); }, 250);
+}
+
+async function runQuestionPickerSearch(searchText) {
+  const container = document.getElementById('parcours-question-picker-results');
+  container.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  const alreadyLinkedIds = (p && Array.isArray(p.directQuestionIds)) ? p.directQuestionIds : [];
+
+  const result = await browseQuestions({ searchText: searchText, pageSize: 50 });
+  if (!result.authorized || result.error) {
+    container.innerHTML = '<p>' + escapeHtml(result.message || 'Impossible de charger la banque de questions.') + '</p>';
+    questionPickerResults = [];
+    return;
+  }
+
+  questionPickerResults = result.items.filter(function(q) { return alreadyLinkedIds.indexOf(q.pedagogicalId) === -1; });
+
+  if (questionPickerResults.length === 0) {
+    container.innerHTML = '<p class="bank-list-empty">Aucune question disponible (ou déjà toutes liées à ce parcours).</p>';
+    return;
+  }
+
+  container.innerHTML = questionPickerResults.map(function(q) {
+    const preview = (q.question || '').toString().slice(0, 90);
+    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+      '<input type="checkbox" onchange="toggleQuestionPick(\'' + escapeHtml(q.pedagogicalId) + '\')">' +
+      '<span><strong>' + escapeHtml(q.pedagogicalId) + '</strong> — ' + escapeHtml(preview) + '</span>' +
+      '</label>';
+  }).join('');
+}
+
+export function toggleQuestionPick(pedagogicalId) {
+  if (questionPickerSelection.has(pedagogicalId)) questionPickerSelection.delete(pedagogicalId);
+  else questionPickerSelection.add(pedagogicalId);
+}
+
+export async function confirmQuestionPicker() {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  if (!p || questionPickerSelection.size === 0) return;
+
+  const ids = Array.from(questionPickerSelection);
+  let lastResult = null;
+  for (const pedagogicalId of ids) {
+    lastResult = await addQuestionDirectlyToParcours(p, pedagogicalId);
+    if (lastResult.status === 'success') p.directQuestionIds = lastResult.directQuestionIds;
+  }
+
+  showParcoursMessage(lastResult ? lastResult.status : 'error', ids.length + ' question(s) traitée(s).');
+  closeQuestionPickerPanel();
+  await selectParcours(p.id);
+}
+
+export async function requestRemoveDirectQuestion(pedagogicalId) {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  if (!p) return;
+  const result = await removeQuestionDirectlyFromParcours(p, pedagogicalId);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    p.directQuestionIds = result.directQuestionIds;
+    await selectParcours(p.id);
+  }
+}
+
 export async function requestRemoveCompetency(competencyId) {
   const p = state.items.find(function(item) { return item.id === state.selectedId; });
   if (!p) return;
@@ -885,6 +1112,17 @@ window.closeCompetencyPickerPanel = closeCompetencyPickerPanel;
 window.onCompetencyPickerSearchInput = onCompetencyPickerSearchInput;
 window.toggleCompetencyPick = toggleCompetencyPick;
 window.confirmCompetencyPicker = confirmCompetencyPicker;
+window.openSourcePickerPanel = openSourcePickerPanel;
+window.closeSourcePickerPanel = closeSourcePickerPanel;
+window.toggleSourcePick = toggleSourcePick;
+window.confirmSourcePicker = confirmSourcePicker;
+window.requestRemoveSource = requestRemoveSource;
+window.openQuestionPickerPanel = openQuestionPickerPanel;
+window.closeQuestionPickerPanel = closeQuestionPickerPanel;
+window.onQuestionPickerSearchInput = onQuestionPickerSearchInput;
+window.toggleQuestionPick = toggleQuestionPick;
+window.confirmQuestionPicker = confirmQuestionPicker;
+window.requestRemoveDirectQuestion = requestRemoveDirectQuestion;
 window.openAssignmentPickerPanel = openAssignmentPickerPanel;
 window.closeAssignmentPickerPanel = closeAssignmentPickerPanel;
 window.pickAssignmentType = pickAssignmentType;

@@ -38,8 +38,11 @@ import {
   DEFAULT_PARCOURS_PAGE_SIZE,
 } from "./parcours-catalog-service.js";
 import { logParcoursAction, getRecentParcoursAuditLogs } from "./parcours-audit-service.js";
-import { searchQuestionsBounded } from "./question-catalog-service.js";
+import {
+  searchQuestionsBounded, getExistingQuestionByPedagogicalId, getExistingQuestionsByPedagogicalIds,
+} from "./question-catalog-service.js";
 import { getCompetencyById, getCompetenciesByIds } from "./competency-catalog-service.js";
+import { getDocumentSourceById, getDocumentSourcesByIds } from "./document-source-catalog-service.js";
 
 const MIN_PARCOURS_NAME_LENGTH = 3;
 
@@ -363,6 +366,156 @@ export async function resolveParcoursCompetenciesDisplay(parcours) {
   return list.map(function(c) {
     return Object.assign({}, c, { bankData: c.competencyId ? (bankMap[c.competencyId] || null) : null });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Sources documentaires et questions directement liees (selection directe,
+// PARALLELE aux competences - jamais niches dedans, voir parcours-
+// metadata-service.js : `sourceIds`/`directQuestionIds` sont deux tableaux
+// top-level distincts de `competencies[].questionIds`).
+// ---------------------------------------------------------------------------
+
+/**
+ * Enrichit un parcours avec les donnees d'affichage A JOUR de ses sources
+ * documentaires et de ses questions directement liees (meme principe que
+ * resolveParcoursCompetenciesDisplay ci-dessus) - resolution PAR LOT,
+ * jamais un appel par element.
+ * @param {object} parcours
+ * @returns {Promise<{sources:Array<object>, directQuestions:Array<object>}>}
+ */
+export async function resolveParcoursDirectContentDisplay(parcours) {
+  const sourceIds = (parcours && Array.isArray(parcours.sourceIds)) ? parcours.sourceIds : [];
+  const questionIds = (parcours && Array.isArray(parcours.directQuestionIds)) ? parcours.directQuestionIds : [];
+
+  const [sourceMap, questionResult] = await Promise.all([
+    sourceIds.length ? getDocumentSourcesByIds(sourceIds) : Promise.resolve(new Map()),
+    questionIds.length ? getExistingQuestionsByPedagogicalIds(questionIds) : Promise.resolve({ map: new Map(), error: false }),
+  ]);
+
+  const sources = sourceIds.map(function(id) { return { id: id, bankData: sourceMap.get(id) || null }; });
+  const directQuestions = questionIds.map(function(id) { return { id: id, bankData: questionResult.map.get(id) || null }; });
+
+  return { sources: sources, directQuestions: directQuestions };
+}
+
+/**
+ * Ajoute une reference vers une source documentaire EXISTANTE. Simple
+ * tableau de chaines, jamais de copie imbriquee : le nom affiche est
+ * toujours resolu a la lecture (resolveParcoursDirectContentDisplay).
+ * @param {object} parcours
+ * @param {string} sourceId
+ * @returns {Promise<object>}
+ */
+export async function addSourceToParcours(parcours, sourceId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  if (!sourceId) return errorResult('Source documentaire introuvable.');
+
+  const existing = Array.isArray(parcours.sourceIds) ? parcours.sourceIds : [];
+  if (existing.indexOf(sourceId) !== -1) return denied('Cette source est déjà présente dans ce parcours.');
+
+  const source = await getDocumentSourceById(sourceId);
+  if (!source) return errorResult('Source introuvable dans le catalogue documentaire.');
+
+  const updated = existing.concat([sourceId]);
+  const result = await updateParcoursFields(parcours.id, { sourceIds: updated });
+  if (!result.success) return errorResult('L\'ajout de la source a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'add_source', oldValue: null, newValue: source.name + ' (' + sourceId + ')',
+  }).catch(function() {});
+
+  return success('Source ajoutée avec succès.', { sourceIds: updated });
+}
+
+/**
+ * Retire une reference de source documentaire d'un parcours.
+ * @param {object} parcours
+ * @param {string} sourceId
+ * @returns {Promise<object>}
+ */
+export async function removeSourceFromParcours(parcours, sourceId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+
+  const existing = Array.isArray(parcours.sourceIds) ? parcours.sourceIds : [];
+  if (existing.indexOf(sourceId) === -1) return errorResult('Source introuvable dans ce parcours.');
+
+  const updated = existing.filter(function(id) { return id !== sourceId; });
+  const result = await updateParcoursFields(parcours.id, { sourceIds: updated });
+  if (!result.success) return errorResult('La suppression de la source a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'remove_source', oldValue: sourceId, newValue: null,
+  }).catch(function() {});
+
+  return success('Source supprimée avec succès.', { sourceIds: updated });
+}
+
+/**
+ * Lie DIRECTEMENT une question existante a un parcours (tableau top-level
+ * `directQuestionIds`, distinct de `competencies[].questionIds`). Ne
+ * modifie jamais la question elle-meme.
+ * @param {object} parcours
+ * @param {string} pedagogicalId
+ * @returns {Promise<object>}
+ */
+export async function addQuestionDirectlyToParcours(parcours, pedagogicalId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  if (!pedagogicalId) return errorResult('Question introuvable.');
+
+  const existing = Array.isArray(parcours.directQuestionIds) ? parcours.directQuestionIds : [];
+  if (existing.indexOf(pedagogicalId) !== -1) return denied('Cette question est déjà présente dans ce parcours.');
+
+  const question = await getExistingQuestionByPedagogicalId(pedagogicalId);
+  if (!question) return errorResult('Question introuvable dans la banque de questions.');
+
+  const updated = existing.concat([pedagogicalId]);
+  const result = await updateParcoursFields(parcours.id, { directQuestionIds: updated });
+  if (!result.success) return errorResult('L\'ajout de la question a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'add_direct_question', oldValue: null, newValue: pedagogicalId,
+  }).catch(function() {});
+
+  return success('Question ajoutée avec succès.', { directQuestionIds: updated });
+}
+
+/**
+ * Retire une question directement liee d'un parcours.
+ * @param {object} parcours
+ * @param {string} pedagogicalId
+ * @returns {Promise<object>}
+ */
+export async function removeQuestionDirectlyFromParcours(parcours, pedagogicalId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+
+  const existing = Array.isArray(parcours.directQuestionIds) ? parcours.directQuestionIds : [];
+  if (existing.indexOf(pedagogicalId) === -1) return errorResult('Question introuvable dans ce parcours.');
+
+  const updated = existing.filter(function(id) { return id !== pedagogicalId; });
+  const result = await updateParcoursFields(parcours.id, { directQuestionIds: updated });
+  if (!result.success) return errorResult('La suppression de la question a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'remove_direct_question', oldValue: pedagogicalId, newValue: null,
+  }).catch(function() {});
+
+  return success('Question supprimée avec succès.', { directQuestionIds: updated });
 }
 
 // ---------------------------------------------------------------------------
