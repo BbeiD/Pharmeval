@@ -291,7 +291,12 @@
          Simples libelles de section, aucune refonte graphique. -->
     <div class="admin-nav-menu">
       <p class="admin-nav-section-label">📚 Catalogue global <span class="admin-users-disclaimer" style="display:inline;">(commun à toutes les organisations)</span></p>
-      <a href="admin/import.html" class="btn-secondary">📥 Import de questions</a>
+      <!-- Ancien mecanisme d'import JSON (Sprint 10) : conserve dans le
+           projet (admin/import.html, admin/import.js) mais retire du
+           menu visible suite a l'introduction de la synchronisation du
+           catalogue editorial (Sprint 21). A supprimer definitivement
+           seulement apres la premiere synchronisation reelle validee. -->
+      <a href="admin/catalog-sync.html" class="btn-secondary">🔄 Synchronisation du catalogue</a>
       <a href="admin/bank.html" class="btn-secondary">🗂️ Banque de questions</a>
       <a href="admin/document-sources.html" class="btn-secondary">📚 Sources documentaires</a>
       <a href="admin/competencies.html" class="btn-secondary">🧩 Banque des compétences</a>
