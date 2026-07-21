@@ -1232,8 +1232,6 @@ function updateHeaderCount() {
   }).length;
   var el = document.getElementById('stat-bank-total');
   if (el) el.textContent = count;
-  var profileBadge = document.getElementById('active-profile-badge');
-  if (profileBadge) profileBadge.textContent = cfg.label;
 }
 
 function selectProfile(profile) {
@@ -1248,79 +1246,19 @@ function selectProfile(profile) {
   var cfg = THEME_CONFIG[profile];
   activeTheme = cfg.defaultTheme;
 
-  var selector = document.getElementById('profile-selector');
-  if (selector) selector.style.display = 'none';
-
   show('home-view');
   setTheme(activeTheme);
   updateStatsDisplay();
   updateHeaderCount();
 }
 
-// ===================== CHANGER D'ESPACE =====================
-// Retour a l'ecran "Choisir votre espace". Les statistiques localStorage sont
-// deja isolees par profil (quiz_stats_student / quiz_stats_pharmacist) et ne
-// sont jamais effacees ici : on se contente de reinitialiser l'etat de session
-// (theme actif, selections de categories, quiz en cours) avant de revenir au
-// selecteur.
-function isQuizInProgressWithAnswer() {
-  var quizViewEl = document.getElementById('quiz-view');
-  var quizVisible = !!(quizViewEl && quizViewEl.style.display === 'block');
-  return quizVisible && quiz && quiz.answeredCount > 0;
-}
-
-function resetSessionState() {
-  // Vide toutes les selections de sous-themes (tous profils confondus).
-  selectedConseil = new Set();
-  selectedMed = new Set();
-  selectedDermo = new Set();
-  selectedProc = new Set();
-  selectedBppo = new Set();
-  selectedFtm = new Set();
-  selectedDeon = new Set();
-  selectedEtudiant = new Set();
-  selectedBapcoc = new Set();
-  selectedLeg = new Set();
-  selectedGal = new Set();
-  selectedAdm = new Set();
-  selectedDiff = 'all';
-  document.querySelectorAll('.diff-btn').forEach(function(b) { b.classList.remove('active'); });
-  var diffAllEl = document.getElementById('diff-all');
-  if (diffAllEl) diffAllEl.classList.add('active');
-
-  quiz = { questions: [], idx: 0, score: 0, answered: false, lastSub: 'all', answeredCount: 0 };
-  activeTheme = null;
-}
-
-function goToProfileSelector() {
-  resetSessionState();
-  currentProfile = null;
-
-  ['home-view', 'quiz-view', 'results-view'].forEach(function(v) {
-    var el = document.getElementById(v);
-    if (el) el.style.display = 'none';
-  });
-
-  var selector = document.getElementById('profile-selector');
-  if (selector) selector.style.display = 'flex';
-}
-
-function changeSpace() {
-  if (isQuizInProgressWithAnswer()) {
-    var ok = confirm(
-      "Un quiz est en cours et vous avez deja repondu a au moins une question.\n\n" +
-      "Changer d'espace maintenant interrompra ce quiz (la progression de CE quiz sera perdue).\n" +
-      "Vos statistiques globales et vos signalements restent conserves separement pour chaque profil.\n\n" +
-      "Continuer ?"
-    );
-    if (!ok) return;
-  }
-  goToProfileSelector();
-}
-
 // ===================== INIT =====================
 // Le rendu reel (renderCats / updateStatsDisplay / comptage) demarre
-// uniquement apres le choix explicite d'un profil via selectProfile().
+// uniquement apres l'appel automatique de selectProfile() par js/auth.js
+// (voir revealApp()) juste apres la connexion - plus jamais via un choix
+// manuel de l'utilisateur (Sprint 21.5, Phase A : suppression de l'ecran
+// "Etudiant / Pharmacien", provisoire depuis l'origine - voir le
+// commentaire qui accompagnait ce bloc avant ce correctif).
 
 // Sprint 5 : expose la banque de questions deja chargee en memoire, pour que
 // js/services/history-service.js (module ES, sans acces aux variables

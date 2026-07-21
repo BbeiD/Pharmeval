@@ -35,12 +35,13 @@
 
 import { getCurrentUserContext } from "./app-context.js";
 import { getUserByUid } from "./user-management-service.js";
-import { prepareEvaluation } from "./parcours-evaluation-service.js";
+import { prepareEvaluation, buildOrderedQuestionSnapshots } from "./parcours-evaluation-service.js";
 import {
   SESSION_STATUSES, completeSessionMetadata, completeAnswerEntry, validateSessionMetadata,
 } from "./evaluation-session-metadata-service.js";
 import {
   createSessionDocument, getSessionById, findActiveSession, countPreviousAttempts, updateSessionFields,
+  findActiveFreeTrainingSession, countPreviousFreeTrainingAttempts,
 } from "./evaluation-session-catalog-service.js";
 
 function denied(message, reason) { return { status: 'denied', message: message, reason: reason }; }
@@ -67,6 +68,75 @@ export async function getActiveSession(parcoursId, competencyId) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return null;
   return findActiveSession(ctx.uid, parcoursId, competencyId);
+}
+
+/**
+ * SPRINT 21.5, PHASE B1 : équivalent de getActiveSession() ci-dessus,
+ * pour l'entraînement libre. Fonction SIBLING, pas un paramètre optionnel
+ * ajouté à getActiveSession() - un appelant "parcours" existant n'a donc
+ * RIEN à changer, aucun risque de régression sur son comportement.
+ * @returns {Promise<object|null>}
+ */
+export async function getActiveFreeTrainingSession() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return null;
+  return findActiveFreeTrainingSession(ctx.uid);
+}
+
+/**
+ * SPRINT 21.5, PHASE B1 : démarre une session d'ENTRAÎNEMENT LIBRE - à
+ * partir d'une liste de `pedagogicalId` DÉJÀ résolue et bornée par
+ * free-training-service.js (filtres source/section/tags/difficulté/
+ * jamais-vue/jamais-réussie, voir ce fichier - jamais recalculée ici).
+ * Aucune vérification d'attribution de parcours (il n'y en a pas) - seule
+ * l'authentification est requise. Réutilise buildOrderedQuestionSnapshots()
+ * (partie générique déjà utilisée par prepareEvaluation(), voir
+ * parcours-evaluation-service.js) pour la construction des snapshots -
+ * AUCUNE logique de sélection/mélange de questions dupliquée ici.
+ *
+ * @param {Array<string>} pedagogicalIds
+ * @returns {Promise<object>}
+ */
+export async function startNewFreeTrainingSession(pedagogicalIds) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour démarrer un entraînement.', 'not_authenticated');
+
+  const snapshots = await buildOrderedQuestionSnapshots(pedagogicalIds);
+  if (snapshots.error) return errorResult('Impossible de charger les questions pour le moment. Réessayez plus tard.');
+  if (snapshots.orderedQuestionIds.length === 0) return denied('Aucune question disponible pour cette sélection.', 'no_questions');
+
+  const [user, previousAttempts] = await Promise.all([
+    getUserByUid(ctx.uid),
+    countPreviousFreeTrainingAttempts(ctx.uid),
+  ]);
+
+  const now = nowIso();
+  const session = completeSessionMetadata({
+    userId: ctx.uid,
+    organizationId: (user && user.organizationId) || null,
+    sessionType: 'free_training',
+    parcoursId: null,
+    competencyId: null,
+    assignmentId: null,
+    status: SESSION_STATUSES.IN_PROGRESS,
+    startedAt: now,
+    updatedAt: now,
+    questionIds: snapshots.orderedQuestionIds,
+    currentQuestionIndex: 0,
+    answers: {},
+    questionSnapshot: snapshots.questionSnapshots,
+    createdBy: ctx.uid,
+    attemptNumber: previousAttempts + 1,
+  });
+  session.events = [{ type: 'evaluation_started', at: now }];
+
+  const validation = validateSessionMetadata(session);
+  if (!validation.valid) return errorResult(validation.errors.join(' '));
+
+  const result = await createSessionDocument(session);
+  if (!result.success) return errorResult('Le démarrage de l\'entraînement a échoué. Veuillez réessayer.');
+
+  return success('Entraînement démarré.', { session: session });
 }
 
 /**
@@ -170,6 +240,27 @@ export async function restartSession(oldSessionId, parcoursId, competencyId) {
   }
 
   return startNewSession(parcoursId, competencyId);
+}
+
+/**
+ * SPRINT 21.5, PHASE B1 : équivalent de restartSession() pour
+ * l'entraînement libre - même principe (l'ancienne session n'est jamais
+ * supprimée, seulement marquée `abandoned`).
+ * @param {string} oldSessionId
+ * @param {Array<string>} pedagogicalIds
+ * @returns {Promise<object>}
+ */
+export async function restartFreeTrainingSession(oldSessionId, pedagogicalIds) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour recommencer un entraînement.', 'not_authenticated');
+
+  const oldSession = await getSessionById(oldSessionId);
+  if (oldSession && oldSession.userId === ctx.uid && oldSession.status === SESSION_STATUSES.IN_PROGRESS) {
+    const events = appendEvent(oldSession, 'evaluation_restarted');
+    await updateSessionFields(oldSessionId, { status: SESSION_STATUSES.ABANDONED, updatedAt: nowIso(), events: events });
+  }
+
+  return startNewFreeTrainingSession(pedagogicalIds);
 }
 
 /**

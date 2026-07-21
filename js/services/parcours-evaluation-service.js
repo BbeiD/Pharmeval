@@ -80,6 +80,41 @@ function buildShuffledSnapshot(liveQuestion) {
 }
 
 /**
+ * Charge les questions REELLEMENT publiees pour une liste de
+ * `pedagogicalId`, fige leur ordre et melange les options de chacune -
+ * partie ENTIEREMENT GENERIQUE de la preparation d'une evaluation
+ * (SPRINT 21.5, Phase B1) : ne sait rien d'un parcours ni d'une
+ * competence, prend seulement une liste d'identifiants. Utilisee par
+ * prepareEvaluation() (formations, ci-dessous) ET par
+ * free-training-service.js (entrainement libre) - AUCUNE duplication de
+ * cette logique entre les deux modes, exactement l'objectif du sprint.
+ *
+ * @param {Array<string>} pedagogicalIds
+ * @returns {Promise<{orderedQuestionIds:Array<string>, questionSnapshots:object}|{error:true}>}
+ */
+export async function buildOrderedQuestionSnapshots(pedagogicalIds) {
+  if (!Array.isArray(pedagogicalIds) || pedagogicalIds.length === 0) {
+    return { orderedQuestionIds: [], questionSnapshots: {} };
+  }
+  const questionsResult = await getExistingQuestionsByPedagogicalIds(pedagogicalIds);
+  if (questionsResult.error) return { error: true };
+
+  // Seules les questions REELLEMENT publiees sont retenues - une question
+  // encore en brouillon, en relecture, archivee ou supprimee de la Banque
+  // de questions ne doit jamais atterrir devant un utilisateur.
+  const availableQuestions = pedagogicalIds
+    .map(function(id) { return questionsResult.map.get(id); })
+    .filter(function(q) { return q && q.status === 'published'; });
+
+  const orderedQuestions = shuffle(availableQuestions);
+  const orderedQuestionIds = orderedQuestions.map(function(q) { return q.pedagogicalId; });
+  const questionSnapshots = {};
+  orderedQuestions.forEach(function(q) { questionSnapshots[q.pedagogicalId] = buildShuffledSnapshot(q); });
+
+  return { orderedQuestionIds: orderedQuestionIds, questionSnapshots: questionSnapshots };
+}
+
+/**
  * Vérifie qu'une évaluation peut être démarrée pour cet utilisateur et
  * prépare tout ce qu'il faut pour créer la session (ordre des questions
  * figé, snapshots) - SANS RIEN ÉCRIRE. "Réutiliser le moteur d'attribution
@@ -87,6 +122,11 @@ function buildShuffledSnapshot(liveQuestion) {
  * publié" (SPRINT17, section 14) : la vérification passe entièrement par
  * `getAssignedParcoursForUser()`, qui vérifie déjà l'attribution réelle
  * (directe, groupe ou profil) ET le statut publié du parcours.
+ *
+ * SPRINT 21.5, PHASE B1 : la construction des snapshots elle-même est
+ * désormais déléguée à buildOrderedQuestionSnapshots() ci-dessus (partie
+ * générique, partagée avec l'entraînement libre) - seule la résolution de
+ * `linkedQuestionIds` (spécifique aux parcours/compétences) reste ici.
  *
  * @param {string} uid
  * @param {string} parcoursId
@@ -121,37 +161,20 @@ export async function prepareEvaluation(uid, parcoursId, competencyId) {
     return { authorized: false, reason: 'no_questions', message: NO_QUESTIONS_AVAILABLE_MESSAGE };
   }
 
-  const questionsResult = await getExistingQuestionsByPedagogicalIds(linkedQuestionIds);
-  if (questionsResult.error) {
+  const snapshots = await buildOrderedQuestionSnapshots(linkedQuestionIds);
+  if (snapshots.error) {
     return { authorized: false, reason: 'error', message: 'Impossible de charger les questions de cette évaluation pour le moment. Réessayez plus tard.' };
   }
-
-  // Seules les questions REELLEMENT publiees sont retenues - une question
-  // encore en brouillon, en relecture, archivee ou supprimee de la Banque
-  // de questions ne doit jamais atterrir devant un utilisateur, meme si
-  // elle est toujours listee dans `questionIds` de la competence.
-  const availableQuestions = linkedQuestionIds
-    .map(function(id) { return questionsResult.map.get(id); })
-    .filter(function(q) { return q && q.status === 'published'; });
-
-  if (availableQuestions.length === 0) {
+  if (snapshots.orderedQuestionIds.length === 0) {
     return { authorized: false, reason: 'no_questions', message: NO_QUESTIONS_AVAILABLE_MESSAGE };
   }
-
-  // Ordre des QUESTIONS figé une seule fois ici (voir aussi le mélange des
-  // OPTIONS de chaque question, fait une seule fois dans
-  // buildShuffledSnapshot() ci-dessus).
-  const orderedQuestions = shuffle(availableQuestions);
-  const orderedQuestionIds = orderedQuestions.map(function(q) { return q.pedagogicalId; });
-  const questionSnapshots = {};
-  orderedQuestions.forEach(function(q) { questionSnapshots[q.pedagogicalId] = buildShuffledSnapshot(q); });
 
   return {
     authorized: true,
     parcours: parcours,
     competency: competency,
     assignmentId: (entry.assignment && entry.assignment.id) || null,
-    orderedQuestionIds: orderedQuestionIds,
-    questionSnapshots: questionSnapshots,
+    orderedQuestionIds: snapshots.orderedQuestionIds,
+    questionSnapshots: snapshots.questionSnapshots,
   };
 }

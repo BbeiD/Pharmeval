@@ -38,6 +38,7 @@ import {
   deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
+import { buildFilterDescriptors } from "./question-filter-utils.js";
 
 const QUESTIONS_COLLECTION = 'questions';
 
@@ -202,15 +203,29 @@ export async function writeQuestionsBatch(documentsByPedagogicalId) {
 // simplement de nouvelles operations de lecture/ecriture dessus.
 // ---------------------------------------------------------------------------
 
-function buildFilterClauses(filters) {
-  const clauses = [];
-  const f = filters || {};
-  if (f.status) clauses.push(where('status', '==', f.status));
-  if (f.theme) clauses.push(where('theme', '==', f.theme));
-  if (f.difficulty) clauses.push(where('difficulty', '==', f.difficulty));
-  if (f.questionType) clauses.push(where('questionType', '==', f.questionType));
-  if (f.author) clauses.push(where('author', '==', f.author));
-  return clauses;
+/**
+ * "Ne pas masquer une erreur Firestore d'index manquant" - meme patron que
+ * document-source-catalog-service.js (Sprint 20), reutilise ici tel quel
+ * (Sprint 21.5, Phase B0) plutot que duplique sous une forme legerement
+ * differente.
+ * @param {*} err
+ * @returns {boolean}
+ */
+function isIndexMissingError(err) {
+  return !!err && err.code === 'failed-precondition' && /index/i.test(err.message || '');
+}
+const INDEX_MISSING_MESSAGE = 'Cette fonctionnalité nécessite un index Firestore qui n\'est pas encore déployé (voir firestore.indexes.json et la procédure de déploiement). Contactez l\'administrateur technique.';
+
+/**
+ * Traduit les descripteurs purs (voir question-filter-utils.js, seule
+ * source de verite pour LA LOGIQUE de filtrage) en clauses reelles du
+ * SDK Firestore (`where(...)`). Aucune logique de filtrage ici, jamais
+ * dupliquee - uniquement la traduction descripteur -> appel SDK.
+ * @param {object} filters
+ * @returns {Array} clauses Firestore pretes a etre passees a query(...)
+ */
+export function buildFilterClauses(filters) {
+  return buildFilterDescriptors(filters).map(function(d) { return where(d.field, d.op, d.value); });
 }
 
 /**
@@ -248,7 +263,7 @@ export async function queryQuestionsPage(options) {
     return { items: items, lastDoc: lastRawDoc, hasMore: items.length === pageSize, error: false };
   } catch (err) {
     logCatalogError('chargement d\'une page de questions', err);
-    return { items: [], lastDoc: null, hasMore: false, error: true };
+    return { items: [], lastDoc: null, hasMore: false, error: true, message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : null };
   }
 }
 
@@ -298,7 +313,7 @@ export async function searchQuestionsBounded(options) {
     return { items: all.slice(0, scanLimit), truncated: truncated, error: false, scanLimit: scanLimit };
   } catch (err) {
     logCatalogError('balayage de recherche', err);
-    return { items: [], truncated: false, error: true, scanLimit: scanLimit };
+    return { items: [], truncated: false, error: true, scanLimit: scanLimit, message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : null };
   }
 }
 

@@ -135,6 +135,15 @@ export function completeSessionMetadata(partial) {
     id: p.id || generateSessionId(),
     userId: p.userId || null,
     organizationId: p.organizationId || null, // snapshot de users/{uid}.organizationId au moment de la creation (Sprint 14) - jamais relu dynamiquement ensuite
+    // SPRINT 21.5, PHASE B1 : distingue une session de formation d'une
+    // session d'entrainement libre - c'est CE champ, et lui seul, qui
+    // separe les deux modes (jamais une seconde collection, jamais un
+    // second moteur - voir en-tete de evaluation-session-service.js).
+    // Valeur par defaut 'parcours' : toute session deja existante en
+    // base, creee avant ce sprint, reste valide sans migration - elle n'a
+    // simplement jamais ce champ renseigne explicitement, et
+    // completeSessionMetadata() le complete a la lecture comme 'parcours'.
+    sessionType: p.sessionType || 'parcours',
     parcoursId: p.parcoursId || null,
     competencyId: p.competencyId || null,
     assignmentId: p.assignmentId || null, // l'attribution (Sprint 15) qui a permis l'acces, si determinable avec certitude
@@ -173,8 +182,15 @@ export function validateSessionMetadata(session) {
   const errors = [];
   const s = session || {};
   if (!s.userId) errors.push('La session doit être associée à un utilisateur.');
-  if (!s.parcoursId) errors.push('La session doit être associée à un parcours.');
-  if (!s.competencyId) errors.push('La session doit être associée à une compétence.');
+  // SPRINT 21.5, PHASE B1 : une session d'entrainement libre (sessionType
+  // === 'free_training') n'a ni parcours ni competence par definition -
+  // cette exigence ne s'applique donc plus qu'aux sessions de formation
+  // (comportement inchange pour tout appelant existant, qui ne renseigne
+  // jamais sessionType et retombe donc sur 'parcours').
+  if (s.sessionType !== 'free_training') {
+    if (!s.parcoursId) errors.push('La session doit être associée à un parcours.');
+    if (!s.competencyId) errors.push('La session doit être associée à une compétence.');
+  }
   if (Object.values(SESSION_STATUSES).indexOf(s.status) === -1) {
     errors.push('Statut de session invalide : "' + s.status + '".');
   }

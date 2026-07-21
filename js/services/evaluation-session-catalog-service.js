@@ -106,7 +106,52 @@ export async function countPreviousAttempts(userId, parcoursId, competencyId) {
 }
 
 /**
- * Met a jour des champs d'une session (reponses, index courant, statut...).
+ * SPRINT 21.5, PHASE B1 : équivalent de findActiveSession() ci-dessus,
+ * pour l'entraînement libre - scope par `sessionType`, jamais par
+ * parcours/compétence (qui n'existent pas dans ce mode). Nécessite
+ * l'index composite (userId, sessionType, status) - voir
+ * firestore.indexes.json.
+ * @param {string} userId
+ * @returns {Promise<object|null>}
+ */
+export async function findActiveFreeTrainingSession(userId) {
+  try {
+    const snap = await getDocs(query(
+      collection(db, SESSION_COLLECTION),
+      where('userId', '==', userId),
+      where('sessionType', '==', 'free_training'),
+      where('status', '==', 'in_progress'),
+      limit(1)
+    ));
+    return snap.empty ? null : snap.docs[0].data();
+  } catch (err) {
+    logCatalogError('recherche d\'une session d\'entraînement libre active', err);
+    return null;
+  }
+}
+
+/**
+ * Équivalent de countPreviousAttempts() ci-dessus pour l'entraînement
+ * libre - même usage (alimenter `attemptNumber` de façon honnête, jamais
+ * exploité pour bloquer quoi que ce soit).
+ * @param {string} userId
+ * @returns {Promise<number>}
+ */
+export async function countPreviousFreeTrainingAttempts(userId) {
+  try {
+    const snap = await getDocs(query(
+      collection(db, SESSION_COLLECTION),
+      where('userId', '==', userId),
+      where('sessionType', '==', 'free_training'),
+      orderBy('startedAt', 'desc'),
+      limit(50)
+    ));
+    return snap.size;
+  } catch (err) {
+    logCatalogError('comptage des tentatives d\'entraînement libre précédentes', err);
+    return 0; // fail-open, meme principe que countPreviousAttempts()
+  }
+}
  * Reecrit uniquement les champs fournis, jamais l'ensemble du document.
  * @param {string} sessionId
  * @param {object} fields

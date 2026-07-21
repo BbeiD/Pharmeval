@@ -23,6 +23,7 @@ import { correctEvaluationSession } from "./evaluation-correction-service.js";
 import { createResultDocument, getResultById } from "./evaluation-result-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
 import { updateProgressionFromResult } from "./competency-progress-service.js";
+import { updateQuestionProgressFromResult } from "./question-progress-service.js";
 
 function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
 
@@ -65,8 +66,25 @@ export async function finalizeEvaluation(session) {
   // "Best effort" : un échec de la progression ne remet jamais en cause
   // le résultat déjà enregistré (déjà définitif et consultable) - juste
   // journalisé, jamais bloquant pour l'utilisateur.
-  updateProgressionFromResult(evaluationResult).catch(function(err) {
-    console.error('[evaluation-result-service] mise à jour de la progression impossible', err);
+  //
+  // SPRINT 21.5, PHASE B1 : un résultat d'entraînement libre n'a pas de
+  // competencyId (voir evaluation-correction-service.js) - la progression
+  // par compétence n'a donc rien à mettre à jour pour lui. La progression
+  // PAR QUESTION (Phase B0, ci-dessous) reste alimentée dans tous les cas,
+  // elle est déjà indépendante de toute notion de compétence.
+  if (evaluationResult.competencyId) {
+    updateProgressionFromResult(evaluationResult).catch(function(err) {
+      console.error('[evaluation-result-service] mise à jour de la progression impossible', err);
+    });
+  }
+
+  // SPRINT 21.5, PHASE B0 : même point de déclenchement, même philosophie
+  // "best effort", pour la progression PAR QUESTION (jamais vue / jamais
+  // réussie - voir question-progress-service.js). Idempotent par
+  // construction (voir ce fichier) : un double appel ne peut jamais
+  // compter deux fois le même résultat.
+  updateQuestionProgressFromResult(evaluationResult).catch(function(err) {
+    console.error('[evaluation-result-service] mise à jour de la progression par question impossible', err);
   });
 
   return success('Évaluation soumise et corrigée avec succès.', { resultId: evaluationResult.id, result: evaluationResult });

@@ -150,7 +150,12 @@ function buildCompetencyResult(competencyId, questionResults, policy) {
   const denominator = p.countUnansweredInDenominator ? totalCount : (totalCount - unansweredCount);
   const rawPercent = denominator > 0 ? (correctCount / denominator) * 100 : 0;
   const percent = roundPercent(rawPercent, p);
-  const status = computeCompetencyStatus(percent, p);
+  // SPRINT 21.5, PHASE B1 : un statut de maitrise ('mastered'/
+  // 'to_reinforce'/'not_acquired') n'a de sens que rapporte a UNE
+  // competence de reference. Sans competencyId (entrainement libre), le
+  // calculer quand meme produirait une etiquette trompeuse ("maitrise" de
+  // quoi ?) - laisse explicitement `null` plutot que fabrique.
+  const status = competencyId ? computeCompetencyStatus(percent, p) : null;
 
   return {
     competencyId: competencyId,

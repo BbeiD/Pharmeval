@@ -17,13 +17,39 @@ import {
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
-import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
+import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { syncPendingEvaluations } from "./services/evaluation-service.js";
 import { startOnboarding } from "./onboarding.js";
 import { updateAdminUI, openAdminZone } from "./admin.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
+
+// ===================== SPRINT 21.5, PHASE A =====================
+// L'ecran de choix manuel "Etudiant / Pharmacien" (#profile-selector) est
+// supprime (voir index.html) : le role est desormais determine
+// automatiquement a partir de la profession declaree lors de l'accueil
+// (voir js/onboarding.js, PROFESSION_OPTIONS dans user-service.js),
+// stockee sous userData.profile.profession et exposee via
+// getCurrentUserContext().profile.profession.
+//
+// LIMITE CONNUE, DOCUMENTEE (a resoudre proprement en Phase B, refonte de
+// #home-view - jamais cachee ici) : #home-view et son moteur (js/app.js)
+// restent, pour cette seule phase, structures autour d'un choix BINAIRE
+// THEME_CONFIG['student'|'pharmacist'] herite de l'ancienne architecture.
+// Les professions qui ne s'y projettent pas naturellement
+// (pharmacy_technician, teacher, other, ou profession non renseignee)
+// sont donc mappees par defaut vers 'pharmacist' (l'espace le plus large
+// aujourd'hui) - un choix pragmatique et TEMPORAIRE, pas une decision de
+// modele de roles definitive. La Phase B remplacera entierement ce
+// mecanisme binaire par l'acces base sur les competences/le catalogue,
+// et cette fonction disparaitra avec lui.
+function deriveLegacyProfileFromProfession(profession) {
+  if (profession === 'student') return 'student';
+  if (profession === 'pharmacist') return 'pharmacist';
+  // pharmacy_technician / teacher / other / vide : repli documente ci-dessus
+  return 'pharmacist';
+}
 
 function toggleAuthMode() {
   authMode = (authMode === 'signin') ? 'signup' : 'signin';
@@ -161,34 +187,32 @@ function revealApp(user) {
   // indique un role administrateur.
   updateAdminUI();
 
-  // CORRECTIF (post-Sprint 15) : "Retour à l'administration" depuis un
-  // ecran d'administration secondaire (admin/parcours.html, admin/bank.html...)
-  // renvoyait vers "../index.html", qui rechargeait l'application au tout
-  // debut - c'est-a-dire l'ecran de selection Étudiant/Pharmacien
-  // (#profile-selector, plein ecran, toujours visible par defaut tant que
-  // selectProfile() n'a pas ete appelee), au lieu du veritable tableau de
-  // bord d'administration. Ces liens pointent desormais explicitement vers
-  // "../index.html?admin=1" (voir admin/*.html) ; ce parametre, detecte
-  // ICI, declenche l'ouverture DIRECTE de la zone d'administration
-  // (openAdminZone(), Sprint 3/8 - reutilisee telle quelle, aucune
-  // nouvelle route ni aucun nouveau tableau de bord n'est cree) et masque
-  // l'ecran de selection de profil - jamais l'inverse.
+  // CORRECTIF (post-Sprint 15, ajuste Sprint 21.5 Phase A) : "Retour à
+  // l'administration" depuis un ecran d'administration secondaire
+  // (admin/parcours.html, admin/bank.html...) renvoyait vers
+  // "../index.html", qui rechargeait l'application au tout debut. Ces
+  // liens pointent explicitement vers "../index.html?admin=1" ; ce
+  // parametre, detecte ICI, declenche l'ouverture DIRECTE de la zone
+  // d'administration (openAdminZone(), reutilisee telle quelle) sans
+  // jamais charger l'accueil pharmacien/etudiant en dessous.
   //
   // Double garde volontaire : le parametre seul ne suffit jamais a acceder
   // a l'administration - openAdminZone() revalide de toute facon elle-meme
   // la permission (voir js/admin.js) et refuse silencieusement si
   // l'utilisateur n'est pas administrateur, exactement comme un clic
-  // normal sur le bouton "Administration". La verification hasPermission()
-  // ci-dessous n'est qu'une precaution supplementaire pour ne jamais
-  // masquer l'ecran de selection de profil a un utilisateur standard qui
-  // aurait tape cette URL au hasard.
-  if (hasPermission(PERMISSIONS.MANAGE_USERS)) {
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === '1') {
-      var selectorEl = document.getElementById('profile-selector');
-      if (selectorEl) selectorEl.style.display = 'none';
-      openAdminZone();
-    }
+  // normal sur le bouton "Administration".
+  var params = new URLSearchParams(window.location.search);
+  var wantsDirectAdmin = params.get('admin') === '1' && hasPermission(PERMISSIONS.MANAGE_USERS);
+
+  if (wantsDirectAdmin) {
+    openAdminZone();
+  } else if (typeof window.selectProfile === 'function') {
+    // Sprint 21.5, Phase A : plus d'ecran de choix - le profil est
+    // determine automatiquement (voir deriveLegacyProfileFromProfession
+    // ci-dessus). L'accueil s'affiche donc immediatement apres connexion.
+    var ctx = getCurrentUserContext();
+    var profession = ctx && ctx.profile && ctx.profile.profession;
+    window.selectProfile(deriveLegacyProfileFromProfession(profession));
   }
 }
 
