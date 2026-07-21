@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Entraînement libre</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="etl-loading">Chargement…</div>
+
+<div id="etl-view" style="display:none;">
+  <div class="bank-page import-page">
+    <div class="import-header">
+      <h2>🎯 Entraînement libre</h2>
+      <a href="index.html" class="btn-secondary">← Retour à l'accueil</a>
+    </div>
+    <p class="import-intro">
+      Choisissez une source documentaire (et, si vous le souhaitez, une section, une difficulté,
+      un tag) pour composer librement une séance d'entraînement, indépendamment de tout parcours.
+    </p>
+
+    <div id="etl-message" class="admin-message" style="display:none;"></div>
+
+    <!-- ENTRAINEMENT DEJA EN COURS -->
+    <div id="etl-active-session-card" class="import-card" style="display:none;">
+      <h3>Un entraînement est déjà en cours</h3>
+      <p id="etl-active-session-text"></p>
+      <div class="btn-row">
+        <button class="btn-primary" id="etl-resume-btn">Reprendre cet entraînement</button>
+        <button class="btn-secondary" id="etl-replace-btn">Configurer un nouvel entraînement</button>
+      </div>
+    </div>
+
+    <!-- FORMULAIRE DE FILTRES -->
+    <div id="etl-form-card">
+
+      <div class="import-card">
+        <h3>1. Source documentaire</h3>
+        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
+          <div>
+            <label class="bank-edit-label">Source documentaire</label>
+            <select id="etl-source" class="bank-select"><option value="">— Choisir —</option></select>
+          </div>
+          <div>
+            <label class="bank-edit-label">Section (optionnel)</label>
+            <select id="etl-section" class="bank-select" disabled><option value="">—</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="import-card">
+        <h3>2. Filtres complémentaires (facultatifs)</h3>
+        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
+          <div>
+            <label class="bank-edit-label">Difficulté</label>
+            <select id="etl-difficulty" class="bank-select">
+              <option value="">Toutes</option>
+              <option value="essentiel">⭐ Essentiel</option>
+              <option value="approfondi">🔬 Approfondi</option>
+            </select>
+          </div>
+          <div>
+            <label class="bank-edit-label">Tag</label>
+            <select id="etl-tag" class="bank-select"><option value="">Tous</option></select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:10px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="etl-with-images"> Avec image uniquement
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="etl-never-seen"> Jamais vue
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="etl-never-succeeded"> Jamais réussie
+          </label>
+        </div>
+      </div>
+
+      <div class="import-card">
+        <h3>3. Nombre de questions souhaité</h3>
+        <input type="number" id="etl-count" class="bank-select" style="max-width:120px;" value="10" min="1" step="1">
+        <div class="btn-row">
+          <button class="btn-primary" id="etl-compose-btn" disabled>Composer le pool</button>
+        </div>
+      </div>
+
+      <!-- ERREURS / MESSAGE DE POOL NON PRET -->
+      <div id="etl-errors-card" class="import-card import-errors-card" style="display:none;">
+        <p id="etl-errors-message"></p>
+      </div>
+
+      <!-- APERCU DU POOL COMPOSE -->
+      <div id="etl-preview-card" class="import-card" style="display:none;">
+        <h3>4. Aperçu avant lancement</h3>
+        <p id="etl-preview-text"></p>
+        <div class="btn-row">
+          <button class="btn-primary" id="etl-launch-btn">Lancer l'entraînement</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/entrainement-libre.js"></script>
+
+</body>
+</html>

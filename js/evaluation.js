@@ -18,6 +18,7 @@ import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext }
 import {
   getActiveSession, startNewSession, resumeSession, restartSession,
   saveAnswer, saveCurrentQuestionIndex,
+  getActiveFreeTrainingSession,
 } from "./services/evaluation-session-service.js";
 import { finalizeEvaluation } from "./services/evaluation-result-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
@@ -47,6 +48,7 @@ function showMessage(status, message) {
 }
 
 let state = {
+  sessionType: 'parcours', // 'parcours' (comportement historique, inchange) ou 'free_training' (Phase B1)
   parcoursId: null, competencyId: null,
   parcoursName: '', competencyName: '', competencyDescription: '',
   session: null,
@@ -70,6 +72,18 @@ onAuthStateChanged(auth, async function(user) {
 
 async function init() {
   const params = new URLSearchParams(window.location.search);
+
+  // SPRINT 21.5, PHASE B1 : une session d'entrainement libre est deja
+  // creee AVANT d'arriver ici (voir entrainement-libre.js, qui gere
+  // lui-meme le choix Reprendre/Remplacer en amont) - cette page se
+  // contente de la reprendre, jamais d'en creer ou d'en recommencer une
+  // elle-meme pour ce type de session. Comportement "parcours"
+  // historique ci-dessous entierement inchange.
+  if (params.get('sessionType') === 'free_training') {
+    await initFreeTraining();
+    return;
+  }
+
   state.parcoursId = params.get('parcoursId');
   state.competencyId = params.get('competencyId');
 
@@ -87,6 +101,25 @@ async function init() {
   }
 
   await startFresh();
+}
+
+async function initFreeTraining() {
+  state.sessionType = 'free_training';
+  showOnly('ev-loading');
+
+  const active = await getActiveFreeTrainingSession();
+  if (!active) {
+    showDenied('Aucun entraînement en cours', 'Configurez un nouvel entraînement depuis l\'écran dédié.', 'entrainement-libre.html');
+    return;
+  }
+
+  const result = await resumeSession(active.id);
+  if (result.status !== 'success') {
+    showDenied('Entraînement indisponible', result.message || 'Cet entraînement n\'est pas accessible pour le moment.', 'entrainement-libre.html');
+    return;
+  }
+  state.session = result.session;
+  renderTaking();
 }
 
 async function loadDisplayContext() {
@@ -166,11 +199,26 @@ export async function confirmRestart() {
 
 function renderTaking() {
   showOnly('ev-taking');
-  qs('ev-breadcrumb-parcours').textContent = state.parcoursName;
-  qs('ev-breadcrumb-parcours').href = backLinkForParcours();
-  qs('ev-breadcrumb-competency').textContent = state.competencyName;
-  qs('ev-competency-name').textContent = state.competencyName;
-  qs('ev-parcours-name').textContent = state.parcoursName + (state.competencyDescription ? ' — ' + state.competencyDescription : '');
+
+  if (state.sessionType === 'free_training') {
+    // SPRINT 21.5, PHASE B1 : masquage du bloc parcours/competence (aucun
+    // des deux n'existe pour une session d'entrainement libre) - fil
+    // d'Ariane reduit a un seul maillon, jamais un texte "null"/vide trompeur.
+    qs('ev-breadcrumb-root').textContent = 'Entraînement libre';
+    qs('ev-breadcrumb-root').href = 'entrainement-libre.html';
+    qs('ev-breadcrumb-sep1').style.display = 'none';
+    qs('ev-breadcrumb-parcours').style.display = 'none';
+    qs('ev-breadcrumb-sep2').style.display = 'none';
+    qs('ev-breadcrumb-competency').textContent = '';
+    qs('ev-competency-name').textContent = 'Entraînement libre';
+    qs('ev-parcours-name').textContent = state.session.questionIds.length + ' question(s)';
+  } else {
+    qs('ev-breadcrumb-parcours').textContent = state.parcoursName;
+    qs('ev-breadcrumb-parcours').href = backLinkForParcours();
+    qs('ev-breadcrumb-competency').textContent = state.competencyName;
+    qs('ev-competency-name').textContent = state.competencyName;
+    qs('ev-parcours-name').textContent = state.parcoursName + (state.competencyDescription ? ' — ' + state.competencyDescription : '');
+  }
 
   renderNav();
   renderQuestion(state.session.currentQuestionIndex || 0);

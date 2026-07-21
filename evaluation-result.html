@@ -23,10 +23,10 @@
   <div class="bank-page ev-page">
 
     <nav class="pv-breadcrumb" aria-label="Fil d'Ariane">
-      <a href="mes-parcours.html">Mes parcours</a>
-      <span aria-hidden="true">›</span>
+      <a id="er-breadcrumb-root" href="mes-parcours.html">Mes parcours</a>
+      <span id="er-breadcrumb-sep1" aria-hidden="true">›</span>
       <a id="er-breadcrumb-parcours" href="#"></a>
-      <span aria-hidden="true">›</span>
+      <span id="er-breadcrumb-sep2" aria-hidden="true">›</span>
       <span>Résultat</span>
     </nav>
 
@@ -46,8 +46,8 @@
       </div>
     </div>
 
-    <!-- RESULTATS PAR COMPETENCE -->
-    <section class="pv-section">
+    <!-- RESULTATS PAR COMPETENCE (masquee si competencyId est null, voir js/evaluation-result.js) -->
+    <section class="pv-section" id="er-competency-section">
       <h2>Résultats par compétence</h2>
       <div class="pv-competency-grid" id="er-competency-results"></div>
     </section>

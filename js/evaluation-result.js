@@ -53,6 +53,33 @@ async function init() {
 }
 
 async function render(result) {
+  // SPRINT 21.5, PHASE B1 : un resultat d'entrainement libre n'a ni
+  // parcoursId ni competencyId (voir evaluation-correction-service.js) -
+  // masquage du bloc parcours/competence, jamais un "null" affiche tel
+  // quel. Comportement "parcours" historique ci-dessous entierement
+  // inchange dans le bloc else.
+  if (!result.competencyId) {
+    qs('er-breadcrumb-root').textContent = 'Entraînement libre';
+    qs('er-breadcrumb-root').href = 'entrainement-libre.html';
+    qs('er-breadcrumb-sep1').style.display = 'none';
+    qs('er-breadcrumb-parcours').style.display = 'none';
+    qs('er-breadcrumb-sep2').style.display = 'none';
+    qs('er-competency-name').textContent = 'Entraînement libre' + (result.createdAt ? ' — soumis le ' + formatDateFr(result.createdAt) : '');
+    qs('er-back-parcours').textContent = '← Retour à l\'entraînement libre';
+    qs('er-back-parcours').href = 'entrainement-libre.html';
+    qs('er-progression-link').style.display = 'none';
+    qs('er-competency-section').style.display = 'none';
+
+    renderScoreCard(result.score);
+
+    const allPedagogicalIds = result.competencyResults.reduce(function(acc, c) {
+      return acc.concat(c.questionResults.map(function(q) { return q.pedagogicalId; }));
+    }, []);
+    const explanations = await resolveExplanations(allPedagogicalIds);
+    renderQuestionList(result.competencyResults, explanations);
+    return;
+  }
+
   const [parcours, competency] = await Promise.all([
     getParcoursById(result.parcoursId),
     getCompetencyById(result.competencyId),
