@@ -152,6 +152,8 @@ export async function countPreviousFreeTrainingAttempts(userId) {
     return 0; // fail-open, meme principe que countPreviousAttempts()
   }
 }
+
+/**
  * Reecrit uniquement les champs fournis, jamais l'ensemble du document.
  * @param {string} sessionId
  * @param {object} fields
