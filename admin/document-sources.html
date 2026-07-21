@@ -36,170 +36,36 @@
       La présentation existante de la banque de questions (Familia, Référentiels, Étudiant…) reste inchangée.
     </p>
 
-    <div class="btn-row" style="margin-bottom:14px;">
-      <button class="btn-secondary" id="ds-tab-sources" onclick="switchTab('sources')">📚 Sources & sections</button>
-      <button class="btn-secondary" id="ds-tab-migration" onclick="switchTab('migration')">🔀 Migration par lots</button>
-      <button class="btn-secondary" id="ds-tab-unclassified" onclick="switchTab('unclassified')">❓ Non classées</button>
-    </div>
-
     <div id="ds-message" class="admin-message" style="display:none;"></div>
 
-    <!-- ===================== ONGLET SOURCES & SECTIONS ===================== -->
-    <div id="ds-panel-sources">
-      <div class="bank-toolbar">
-        <select id="ds-filter-type" class="bank-select" onchange="onSourcesFilterChange()">
-          <option value="">Type : Tous</option>
-          <option value="REF">Référentiel</option>
-          <option value="PROC">Procédure interne</option>
-          <option value="ETU">Enseignement</option>
-        </select>
-        <select id="ds-filter-status" class="bank-select" onchange="onSourcesFilterChange()">
-          <option value="">Statut : Tous</option>
-          <option value="draft">🟡 Brouillon</option>
-          <option value="active">🟢 Actif</option>
-          <option value="archived">⚫ Archivé</option>
-        </select>
-        <button class="btn-primary" onclick="openCreateSourceForm()">+ Nouvelle source</button>
-        <button class="btn-secondary" onclick="checkAllOrgCounts()">🔍 Vérifier tout le catalogue</button>
-        <button class="btn-secondary" onclick="analyzeLegacyData()">🧹 Analyser les anciennes données</button>
-      </div>
-      <div id="ds-org-reconcile-report" style="margin-bottom:12px;"></div>
-      <div id="ds-legacy-report" style="margin-bottom:12px;"></div>
-
-      <!-- FORMULAIRE DE CREATION D'UNE SOURCE -->
-      <div id="ds-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
-        <h3>Nouvelle source documentaire</h3>
-        <label class="bank-edit-label">Type</label>
-        <select id="ds-create-type" class="bank-select">
-          <option value="REF">Référentiel (ex. CBIP, BAPCOC, FTM)</option>
-          <option value="PROC">Procédure interne (ex. Familia)</option>
-          <option value="ETU">Enseignement (ex. cours universitaire)</option>
-        </select>
-        <label class="bank-edit-label">Nom</label>
-        <input type="text" id="ds-create-name" class="bank-select" placeholder="Ex. CBIP">
-        <label class="bank-edit-label">Code court (majuscules, pour les identifiants fonctionnels)</label>
-        <input type="text" id="ds-create-shortcode" class="bank-select" placeholder="Ex. CBIP">
-        <label class="bank-edit-label">Organisme auteur ou éditeur</label>
-        <input type="text" id="ds-create-orgname" class="bank-select" placeholder="Ex. CBIP, Familia, ULiège">
-        <label class="bank-edit-label">Version</label>
-        <input type="text" id="ds-create-version" class="bank-select" placeholder="Ex. 2026, v3">
-        <label class="bank-edit-label">Année académique (surtout pour Enseignement)</label>
-        <input type="text" id="ds-create-academicyear" class="bank-select" placeholder="Ex. 2026-2027">
-        <label class="bank-edit-label">Description</label>
-        <textarea id="ds-create-description" class="bank-edit-textarea"></textarea>
-        <div class="btn-row">
-          <button class="btn-secondary" onclick="closeCreateSourceForm()">Annuler</button>
-          <button class="btn-primary" onclick="submitCreateSource()">Créer</button>
-        </div>
-      </div>
-
-      <div class="bank-columns">
-        <div class="bank-list-column">
-          <div id="ds-list-empty" class="bank-list-empty" style="display:none;"></div>
-          <div id="ds-list" class="bank-list"></div>
-        </div>
-        <div class="bank-detail-column">
-          <div id="ds-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour afficher sa fiche et son arborescence de sections.</div>
-          <div id="ds-detail" class="bank-detail" style="display:none;"></div>
-        </div>
-      </div>
+    <!-- CORRECTIF : plus d'onglets (Migration par lots / Non classées
+         retires - tout le contenu vient desormais exclusivement de l'import
+         Excel via Synchronisation du catalogue), plus de creation manuelle
+         de source ni d'outils de verification/analyse ponctuels. -->
+    <div class="bank-toolbar">
+      <select id="ds-filter-type" class="bank-select" onchange="onSourcesFilterChange()">
+        <option value="">Type : Tous</option>
+        <option value="REF">Référentiel</option>
+        <option value="PROC">Procédure interne</option>
+        <option value="ETU">Enseignement</option>
+      </select>
+      <select id="ds-filter-status" class="bank-select" onchange="onSourcesFilterChange()">
+        <option value="">Statut : Tous</option>
+        <option value="draft">🟡 Brouillon</option>
+        <option value="active">🟢 Actif</option>
+        <option value="archived">⚫ Archivé</option>
+        <option value="deleted">🔴 Supprimé</option>
+      </select>
     </div>
 
-    <!-- ===================== ONGLET MIGRATION PAR LOTS ===================== -->
-    <div id="ds-panel-migration" style="display:none;">
-
-      <div class="bank-detail-card">
-        <h3>Rattachement individuel d'une question</h3>
-        <p class="admin-users-disclaimer">Rattache UNE question précise (par son identifiant), sans passer par un filtre par lot.</p>
-        <div class="btn-row">
-          <input type="text" id="single-pedagogical-id" class="bank-select" placeholder="Identifiant de la question (ex. Pharm-med-000001)" style="max-width:320px;">
-          <button class="btn-secondary" onclick="loadSingleQuestion()">Charger</button>
-        </div>
-        <div id="single-question-info" style="margin-top:10px;"></div>
-        <div id="single-question-actions" style="display:none;margin-top:10px;">
-          <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
-            <div>
-              <label class="bank-edit-label">Source</label>
-              <select id="single-dest-source" class="bank-select" onchange="onSingleDestSourceChange()"><option value="">—</option></select>
-            </div>
-            <div>
-              <label class="bank-edit-label">Section</label>
-              <select id="single-dest-section" class="bank-select" disabled><option value="">—</option></select>
-            </div>
-          </div>
-          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;">
-            <input type="checkbox" id="single-gencode"> Générer un identifiant fonctionnel
-          </label>
-          <div class="btn-row"><button class="btn-primary" onclick="attachSingleQuestion()">Rattacher cette question</button></div>
-        </div>
+    <div class="bank-columns">
+      <div class="bank-list-column">
+        <div id="ds-list-empty" class="bank-list-empty" style="display:none;"></div>
+        <div id="ds-list" class="bank-list"></div>
       </div>
-
-      <div class="bank-detail-card" style="margin-top:16px;">
-        <h3>1. Filtrer les questions existantes (migration par lots)</h3>
-        <p class="admin-users-disclaimer">S'appuie sur l'ancienne classification (thème, sous-thème, difficulté) — n'affecte jamais le contenu des questions.</p>
-        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr 1fr;">
-          <div>
-            <label class="bank-edit-label">Thème actuel</label>
-            <input type="text" id="mig-filter-theme" class="bank-select" placeholder="Ex. medicaments">
-          </div>
-          <div>
-            <label class="bank-edit-label">Sous-thème actuel</label>
-            <input type="text" id="mig-filter-subtheme" class="bank-select" placeholder="Ex. hypertension">
-          </div>
-          <div>
-            <label class="bank-edit-label">Difficulté</label>
-            <select id="mig-filter-difficulty" class="bank-select">
-              <option value="">Toutes</option>
-              <option value="essentiel">Essentiel</option>
-              <option value="approfondi">Approfondi</option>
-              <option value="avance">Avancé</option>
-            </select>
-          </div>
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;">
-          <input type="checkbox" id="mig-filter-unclassified-only" checked> Uniquement les questions non classées
-        </label>
-        <div class="btn-row"><button class="btn-primary" onclick="previewMigration()">Prévisualiser</button></div>
-      </div>
-
-      <div id="mig-preview-card" class="bank-detail-card" style="display:none; margin-top:16px;">
-        <h3>2. Questions concernées</h3>
-        <p id="mig-preview-count"></p>
-        <div id="mig-preview-truncated" class="admin-users-disclaimer" style="display:none;"></div>
-
-        <h3 style="margin-top:16px;">3. Choisir la destination</h3>
-        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
-          <div>
-            <label class="bank-edit-label">Source</label>
-            <select id="mig-dest-source" class="bank-select" onchange="onMigDestSourceChange()"><option value="">—</option></select>
-          </div>
-          <div>
-            <label class="bank-edit-label">Section</label>
-            <select id="mig-dest-section" class="bank-select" disabled><option value="">—</option></select>
-          </div>
-        </div>
-        <div class="btn-row"><button class="btn-primary" onclick="prepareMigrationStep()">4. Préparer et prévisualiser les deltas</button></div>
-      </div>
-
-      <div id="mig-delta-card" class="bank-detail-card" style="display:none; margin-top:16px;">
-        <h3>5. Deltas calculés (rien n'est encore appliqué)</h3>
-        <div id="mig-delta-body"></div>
-        <div class="btn-row"><button class="btn-primary" onclick="confirmApplyMigration()">Confirmer et appliquer ce lot</button></div>
-      </div>
-
-      <div id="mig-report-card" class="bank-detail-card" style="display:none; margin-top:16px;">
-        <h3>Rapport de migration</h3>
-        <div id="mig-report-body"></div>
-      </div>
-    </div>
-
-    <!-- ===================== ONGLET NON CLASSEES ===================== -->
-    <div id="ds-panel-unclassified" style="display:none;">
-      <div class="bank-detail-card">
-        <h3>Questions non classées</h3>
-        <p class="admin-users-disclaimer">Une question sans source documentaire reste pleinement fonctionnelle (affichable, modifiable, utilisable dans un parcours) — elle n'est simplement pas encore rattachée à la nouvelle classification.</p>
-        <p id="uncl-count">Chargement…</p>
-        <div class="btn-row"><button class="btn-secondary" onclick="switchTab('migration')">Aller à la migration par lots →</button></div>
+      <div class="bank-detail-column">
+        <div id="ds-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour afficher sa fiche et son arborescence de sections.</div>
+        <div id="ds-detail" class="bank-detail" style="display:none;"></div>
       </div>
     </div>
 

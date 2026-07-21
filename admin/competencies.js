@@ -1,9 +1,16 @@
 // ===================== CONTROLEUR DE LA BANQUE DES COMPETENCES (Sprint 13) =====================
 // Aucune logique metier ici : ce fichier ne fait qu'appeler
-// js/services/competency-service.js (+ competency-migration-service.js) et
-// afficher le resultat. Reutilise le meme style et les memes classes CSS
-// que admin/parcours.js (Sprint 12) / admin/bank.js (Sprint 11) -
-// "Reutiliser les composants existants autant que possible".
+// js/services/competency-service.js et afficher le resultat. Reutilise le
+// meme style et les memes classes CSS que admin/parcours.js (Sprint 12) /
+// admin/bank.js (Sprint 11).
+//
+// CORRECTIF (post-import reel) : tout le contenu vient desormais
+// exclusivement de l'import Excel. Retires : filtres/tri manuels (recherche
+// seule conservee), creation manuelle, migration des anciennes competences
+// texte, et toute edition (nom/description/categorie/mots-cles/niveau/
+// couleur). Le bouton "Mettre a la corbeille" (reserve auparavant au statut
+// "archivee") devient "Supprimer", disponible depuis n'importe quel statut -
+// voir js/services/competency-service.js#moveCompetencyToTrash.
 //
 // Double controle d'acces (meme principe qu'ailleurs dans Pharmeval) :
 // 1. Interface : #competencies-view reste masque tant que l'acces n'est pas confirme.
@@ -15,16 +22,12 @@ import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
-import { KNOWN_THEMES } from "../js/services/theme-utils.js";
+import { resolveCompetencyColorHex } from "../js/services/competency-metadata-service.js";
 import {
-  COMPETENCY_COLOR_HEX, resolveCompetencyColorHex, COMPETENCY_LEVELS,
-} from "../js/services/competency-metadata-service.js";
-import {
-  browseCompetencies, createCompetency, publishCompetency, archiveCompetency, revertCompetencyToDraft,
+  browseCompetencies, publishCompetency, archiveCompetency, revertCompetencyToDraft,
   moveCompetencyToTrash, restoreCompetencyFromTrash, permanentlyDeleteCompetency,
-  editCompetencyMetadata, countCompetencyUsage, getCompetencyTimeline,
+  countCompetencyUsage, getCompetencyTimeline,
 } from "../js/services/competency-service.js";
-import { previewCompetencyMigration, runCompetencyMigration } from "../js/services/competency-migration-service.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -33,6 +36,9 @@ const STATUS_BADGES = {
   trash: { emoji: '🔴', label: 'Corbeille', cls: 'bank-badge-trash' },
 };
 
+// CORRECTIF : filters/sortField/sortDirection restent figes aux valeurs
+// par defaut ci-dessous (plus de controles dans l'interface) car
+// browseCompetencies() les attend toujours.
 let state = {
   searchText: '', filters: { status: '', category: '' }, sortField: 'createdAt', sortDirection: 'desc',
   page: 0, cursorStack: [null], cursorIndex: 0,
@@ -93,9 +99,6 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-
-  const datalist = document.getElementById('competencies-category-suggestions');
-  if (datalist) datalist.innerHTML = KNOWN_THEMES.map(function(t) { return '<option value="' + escapeHtml(t) + '"></option>'; }).join('');
 
   await loadPage();
 });
@@ -195,19 +198,6 @@ export function onCompetenciesSearchInput() {
   state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
   loadPage();
 }
-export function onCompetenciesFilterChange() {
-  state.filters.status = document.getElementById('competencies-filter-status').value;
-  state.filters.category = valueOf('competencies-filter-category');
-  state.sortField = document.getElementById('competencies-sort-field').value;
-  state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
-  loadPage();
-}
-export function toggleCompetenciesSortDirection() {
-  state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-  document.getElementById('competencies-sort-dir-btn').textContent = state.sortDirection === 'asc' ? '⬆️' : '⬇️';
-  state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
-  loadPage();
-}
 export function goToCompetenciesPage(direction) {
   const isSearch = !!state.searchText.trim();
   if (isSearch) {
@@ -228,67 +218,6 @@ export function goToCompetenciesPage(direction) {
     return;
   }
   loadPage();
-}
-
-// ---------------------------------------------------------------------------
-// Création
-// ---------------------------------------------------------------------------
-
-export function openCreateCompetencyForm() {
-  document.getElementById('competencies-create-name').value = '';
-  document.getElementById('competencies-create-description').value = '';
-  document.getElementById('competencies-create-category').value = '';
-  document.getElementById('competencies-create-keywords').value = '';
-  document.getElementById('competencies-create-level').value = '';
-  document.getElementById('competencies-create-color-container').innerHTML = colorPickerHtml('competencies-create-color', '');
-  document.getElementById('competencies-create-card').style.display = 'block';
-}
-export function closeCreateCompetencyForm() {
-  document.getElementById('competencies-create-card').style.display = 'none';
-}
-export async function submitCreateCompetency() {
-  const fields = {
-    name: valueOf('competencies-create-name'),
-    description: valueOf('competencies-create-description'),
-    category: valueOf('competencies-create-category'),
-    keywords: valueOf('competencies-create-keywords').split(',').map(function(k) { return k.trim(); }).filter(Boolean),
-    recommendedLevel: valueOf('competencies-create-level'),
-    color: valueOf('competencies-create-color'),
-  };
-  const result = await createCompetency(fields);
-  showCompetenciesMessage(result.status, result.message);
-  if (result.status === 'success') {
-    closeCreateCompetencyForm();
-    state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
-    await loadPage();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Palette de couleur (meme mecanisme que admin/parcours.js)
-// ---------------------------------------------------------------------------
-
-function colorPickerHtml(inputId, selectedColor) {
-  const swatches = Object.keys(COMPETENCY_COLOR_HEX).map(function(key) {
-    const isSelected = selectedColor === key;
-    return '<button type="button" class="parcours-color-swatch' + (isSelected ? ' parcours-color-selected' : '') +
-      '" style="background:' + COMPETENCY_COLOR_HEX[key] + ';" onclick="pickCompetencyColor(\'' + inputId + '\',\'' + key + '\')" title="' + capitalizeFirst(key) + '"></button>';
-  }).join('');
-  const noneSelected = !selectedColor || !COMPETENCY_COLOR_HEX[selectedColor];
-  const noneBtn = '<button type="button" class="parcours-color-swatch parcours-color-none' + (noneSelected ? ' parcours-color-selected' : '') +
-    '" onclick="pickCompetencyColor(\'' + inputId + '\',\'\')" title="Aucune">✕</button>';
-  return '<div class="parcours-color-picker" data-input="' + inputId + '">' + swatches + noneBtn + '</div>' +
-    '<input type="hidden" id="' + inputId + '" value="' + escapeHtml(selectedColor || '') + '">';
-}
-export function pickCompetencyColor(inputId, colorKey) {
-  document.getElementById(inputId).value = colorKey;
-  const container = document.querySelector('[data-input="' + inputId + '"]');
-  if (!container) return;
-  container.querySelectorAll('.parcours-color-swatch').forEach(function(btn) { btn.classList.remove('parcours-color-selected'); });
-  const target = colorKey
-    ? Array.from(container.querySelectorAll('.parcours-color-swatch')).find(function(btn) { return btn.getAttribute('title') === capitalizeFirst(colorKey); })
-    : container.querySelector('.parcours-color-none');
-  if (target) target.classList.add('parcours-color-selected');
 }
 
 // ---------------------------------------------------------------------------
@@ -353,14 +282,15 @@ function detailHtml(c) {
   html += '<div class="bank-detail-row"><strong>Recommandations :</strong> ' + (c.recommendations ? c.recommendations.length : 0) + '</div>';
   html += '</div>';
 
+  // CORRECTIF : "Supprimer" (masquage non destructif, corbeille) disponible
+  // depuis n'importe quel statut de depart - plus reserve au statut
+  // "archivee" (voir competency-service.js#moveCompetencyToTrash).
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
   if (c.status !== 'trash') {
     if (c.status !== 'published') html += '<button class="btn-primary" onclick="requestCompetencyAction(\'publish\')">Publier</button>';
     if (c.status !== 'archived') html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'archive\')">Archiver</button>';
     if (c.status !== 'draft') html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'draft\')">Remettre en brouillon</button>';
-  }
-  if (c.status === 'archived') {
-    html += '<button class="btn-secondary bank-trash-btn" onclick="requestCompetencyAction(\'trash\')">🗑️ Mettre à la corbeille</button>';
+    html += '<button class="btn-secondary bank-delete-btn" onclick="requestCompetencyAction(\'trash\')">🗑️ Supprimer</button>';
   }
   if (c.status === 'trash') {
     html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'restore\')">↩️ Restaurer</button>';
@@ -371,27 +301,6 @@ function detailHtml(c) {
   html += '</div></div>';
 
   html += '<div class="bank-detail-section"><h4>Historique</h4><div id="competencies-timeline-container" class="bank-timeline">Chargement…</div></div>';
-
-  html += '<div class="bank-detail-section"><h4>Modifier</h4>';
-  html += '<label class="bank-edit-label">Nom</label>';
-  html += '<input type="text" id="competencies-edit-name" class="bank-select" value="' + escapeHtml(c.name) + '">';
-  html += '<label class="bank-edit-label">Description</label>';
-  html += '<textarea id="competencies-edit-description" class="bank-edit-textarea">' + escapeHtml(c.description || '') + '</textarea>';
-  html += '<label class="bank-edit-label">Catégorie</label>';
-  html += '<input type="text" id="competencies-edit-category" class="bank-select" list="competencies-category-suggestions" value="' + escapeHtml(c.category || '') + '">';
-  html += '<label class="bank-edit-label">Mots-clés (séparés par des virgules)</label>';
-  html += '<input type="text" id="competencies-edit-keywords" class="bank-select" value="' + escapeHtml((c.keywords || []).join(', ')) + '">';
-  html += '<label class="bank-edit-label">Niveau conseillé</label>';
-  html += '<select id="competencies-edit-level" class="bank-select">';
-  html += '<option value=""' + (!c.recommendedLevel ? ' selected' : '') + '>Aucun</option>';
-  Object.values(COMPETENCY_LEVELS).forEach(function(lvl) {
-    html += '<option value="' + lvl + '"' + (c.recommendedLevel === lvl ? ' selected' : '') + '>' + capitalizeFirst(lvl) + '</option>';
-  });
-  html += '</select>';
-  html += '<label class="bank-edit-label">Couleur</label>';
-  html += colorPickerHtml('competencies-edit-color', COMPETENCY_COLOR_HEX[c.color] ? c.color : '');
-  html += '<div class="btn-row"><button class="btn-primary" onclick="saveCompetencyEdit()">Enregistrer les modifications</button></div>';
-  html += '</div>';
 
   html += '</div>';
   return html;
@@ -417,29 +326,9 @@ async function renderTimeline(c) {
     return '<li class="bank-timeline-item"><div class="bank-timeline-date">' + escapeHtml(dateLabel) + '</div><div class="bank-timeline-label">' + escapeHtml(entry.label) + who + '</div></li>';
   }).join('') + '</ul>';
   if (result.auditUnavailable) {
-    html += '<p class="bank-timeline-partial-note">Historique partiel : le journal détaillé des actions n\u2019a pas pu être chargé pour le moment.</p>';
+    html += '<p class="bank-timeline-partial-note">Historique partiel : le journal détaillé des actions n’a pas pu être chargé pour le moment.</p>';
   }
   container.innerHTML = html;
-}
-
-// ---------------------------------------------------------------------------
-// Edition
-// ---------------------------------------------------------------------------
-
-export async function saveCompetencyEdit() {
-  const c = state.items.find(function(item) { return item.id === state.selectedId; });
-  if (!c) return;
-  const fields = {
-    name: valueOf('competencies-edit-name'),
-    description: valueOf('competencies-edit-description'),
-    category: valueOf('competencies-edit-category'),
-    keywords: valueOf('competencies-edit-keywords').split(',').map(function(k) { return k.trim(); }).filter(Boolean),
-    recommendedLevel: document.getElementById('competencies-edit-level').value,
-    color: valueOf('competencies-edit-color'),
-  };
-  const result = await editCompetencyMetadata(c, fields);
-  showCompetenciesMessage(result.status, result.message);
-  if (result.status === 'success') await loadPage();
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +339,7 @@ const ACTION_LABELS = {
   publish: 'publier cette compétence',
   archive: 'archiver cette compétence',
   draft: 'remettre cette compétence en brouillon',
-  trash: 'mettre cette compétence à la corbeille',
+  trash: 'supprimer cette compétence (masquée, pas supprimée réellement — restauration possible)',
   restore: 'restaurer cette compétence depuis la corbeille',
   purge: 'supprimer DÉFINITIVEMENT cette compétence (irréversible)',
 };
@@ -487,82 +376,12 @@ export async function confirmCompetencyAction() {
 }
 
 // ---------------------------------------------------------------------------
-// Migration (Sprint 13, "Contraintes" : migration automatique des
-// anciennes compétences texte)
-// ---------------------------------------------------------------------------
-
-export async function openMigrationPanel() {
-  document.getElementById('competencies-migration-overlay').style.display = 'flex';
-  const body = document.getElementById('competencies-migration-body');
-  body.innerHTML = '<div class="bank-list-loading">Analyse en cours…</div>';
-
-  const preview = await previewCompetencyMigration();
-  if (!preview.authorized || preview.error) {
-    body.innerHTML = '<p>' + escapeHtml(preview.message || 'Impossible d\'analyser les parcours pour le moment.') + '</p>';
-    return;
-  }
-
-  if (preview.toMigrateNames.length === 0) {
-    body.innerHTML = '<p>Rien à migrer : toutes les compétences des parcours sont déjà reliées à la banque (' + preview.alreadyMigratedCount + ' liaison(s) existante(s)).</p>' +
-      '<div class="btn-row"><button class="btn-secondary" onclick="closeMigrationPanel()">Fermer</button></div>';
-    return;
-  }
-
-  let html = '<p><strong>' + preview.toMigrateNames.length + '</strong> compétence(s) distincte(s) en texte libre seront converties en fiches de la banque (dédupliquées par nom) :</p>';
-  html += '<ul>' + preview.toMigrateNames.slice(0, 30).map(function(n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>';
-  if (preview.toMigrateNames.length > 30) html += '<p>… et ' + (preview.toMigrateNames.length - 30) + ' autre(s).</p>';
-  html += '<p>' + preview.alreadyMigratedCount + ' liaison(s) déjà migrée(s) seront ignorées.</p>';
-  if (preview.truncatedScan) html += '<p class="parcours-bulk-duplicates">⚠️ Analyse limitée aux parcours les plus récents (balayage borné).</p>';
-  html += '<div class="btn-row"><button class="btn-secondary" onclick="closeMigrationPanel()">Annuler</button><button class="btn-primary" onclick="runMigrationConfirmed()">Lancer la migration</button></div>';
-  document.getElementById('competencies-migration-body').innerHTML = html;
-}
-export function closeMigrationPanel() {
-  document.getElementById('competencies-migration-overlay').style.display = 'none';
-}
-export async function runMigrationConfirmed() {
-  const body = document.getElementById('competencies-migration-body');
-  body.innerHTML = '<div class="bank-list-loading">Migration en cours…</div>';
-
-  const result = await runCompetencyMigration();
-  if (!result.authorized || result.error) {
-    body.innerHTML = '<p>' + escapeHtml(result.message || 'La migration a échoué.') + '</p><div class="btn-row"><button class="btn-secondary" onclick="closeMigrationPanel()">Fermer</button></div>';
-    return;
-  }
-
-  let html = '<p>Migration terminée.</p><ul>';
-  html += '<li>' + result.createdCount + ' fiche(s) créée(s) dans la banque</li>';
-  html += '<li>' + result.linkedCount + ' liaison(s) ajoutée(s)</li>';
-  html += '<li>' + result.skippedCount + ' liaison(s) déjà existante(s) ignorée(s)</li>';
-  html += '<li>' + result.parcoursUpdated + ' parcours mis à jour</li>';
-  html += '</ul>';
-  if (result.errors && result.errors.length) {
-    html += '<p class="parcours-bulk-duplicates">' + result.errors.length + ' anomalie(s) signalée(s) (non bloquantes) :</p>';
-    html += '<ul class="parcours-bulk-duplicates">' + result.errors.slice(0, 10).map(function(e) { return '<li>' + escapeHtml(e) + '</li>'; }).join('') + '</ul>';
-  }
-  html += '<div class="btn-row"><button class="btn-primary" onclick="closeMigrationPanel()">Fermer</button></div>';
-  document.getElementById('competencies-migration-body').innerHTML = html;
-
-  state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
-  await loadPage();
-}
-
-// ---------------------------------------------------------------------------
 // Exposition au HTML (onclick=...)
 // ---------------------------------------------------------------------------
 
 window.onCompetenciesSearchInput = onCompetenciesSearchInput;
-window.onCompetenciesFilterChange = onCompetenciesFilterChange;
-window.toggleCompetenciesSortDirection = toggleCompetenciesSortDirection;
 window.goToCompetenciesPage = goToCompetenciesPage;
-window.openCreateCompetencyForm = openCreateCompetencyForm;
-window.closeCreateCompetencyForm = closeCreateCompetencyForm;
-window.submitCreateCompetency = submitCreateCompetency;
-window.pickCompetencyColor = pickCompetencyColor;
 window.selectCompetency = selectCompetency;
-window.saveCompetencyEdit = saveCompetencyEdit;
 window.requestCompetencyAction = requestCompetencyAction;
 window.cancelCompetencyAction = cancelCompetencyAction;
 window.confirmCompetencyAction = confirmCompetencyAction;
-window.openMigrationPanel = openMigrationPanel;
-window.closeMigrationPanel = closeMigrationPanel;
-window.runMigrationConfirmed = runMigrationConfirmed;

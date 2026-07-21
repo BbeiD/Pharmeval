@@ -1284,25 +1284,29 @@
   .bank-sort-dir-btn { padding: 8px 12px; }
 
   .bank-columns { display: flex; gap: 18px; align-items: flex-start; margin-top: 12px; }
-  .bank-list-column { flex: 1; min-width: 320px; max-width: 480px; }
+  .bank-list-column { flex: 1; min-width: 320px; max-width: 640px; }
   .bank-detail-column { flex: 1.6; min-width: 380px; }
 
-  .bank-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
+  .bank-list { max-height: 70vh; overflow-y: auto; overflow-x: auto; }
   .bank-list-loading, .bank-list-empty {
     padding: 24px; text-align: center; color: var(--text2); font-size: 13px;
     background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
   }
 
-  .bank-row {
-    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius);
-    padding: 10px 12px; cursor: pointer; transition: border-color .15s;
+  /* CORRECTIF : liste de la Banque de questions passee d'un empilement de
+     cartes a un tableau (colonnes Référentiel/Difficulté demandees en
+     remplacement des filtres retires). */
+  .bank-table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--surface); }
+  .bank-table th {
+    text-align: left; padding: 8px 10px; font-size: 11px; color: var(--text2);
+    border-bottom: 1.5px solid var(--border2); white-space: nowrap;
   }
-  .bank-row:hover { border-color: var(--text2); }
-  .bank-row-selected { border-color: var(--text); border-width: 2px; }
-  .bank-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-  .bank-row-id { font-size: 11px; font-weight: 700; color: var(--text2); font-family: monospace; }
-  .bank-row-question { font-size: 13px; color: var(--text); line-height: 1.35; margin-bottom: 4px; }
-  .bank-row-meta { font-size: 11px; color: var(--text2); }
+  .bank-table td { padding: 8px 10px; border-bottom: 1px solid var(--border2); vertical-align: top; }
+  .bank-row { cursor: pointer; transition: background-color .15s; }
+  .bank-row:hover { background-color: var(--surface2); }
+  .bank-row-selected { background-color: var(--surface2); }
+  .bank-row-id { font-size: 11px; font-weight: 700; color: var(--text2); font-family: monospace; white-space: nowrap; }
+  .bank-row-question { color: var(--text); line-height: 1.35; max-width: 260px; }
 
   .bank-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
   .bank-pagination-label { font-size: 12px; color: var(--text2); }

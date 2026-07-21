@@ -30,46 +30,14 @@
 
     <div id="bank-message" class="admin-message" style="display:none;"></div>
 
-    <!-- BARRE D'OUTILS : recherche, filtres, tri -->
+    <!-- BARRE D'OUTILS : recherche seule (CORRECTIF : les filtres/tri manuels
+         ont ete retires - tout le contenu vient desormais exclusivement de
+         l'import Excel, voir Référentiel/Difficulté en colonnes de la liste
+         ci-dessous plutot qu'en filtres). -->
     <div class="bank-toolbar">
       <input type="text" id="bank-search-input" class="admin-users-search-input bank-search-input"
              placeholder="Rechercher (identifiant, question, thème, sous-thème, tags, source)…"
              oninput="onBankSearchInput()">
-
-      <select id="bank-filter-status" class="bank-select" onchange="onBankFilterChange()">
-        <option value="">Statut : Tous</option>
-        <option value="draft">🟡 Brouillon</option>
-        <option value="review">🔵 En relecture</option>
-        <option value="published">🟢 Publiée</option>
-        <option value="archived">⚫ Archivée</option>
-        <option value="trash">🔴 Corbeille</option>
-      </select>
-
-      <select id="bank-filter-theme" class="bank-select" onchange="onBankFilterChange()"></select>
-
-      <select id="bank-filter-difficulty" class="bank-select" onchange="onBankFilterChange()">
-        <option value="">Difficulté : Toutes</option>
-        <option value="essentiel">Essentiel</option>
-        <option value="approfondi">Approfondi</option>
-        <option value="avance">Avancé</option>
-      </select>
-
-      <select id="bank-filter-type" class="bank-select" onchange="onBankFilterChange()">
-        <option value="">Type : Tous</option>
-        <option value="qcm">QCM</option>
-      </select>
-
-      <input type="text" id="bank-filter-author" class="bank-select bank-author-input" placeholder="Auteur…" oninput="onBankFilterChange()">
-
-      <select id="bank-sort-field" class="bank-select" onchange="onBankFilterChange()">
-        <option value="createdAt">Trier : Date de création</option>
-        <option value="updatedAt">Date de modification</option>
-        <option value="pedagogicalId">Identifiant</option>
-        <option value="theme">Thème</option>
-        <option value="difficulty">Difficulté</option>
-      </select>
-
-      <button class="btn-secondary bank-sort-dir-btn" id="bank-sort-dir-btn" onclick="toggleBankSortDirection()" title="Inverser l'ordre">⬇️</button>
     </div>
 
     <div id="bank-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>

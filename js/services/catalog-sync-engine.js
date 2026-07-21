@@ -213,6 +213,10 @@ export class CatalogSyncEngine {
         externalId: externalId,
         pedagogicalId: identity.found ? identity.pedagogicalId : null, // alloue seulement a la synchronisation si null
         action: action,
+        // CORRECTIF createdAt : writeQuestionsBatch() ecrit par set() SANS
+        // merge (ecrasement complet) - sans repasser cette valeur ici, une
+        // mise a jour perdrait le createdAt d'origine du document existant.
+        existingCreatedAt: (identity.existingDoc && identity.existingDoc.createdAt) || null,
         resolved: resolved,
         primaryCompetencyLabel: q.primaryCompetency ? q.primaryCompetency.label : null,
         tags: q.tags,
@@ -364,6 +368,13 @@ export class CatalogSyncEngine {
             externalIds: { editorialCatalog: qa.externalId },
             fromEditorialCatalog: true,
             pendingResourceRefs: qa.pendingResourceRefs,
+            // CORRECTIF : ce champ manquait entierement (aucune question
+            // creee par ce moteur n'en avait) - Firestore orderBy('createdAt')
+            // exclut silencieusement tout document sans ce champ, ce qui
+            // rendait la Banque de questions vide sans aucune erreur. Cree
+            // une seule fois ; une mise a jour reutilise la valeur d'origine
+            // (voir existingCreatedAt ci-dessus) au lieu de l'ecraser.
+            createdAt: qa.action === 'create' ? this._now() : (qa.existingCreatedAt || this._now()),
             updatedAt: this._now(),
           });
         });

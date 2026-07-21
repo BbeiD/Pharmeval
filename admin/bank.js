@@ -15,7 +15,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
-import { formatThemeLabel, KNOWN_THEMES } from "../js/services/theme-utils.js";
+import { formatThemeLabel } from "../js/services/theme-utils.js";
 import { formatDateFr } from "../js/services/date-utils.js";
 import {
   browseQuestions, publishQuestion, archiveQuestion, revertQuestionToDraft,
@@ -23,7 +23,7 @@ import {
   editQuestionMetadata, getQuestionTimeline,
 } from "../js/services/question-bank-service.js";
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
-import { getDocumentSourceById } from "../js/services/document-source-catalog-service.js";
+import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
 import { getDocumentSectionById } from "../js/services/document-section-catalog-service.js";
 
 const STATUS_BADGES = {
@@ -37,7 +37,10 @@ const STATUS_BADGES = {
 };
 const DIFFICULTY_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
 
-// Etat en memoire de l'ecran (recherche, filtres, tri, pagination, selection).
+// Etat en memoire de l'ecran (recherche, pagination, selection). CORRECTIF :
+// les filtres/tri manuels ont ete retires de l'interface - `filters`/
+// `sortField`/`sortDirection` restent figes aux valeurs par defaut ci-dessous
+// car browseQuestions() (question-bank-service.js) les attend toujours.
 let state = {
   searchText: '',
   filters: { status: '', theme: '', difficulty: '', questionType: '', author: '' },
@@ -49,6 +52,7 @@ let state = {
   items: [],
   hasMore: false,
   selectedId: null,
+  sourceNameMap: new Map(), // resolu par lot a chaque chargement de page (voir loadPage)
 };
 let pendingAction = null; // { kind: 'publish'|'archive'|'draft'|'delete', question }
 
@@ -85,19 +89,8 @@ onAuthStateChanged(auth, async function(user) {
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
 
-  populateThemeFilter();
   await loadPage();
 });
-
-function populateThemeFilter() {
-  const select = document.getElementById('bank-filter-theme');
-  if (!select) return;
-  let html = '<option value="">Thème : Tous</option>';
-  KNOWN_THEMES.forEach(function(theme) {
-    html += '<option value="' + theme + '">' + escapeHtml(formatThemeLabel(theme)) + '</option>';
-  });
-  select.innerHTML = html;
-}
 
 // ---------------------------------------------------------------------------
 // Chargement et rendu de la liste (colonne gauche)
@@ -146,6 +139,12 @@ async function loadPage() {
 
   if (!result.searchMode) state.lastDoc = result.lastDoc;
 
+  // CORRECTIF : resolution des noms de source PAR LOT, une seule fois pour
+  // toute la page (jamais un appel par ligne) - voir getDocumentSourcesByIds()
+  // de document-source-catalog-service.js.
+  const sourceIds = state.items.map(function(q) { return q.documentSourceId; }).filter(Boolean);
+  state.sourceNameMap = sourceIds.length > 0 ? await getDocumentSourcesByIds(sourceIds) : new Map();
+
   renderList(state.items);
   renderPagination();
 }
@@ -162,22 +161,27 @@ function renderList(items) {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
-  listEl.innerHTML = items.map(rowHtml).join('');
+  listEl.innerHTML =
+    '<table class="bank-table">' +
+      '<thead><tr><th>Identifiant</th><th>Question</th><th>Référentiel</th><th>Difficulté</th><th>Statut</th></tr></thead>' +
+      '<tbody>' + items.map(rowHtml).join('') + '</tbody>' +
+    '</table>';
 }
 
 function rowHtml(q) {
   const badge = STATUS_BADGES[q.status] || STATUS_BADGES.draft;
   const preview = (q.question || '').toString().slice(0, 90) + ((q.question || '').length > 90 ? '…' : '');
   const selected = q.pedagogicalId === state.selectedId ? ' bank-row-selected' : '';
+  const source = q.documentSourceId ? state.sourceNameMap.get(q.documentSourceId) : null;
+  const referentielLabel = q.documentSourceId ? (source ? source.name : 'Introuvable') : 'Non classée';
   return (
-    '<div class="bank-row' + selected + '" onclick="selectBankQuestion(\'' + escapeHtml(q.pedagogicalId) + '\')">' +
-      '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + escapeHtml(q.pedagogicalId) + '</span>' +
-        '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
-      '</div>' +
-      '<div class="bank-row-question">' + escapeHtml(preview) + '</div>' +
-      '<div class="bank-row-meta">' + escapeHtml(formatThemeLabel(q.theme)) + ' · ' + escapeHtml(DIFFICULTY_LABELS[q.difficulty] || q.difficulty) + '</div>' +
-    '</div>'
+    '<tr class="bank-row' + selected + '" onclick="selectBankQuestion(\'' + escapeHtml(q.pedagogicalId) + '\')">' +
+      '<td class="bank-row-id">' + escapeHtml(q.pedagogicalId) + '</td>' +
+      '<td class="bank-row-question">' + escapeHtml(preview) + '</td>' +
+      '<td>' + escapeHtml(referentielLabel) + '</td>' +
+      '<td>' + escapeHtml(DIFFICULTY_LABELS[q.difficulty] || q.difficulty) + '</td>' +
+      '<td><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></td>' +
+    '</tr>'
   );
 }
 
@@ -225,30 +229,6 @@ export function onBankSearchInput() {
   state.searchText = input ? input.value : '';
   resetPagination();
   return loadPage();
-}
-
-export function onBankFilterChange() {
-  state.filters.status = valueOf('bank-filter-status');
-  state.filters.theme = valueOf('bank-filter-theme');
-  state.filters.difficulty = valueOf('bank-filter-difficulty');
-  state.filters.questionType = valueOf('bank-filter-type');
-  state.filters.author = valueOf('bank-filter-author');
-  state.sortField = valueOf('bank-sort-field');
-  resetPagination();
-  return loadPage();
-}
-
-export function toggleBankSortDirection() {
-  state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
-  const btn = document.getElementById('bank-sort-dir-btn');
-  if (btn) btn.textContent = state.sortDirection === 'desc' ? '⬇️' : '⬆️';
-  resetPagination();
-  return loadPage();
-}
-
-function valueOf(id) {
-  const el = document.getElementById(id);
-  return el ? el.value.trim() : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -509,8 +489,6 @@ function escapeHtml(s) {
 // Pont vers le HTML classique (attributs onclick/oninput/onchange).
 // ---------------------------------------------------------------------------
 window.onBankSearchInput = onBankSearchInput;
-window.onBankFilterChange = onBankFilterChange;
-window.toggleBankSortDirection = toggleBankSortDirection;
 window.goToBankPage = goToBankPage;
 window.selectBankQuestion = selectBankQuestion;
 window.saveBankEdit = saveBankEdit;

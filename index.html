@@ -105,7 +105,10 @@
        openAdminZone(), qui revalide elle-meme le role administrateur cote
        logique metier avant tout affichage. -->
   <div id="admin-view" style="display:none;">
-    <h2>Administration</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <h2 style="margin:0;">Administration</h2>
+      <button class="btn-secondary" onclick="closeAdminZone()">← Retour à l'accueil</button>
+    </div>
     <p>Bienvenue dans l'espace d'administration de Pharmeval.</p>
     <div class="admin-info-row"><strong>Version actuelle :</strong> <span id="admin-version"></span></div>
     <div class="admin-info-row"><strong>Utilisateur connecté :</strong> <span id="admin-current-user"></span></div>

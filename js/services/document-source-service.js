@@ -30,6 +30,7 @@ import {
   createDocumentSourceDoc, getDocumentSourceById, getDocumentSourcesByIds,
   queryDocumentSources, updateDocumentSourceFields,
 } from "./document-source-catalog-service.js";
+import { archiveQuestionsBySource } from "./question-catalog-service.js";
 
 function denied(message) { return { status: 'denied', message: message }; }
 function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
@@ -172,4 +173,41 @@ export async function changeDocumentSourceStatus(source, newStatus) {
   }).catch(function() {});
 
   return success('Statut mis à jour avec succès.');
+}
+
+/**
+ * "Supprime" une source documentaire : masquage non destructif (jamais de
+ * suppression Firestore réelle - voir en-tête de fichier). Passe la source
+ * au statut DELETED et archive EN CASCADE toutes ses questions rattachées
+ * (voir question-catalog-service.js#archiveQuestionsBySource). Réversible
+ * manuellement : réactiver la source ne republie pas ses questions en
+ * cascade (limitation assumée, pas un oubli).
+ * @param {object} source
+ * @returns {Promise<object>}
+ */
+export async function deleteDocumentSource(source) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!source || !source.id) return errorResult('Source cible introuvable.');
+  if (source.status === DOCUMENT_SOURCE_STATUSES.DELETED) return denied('Cette source est déjà supprimée.');
+
+  const cascade = await archiveQuestionsBySource(source.id);
+  if (cascade.error) return errorResult('L\'archivage des questions rattachées a échoué. Aucune modification n\'a été appliquée à la source.');
+
+  const ctx = getCurrentUserContext();
+  const now = nowIso();
+  const result = await updateDocumentSourceFields(source.id, {
+    status: DOCUMENT_SOURCE_STATUSES.DELETED, isActive: false,
+    updatedAt: now, updatedBy: (ctx && ctx.email) || null,
+  });
+  if (!result.success) return errorResult('La suppression a échoué. Veuillez réessayer.');
+
+  logAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    targetUid: null, targetEmail: null,
+    actionType: 'document_source_deleted', oldValue: source.status,
+    newValue: 'deleted (' + cascade.archivedCount + ' question(s) archivée(s) en cascade)',
+  }).catch(function() {});
+
+  return success('Source supprimée : ' + cascade.archivedCount + ' question(s) archivée(s) en cascade.', { archivedCount: cascade.archivedCount });
 }

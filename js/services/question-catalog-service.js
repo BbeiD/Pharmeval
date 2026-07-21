@@ -384,3 +384,35 @@ export async function deleteQuestionDocument(pedagogicalId) {
     return { success: false, error: true };
   }
 }
+
+/**
+ * Archive EN CASCADE toutes les questions rattachees a une source
+ * documentaire (utilise par "Supprimer le referentiel", voir
+ * document-source-service.js#deleteDocumentSource) - jamais une
+ * suppression reelle, uniquement un changement de statut. Les questions
+ * deja en corbeille sont ignorees (decision individuelle deja prise sur
+ * CETTE question, independante du sort de sa source).
+ * @param {string} documentSourceId
+ * @returns {Promise<{success:boolean, archivedCount:number, error:boolean}>}
+ */
+export async function archiveQuestionsBySource(documentSourceId) {
+  try {
+    const snap = await getDocs(query(collection(db, QUESTIONS_COLLECTION), where('documentSourceId', '==', documentSourceId), limit(2000)));
+    const refsToArchive = [];
+    snap.forEach(function(d) { if (d.data().status !== 'trash') refsToArchive.push(d.ref); });
+
+    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
+    const now = new Date().toISOString();
+    for (let i = 0; i < refsToArchive.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      refsToArchive.slice(i, i + CHUNK_SIZE).forEach(function(ref) {
+        batch.update(ref, { status: 'archived', updatedAt: now });
+      });
+      await batch.commit();
+    }
+    return { success: true, archivedCount: refsToArchive.length, error: false };
+  } catch (err) {
+    logCatalogError('archivage en cascade des questions de la source ' + documentSourceId, err);
+    return { success: false, archivedCount: 0, error: true };
+  }
+}

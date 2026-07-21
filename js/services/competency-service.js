@@ -203,7 +203,15 @@ export function revertCompetencyToDraft(competency) {
 // ---------------------------------------------------------------------------
 
 /**
- * Met une competence ARCHIVEE a la corbeille. Uniquement depuis "archived".
+ * "Supprime" une competence (masquage non destructif) : l'envoie a la
+ * corbeille depuis N'IMPORTE QUEL statut de depart (brouillon/publiee/
+ * archivee) - plus seulement "archivee" comme l'exigeait le workflow
+ * d'origine. CORRECTIF (bouton "Supprimer" unique, un seul clic) :
+ * firestore.rules n'autorise la transition vers "trash" que depuis
+ * "archived" (regle dediee, volontairement conservee inchangee - jamais
+ * assouplie pour tout le monde) - cette fonction chaine donc elle-meme un
+ * passage par "archived" quand necessaire, plutot que d'toucher a cette
+ * regle de securite.
  * @param {object} competency
  * @returns {Promise<object>}
  */
@@ -211,10 +219,15 @@ export async function moveCompetencyToTrash(competency) {
   const access = checkAccess();
   if (access.status !== 'authorized') return denied(access.message);
   if (!competency || !competency.id) return errorResult('Compétence cible introuvable.');
-  if (competency.status !== COMPETENCY_STATUSES.ARCHIVED) {
-    return denied('Seule une compétence archivée peut être mise à la corbeille.');
+  if (competency.status === COMPETENCY_STATUSES.TRASH) return denied('Cette compétence est déjà à la corbeille.');
+
+  let current = competency;
+  if (current.status !== COMPETENCY_STATUSES.ARCHIVED) {
+    const archiveResult = await changeStatus(current, COMPETENCY_STATUSES.ARCHIVED, 'Compétence archivée');
+    if (archiveResult.status !== 'success') return archiveResult;
+    current = Object.assign({}, current, { status: COMPETENCY_STATUSES.ARCHIVED });
   }
-  return changeStatus(competency, COMPETENCY_STATUSES.TRASH, 'Compétence mise à la corbeille');
+  return changeStatus(current, COMPETENCY_STATUSES.TRASH, 'Compétence supprimée');
 }
 
 /**

@@ -45,11 +45,17 @@ export const DOCUMENT_SOURCE_TYPE_LABELS = Object.freeze({
   ETU: 'Enseignement',
 });
 
-/** Statuts d'une source documentaire (cadrage : "draft | active | archived"). */
+/** Statuts d'une source documentaire (cadrage : "draft | active | archived").
+ * CORRECTIF : ajout de "deleted" - masquage non destructif distinct de
+ * "archived" (une source "deleted" cascade l'archivage de ses questions
+ * rattachées, voir document-source-service.js#deleteDocumentSource ;
+ * "archived" seul reste sans effet sur les questions, comportement
+ * inchangé). Aucune suppression Firestore réelle dans les deux cas. */
 export const DOCUMENT_SOURCE_STATUSES = Object.freeze({
   DRAFT: 'draft',
   ACTIVE: 'active',
   ARCHIVED: 'archived',
+  DELETED: 'deleted',
 });
 
 /**

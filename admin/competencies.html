@@ -35,61 +35,16 @@
 
     <div id="competencies-message" class="admin-message" style="display:none;"></div>
 
-    <!-- BARRE D'OUTILS : recherche, filtres, tri, creation -->
+    <!-- BARRE D'OUTILS : recherche seule (CORRECTIF : filtres/tri manuels,
+         création et migration retirés - tout le contenu vient désormais
+         exclusivement de l'import Excel). -->
     <div class="bank-toolbar">
       <input type="text" id="competencies-search-input" class="admin-users-search-input bank-search-input"
              placeholder="Rechercher (nom, description, catégorie, mot-clé)…"
              oninput="onCompetenciesSearchInput()">
-
-      <select id="competencies-filter-status" class="bank-select" onchange="onCompetenciesFilterChange()">
-        <option value="">Statut : Tous</option>
-        <option value="draft">🟡 Brouillon</option>
-        <option value="published">🟢 Publiée</option>
-        <option value="archived">⚫ Archivée</option>
-        <option value="trash">🔴 Corbeille</option>
-      </select>
-
-      <input type="text" id="competencies-filter-category" class="bank-select bank-author-input" placeholder="Catégorie…" oninput="onCompetenciesFilterChange()">
-
-      <select id="competencies-sort-field" class="bank-select" onchange="onCompetenciesFilterChange()">
-        <option value="createdAt">Trier : Date de création</option>
-        <option value="updatedAt">Date de modification</option>
-        <option value="name">Nom</option>
-      </select>
-
-      <button class="btn-secondary bank-sort-dir-btn" id="competencies-sort-dir-btn" onclick="toggleCompetenciesSortDirection()" title="Inverser l'ordre">⬇️</button>
-      <button class="btn-primary" onclick="openCreateCompetencyForm()">+ Nouvelle compétence</button>
-      <button class="btn-secondary" onclick="openMigrationPanel()">🔄 Migrer les anciennes compétences</button>
     </div>
 
     <div id="competencies-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
-
-    <!-- FORMULAIRE DE CREATION (repli simple, pas de popup) -->
-    <div id="competencies-create-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
-      <h3>Nouvelle compétence</h3>
-      <label class="bank-edit-label">Nom</label>
-      <input type="text" id="competencies-create-name" class="bank-select" placeholder="Ex. Injection intramusculaire">
-      <label class="bank-edit-label">Description</label>
-      <textarea id="competencies-create-description" class="bank-edit-textarea"></textarea>
-      <label class="bank-edit-label">Catégorie (optionnel)</label>
-      <input type="text" id="competencies-create-category" class="bank-select" list="competencies-category-suggestions" placeholder="Ex. Vaccination, Conseil officinal…">
-      <datalist id="competencies-category-suggestions"></datalist>
-      <label class="bank-edit-label">Mots-clés (séparés par des virgules, optionnel)</label>
-      <input type="text" id="competencies-create-keywords" class="bank-select" placeholder="Ex. injection, aiguille, asepsie">
-      <label class="bank-edit-label">Niveau conseillé (optionnel)</label>
-      <select id="competencies-create-level" class="bank-select">
-        <option value="">Aucun</option>
-        <option value="essentiel">Essentiel</option>
-        <option value="approfondi">Approfondi</option>
-        <option value="avance">Avancé</option>
-      </select>
-      <label class="bank-edit-label">Couleur (optionnel)</label>
-      <div id="competencies-create-color-container"></div>
-      <div class="btn-row">
-        <button class="btn-secondary" onclick="closeCreateCompetencyForm()">Annuler</button>
-        <button class="btn-primary" onclick="submitCreateCompetency()">Créer la compétence</button>
-      </div>
-    </div>
 
     <!-- DEUX COLONNES -->
     <div class="bank-columns">
@@ -122,16 +77,6 @@
       <button class="btn-secondary" onclick="cancelCompetencyAction()">Annuler</button>
       <button class="btn-primary" id="competencies-confirm-btn" onclick="confirmCompetencyAction()">Confirmer</button>
     </div>
-  </div>
-</div>
-
-<!-- PANNEAU DE MIGRATION (anciennes compétences texte des Parcours -> Banque) -->
-<div id="competencies-migration-overlay" class="admin-modal-overlay" style="display:none;">
-  <div class="admin-modal" style="max-width:560px;">
-    <button class="admin-modal-close" onclick="closeMigrationPanel()">✕</button>
-    <h3>Migrer les anciennes compétences</h3>
-    <p class="admin-users-disclaimer">Convertit les compétences en texte libre encore présentes dans certains parcours (Sprint 12) en fiches indépendantes de cette banque, puis relie chaque parcours à ces fiches. Aucune question n'est modifiée. Les compétences déjà migrées sont ignorées (opération sûre à relancer plusieurs fois).</p>
-    <div id="competencies-migration-body"><div class="bank-list-loading">Analyse en cours…</div></div>
   </div>
 </div>
 
