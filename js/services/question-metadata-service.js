@@ -184,10 +184,14 @@ export function deriveQuestionType(q) {
 
 /**
  * Determine l'espace (student/pharmacist/both) auquel une question est
- * destinee, a partir de THEME_CONFIG (deja existant dans js/app.js, expose
- * via window depuis ce sprint - voir js/app.js). Repli sur 'both' si
- * l'information n'est pas disponible (ex. hors navigateur, tests
- * unitaires sans DOM) plutot que de risquer d'exclure une question a tort.
+ * destinee, a partir de THEME_CONFIG. SPRINT 21.5, PHASE B2 : THEME_CONFIG
+ * et son exposition window.PharmevalThemeConfig ont ete supprimes avec le
+ * moteur de quiz V1 (voir RAPPORT_PHASE_B2.md) - cette fonction retombe
+ * donc desormais SYSTEMATIQUEMENT sur 'both' (repli deja prevu des
+ * l'origine pour ce cas). Consequence assumee : toute nouvelle question
+ * sans destination explicite est classee universelle (etudiant+pharmacien)
+ * par defaut, plutot que deduite d'un mapping theme->profil qui n'existe
+ * plus. A reevaluer si une classification plus fine redevient necessaire.
  *
  * @param {string} domain - identifiant de theme (ex. "bapcoc")
  * @returns {string}
