@@ -1,5 +1,5 @@
 // =============================================================================
-// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au correctif post-Sprint 11)
+// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au Sprint 22 + Phase B0, Sprint 21.5)
 // =============================================================================
 // Ce fichier est une PROPOSITION CONSOLIDEE. Il n'a pas ete deploye
 // automatiquement sur le projet Firebase (conformement a la consigne "les
@@ -1001,5 +1001,89 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 21.5, Phase B0) : progression par question
+    // =========================================================================
+    // Un document par couple (utilisateur, question). Identifiant deterministe
+    // progressDocIdFor(userId, pedagogicalId) = userId + '_' + pedagogicalId
+    // (voir js/services/question-progress-catalog-service.js) — verifie ici
+    // directement par egalite de chaine, sans requete supplementaire.
+    //
+    // Meme patron que competency_progress/ (Sprint 19) : la progression est
+    // un etat mis a jour au fil des evaluations (allow update), toujours par
+    // le meme utilisateur, jamais avec changement de userId ou de pedagogicalId.
+    //
+    // LIMITE CONNUE, ASSUMEE (meme famille que evaluation_sessions/
+    // evaluation_results/, Sprints 17-18) : la progression est calculee ET
+    // ecrite par le client — ces regles empechent d'ecrire dans la progression
+    // de quelqu'un d'autre ou avec un identifiant incoherent, mais ne
+    // verifient pas l'exactitude du comptage lui-meme.
+    match /question_progress/{progressId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && progressId == (request.auth.uid + '_' + request.resource.data.pedagogicalId);
+
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && progressId == (request.auth.uid + '_' + request.resource.data.pedagogicalId);
+
+      allow delete: if false;
+    }
+
+    // Marqueur d'idempotence : un document par EvaluationResult traite, pour
+    // garantir qu'un meme resultat ne soit jamais compte deux fois dans
+    // question_progress. L'identifiant est l'identifiant du resultat
+    // (meme valeur que evaluation_results/{resultId}, Sprint 18).
+    //
+    // ECRITURE UNIQUE par le proprietaire du resultat correspondant —
+    // verifiee via get() sur evaluation_results/ — aucune mise a jour
+    // possible (marqueur immuable, meme principe que evaluation_results/).
+    match /question_progress_applied_results/{resultId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null
+                      && exists(/databases/$(database)/documents/evaluation_results/$(resultId))
+                      && get(/databases/$(database)/documents/evaluation_results/$(resultId)).data.userId == request.auth.uid);
+
+      allow create: if request.auth != null
+                    && request.resource.data.resultId == resultId
+                    && exists(/databases/$(database)/documents/evaluation_results/$(resultId))
+                    && get(/databases/$(database)/documents/evaluation_results/$(resultId)).data.userId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 21.5, Phase B0) : catalogue de tags
+    // =========================================================================
+    // Tags associes aux questions du catalogue. Crees et mis a jour par
+    // l'administration (edition des questions via la Banque, ou synchronisation
+    // du catalogue editorial, Sprint 22) — ecriture reservee a
+    // isRequesterCatalogAdmin(). Lecture ouverte a tout utilisateur authentifie
+    // pour alimenter les filtres de l'Entrainement libre (Phase B1).
+    match /tags/{tagId} {
+      allow read: if request.auth != null;
+      allow write: if isRequesterCatalogAdmin();
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 22) : compteurs d'identifiants pedagogiques
+    // =========================================================================
+    // Compteurs sequentiels utilises par le moteur de synchronisation du
+    // catalogue (catalog-sync-firestore-backend.js) pour attribuer des
+    // identifiants pedagogiques stables a chaque question importee depuis
+    // le fichier Excel editorial. Operation strictement administrative,
+    // meme restriction que document_code_counters/ (Sprint 20).
+    match /pedagogical_id_counters/{counterId} {
+      allow read: if isRequesterCatalogAdmin();
+      allow write: if isRequesterCatalogAdmin();
+    }
+
   }
 }

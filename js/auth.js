@@ -17,39 +17,13 @@ import {
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
-import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
+import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { syncPendingEvaluations } from "./services/evaluation-service.js";
 import { startOnboarding } from "./onboarding.js";
 import { updateAdminUI, openAdminZone } from "./admin.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
-
-// ===================== SPRINT 21.5, PHASE A =====================
-// L'ecran de choix manuel "Etudiant / Pharmacien" (#profile-selector) est
-// supprime (voir index.html) : le role est desormais determine
-// automatiquement a partir de la profession declaree lors de l'accueil
-// (voir js/onboarding.js, PROFESSION_OPTIONS dans user-service.js),
-// stockee sous userData.profile.profession et exposee via
-// getCurrentUserContext().profile.profession.
-//
-// LIMITE CONNUE, DOCUMENTEE (a resoudre proprement en Phase B, refonte de
-// #home-view - jamais cachee ici) : #home-view et son moteur (js/app.js)
-// restent, pour cette seule phase, structures autour d'un choix BINAIRE
-// THEME_CONFIG['student'|'pharmacist'] herite de l'ancienne architecture.
-// Les professions qui ne s'y projettent pas naturellement
-// (pharmacy_technician, teacher, other, ou profession non renseignee)
-// sont donc mappees par defaut vers 'pharmacist' (l'espace le plus large
-// aujourd'hui) - un choix pragmatique et TEMPORAIRE, pas une decision de
-// modele de roles definitive. La Phase B remplacera entierement ce
-// mecanisme binaire par l'acces base sur les competences/le catalogue,
-// et cette fonction disparaitra avec lui.
-function deriveLegacyProfileFromProfession(profession) {
-  if (profession === 'student') return 'student';
-  if (profession === 'pharmacist') return 'pharmacist';
-  // pharmacy_technician / teacher / other / vide : repli documente ci-dessus
-  return 'pharmacist';
-}
 
 function toggleAuthMode() {
   authMode = (authMode === 'signin') ? 'signup' : 'signin';
@@ -207,12 +181,7 @@ function revealApp(user) {
   if (wantsDirectAdmin) {
     openAdminZone();
   } else if (typeof window.selectProfile === 'function') {
-    // Sprint 21.5, Phase A : plus d'ecran de choix - le profil est
-    // determine automatiquement (voir deriveLegacyProfileFromProfession
-    // ci-dessus). L'accueil s'affiche donc immediatement apres connexion.
-    var ctx = getCurrentUserContext();
-    var profession = ctx && ctx.profile && ctx.profile.profession;
-    window.selectProfile(deriveLegacyProfileFromProfession(profession));
+    window.selectProfile();
   }
 }
 
