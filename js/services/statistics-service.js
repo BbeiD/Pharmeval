@@ -129,7 +129,8 @@ export function calculatePerformanceBySpace(evaluations) {
   const groups = {};
 
   list.forEach(function(ev) {
-    const key = ev.space || 'unknown';
+    const key = ev.space;
+    if (!key) return;
     if (!groups[key]) groups[key] = [];
     groups[key].push(ev);
   });
