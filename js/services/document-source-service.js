@@ -29,6 +29,7 @@ import {
 import {
   createDocumentSourceDoc, getDocumentSourceById, getDocumentSourcesByIds,
   queryDocumentSources, updateDocumentSourceFields,
+  activateAllDraftSources as activateAllDraftSourcesInCatalog,
 } from "./document-source-catalog-service.js";
 import { archiveQuestionsBySource } from "./question-catalog-service.js";
 
@@ -210,4 +211,30 @@ export async function deleteDocumentSource(source) {
   }).catch(function() {});
 
   return success('Source supprimée : ' + cascade.archivedCount + ' question(s) archivée(s) en cascade.', { archivedCount: cascade.archivedCount });
+}
+
+/**
+ * Active EN MASSE toutes les sources en brouillon (bouton dedie de
+ * l'ecran, apres confirmation explicite cote interface) - jamais appelee
+ * automatiquement par la synchronisation du catalogue elle-meme (qui
+ * n'ecrit jamais que des brouillons, deliberement).
+ * @returns {Promise<object>}
+ */
+export async function activateAllDraftSources() {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+
+  const result = await activateAllDraftSourcesInCatalog();
+  if (result.error) return errorResult('L\'activation en masse a échoué. Veuillez réessayer.');
+  if (result.activatedCount === 0) return denied('Aucune source en brouillon à activer.');
+
+  const ctx = getCurrentUserContext();
+  logAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    targetUid: null, targetEmail: null,
+    actionType: 'document_source_bulk_activated', oldValue: 'draft',
+    newValue: 'active (' + result.activatedCount + ' source(s))',
+  }).catch(function() {});
+
+  return success(result.activatedCount + ' source(s) activée(s) avec succès.');
 }

@@ -20,7 +20,7 @@ import { formatDateFr } from "../js/services/date-utils.js";
 import {
   browseQuestions, publishQuestion, archiveQuestion, revertQuestionToDraft,
   moveQuestionToTrash, restoreQuestionFromTrash, permanentlyDeleteQuestion,
-  editQuestionMetadata, getQuestionTimeline,
+  editQuestionMetadata, getQuestionTimeline, publishAllDraftQuestions,
 } from "../js/services/question-bank-service.js";
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
@@ -433,6 +433,12 @@ export function requestBankAction(kind) {
   document.getElementById('bank-confirm-overlay').style.display = 'flex';
 }
 
+export function requestBulkPublish() {
+  pendingAction = { kind: 'bulk_publish' };
+  document.getElementById('bank-confirm-message').textContent = 'Publier toutes les questions actuellement en brouillon ? Les questions déjà publiées, en relecture, archivées ou à la corbeille ne seront pas touchées.';
+  document.getElementById('bank-confirm-overlay').style.display = 'flex';
+}
+
 export function cancelBankAction() {
   pendingAction = null;
   document.getElementById('bank-confirm-overlay').style.display = 'none';
@@ -443,6 +449,13 @@ export async function confirmBankAction() {
   if (!pendingAction) return;
   const action = pendingAction;
   pendingAction = null;
+
+  if (action.kind === 'bulk_publish') {
+    const result = await publishAllDraftQuestions();
+    showBankMessage(result.status, result.message);
+    if (result.status === 'success') loadPage();
+    return;
+  }
 
   let result;
   if (action.kind === 'publish') result = await publishQuestion(action.question);
@@ -489,6 +502,7 @@ function escapeHtml(s) {
 // Pont vers le HTML classique (attributs onclick/oninput/onchange).
 // ---------------------------------------------------------------------------
 window.onBankSearchInput = onBankSearchInput;
+window.requestBulkPublish = requestBulkPublish;
 window.goToBankPage = goToBankPage;
 window.selectBankQuestion = selectBankQuestion;
 window.saveBankEdit = saveBankEdit;

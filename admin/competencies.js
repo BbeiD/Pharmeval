@@ -26,7 +26,7 @@ import { resolveCompetencyColorHex } from "../js/services/competency-metadata-se
 import {
   browseCompetencies, publishCompetency, archiveCompetency, revertCompetencyToDraft,
   moveCompetencyToTrash, restoreCompetencyFromTrash, permanentlyDeleteCompetency,
-  countCompetencyUsage, getCompetencyTimeline,
+  countCompetencyUsage, getCompetencyTimeline, publishAllDraftCompetencies,
 } from "../js/services/competency-service.js";
 
 const STATUS_BADGES = {
@@ -344,6 +344,12 @@ const ACTION_LABELS = {
   purge: 'supprimer DÉFINITIVEMENT cette compétence (irréversible)',
 };
 
+export function requestBulkPublishCompetencies() {
+  pendingAction = { kind: 'bulk_publish' };
+  document.getElementById('competencies-confirm-message').textContent = 'Publier toutes les compétences actuellement en brouillon ? Les compétences déjà publiées, archivées ou à la corbeille ne seront pas touchées.';
+  document.getElementById('competencies-confirm-overlay').style.display = 'flex';
+}
+
 export function requestCompetencyAction(kind) {
   const c = state.items.find(function(item) { return item.id === state.selectedId; });
   if (!c) return;
@@ -360,6 +366,14 @@ export async function confirmCompetencyAction() {
   if (!pendingAction) return;
   const { kind, competency } = pendingAction;
   document.getElementById('competencies-confirm-overlay').style.display = 'none';
+  pendingAction = null;
+
+  if (kind === 'bulk_publish') {
+    const bulkResult = await publishAllDraftCompetencies();
+    showCompetenciesMessage(bulkResult.status, bulkResult.message);
+    if (bulkResult.status === 'success') await loadPage();
+    return;
+  }
 
   let result;
   if (kind === 'publish') result = await publishCompetency(competency);
@@ -370,7 +384,6 @@ export async function confirmCompetencyAction() {
   else if (kind === 'purge') result = await permanentlyDeleteCompetency(competency);
   else result = { status: 'error', message: 'Action inconnue.' };
 
-  pendingAction = null;
   showCompetenciesMessage(result.status, result.message);
   if (result.status === 'success') await loadPage();
 }
@@ -380,6 +393,7 @@ export async function confirmCompetencyAction() {
 // ---------------------------------------------------------------------------
 
 window.onCompetenciesSearchInput = onCompetenciesSearchInput;
+window.requestBulkPublishCompetencies = requestBulkPublishCompetencies;
 window.goToCompetenciesPage = goToCompetenciesPage;
 window.selectCompetency = selectCompetency;
 window.requestCompetencyAction = requestCompetencyAction;

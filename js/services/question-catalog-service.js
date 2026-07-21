@@ -416,3 +416,32 @@ export async function archiveQuestionsBySource(documentSourceId) {
     return { success: false, archivedCount: 0, error: true };
   }
 }
+
+/**
+ * Publie EN MASSE toutes les questions actuellement au statut "draft"
+ * (bouton "Publier toutes les questions en brouillon", voir
+ * question-bank-service.js). Ne touche a aucune question dans un autre
+ * statut (review/published/archived/trash restent inchangees).
+ * @returns {Promise<{success:boolean, publishedCount:number, error:boolean}>}
+ */
+export async function publishAllDraftQuestions() {
+  try {
+    const snap = await getDocs(query(collection(db, QUESTIONS_COLLECTION), where('status', '==', 'draft'), limit(2000)));
+    const refs = [];
+    snap.forEach(function(d) { refs.push(d.ref); });
+
+    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
+    const now = new Date().toISOString();
+    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + CHUNK_SIZE).forEach(function(ref) {
+        batch.update(ref, { status: 'published', updatedAt: now });
+      });
+      await batch.commit();
+    }
+    return { success: true, publishedCount: refs.length, error: false };
+  } catch (err) {
+    logCatalogError('publication en masse des questions en brouillon', err);
+    return { success: false, publishedCount: 0, error: true };
+  }
+}

@@ -31,6 +31,7 @@ import {
   updateCompetencyStatus,
   updateCompetencyFields,
   deleteCompetencyDocument,
+  publishAllDraftCompetencies as publishAllDraftCompetenciesInCatalog,
   DEFAULT_COMPETENCY_PAGE_SIZE,
 } from "./competency-catalog-service.js";
 import { logCompetencyAction, getRecentCompetencyAuditLogs } from "./competency-audit-service.js";
@@ -228,6 +229,29 @@ export async function moveCompetencyToTrash(competency) {
     current = Object.assign({}, current, { status: COMPETENCY_STATUSES.ARCHIVED });
   }
   return changeStatus(current, COMPETENCY_STATUSES.TRASH, 'Compétence supprimée');
+}
+
+/**
+ * Publie EN MASSE toutes les compétences en brouillon (bouton dedie de
+ * l'ecran, apres confirmation explicite cote interface).
+ * @returns {Promise<object>}
+ */
+export async function publishAllDraftCompetencies() {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+
+  const result = await publishAllDraftCompetenciesInCatalog();
+  if (result.error) return errorResult('La publication en masse a échoué. Veuillez réessayer.');
+  if (result.publishedCount === 0) return denied('Aucune compétence en brouillon à publier.');
+
+  const ctx = getCurrentUserContext();
+  logCompetencyAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    competencyId: null, actionType: 'bulk_publish',
+    oldValue: 'draft', newValue: 'published (' + result.publishedCount + ' compétence(s))',
+  }).catch(function() {});
+
+  return success(result.publishedCount + ' compétence(s) publiée(s) avec succès.');
 }
 
 /**

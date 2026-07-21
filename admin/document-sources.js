@@ -23,7 +23,7 @@ import {
   DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES,
 } from "../js/services/document-source-metadata-service.js";
 import {
-  browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource,
+  browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 
@@ -212,12 +212,25 @@ export function requestDeleteSource() {
   qs('ds-confirm-overlay').style.display = 'flex';
 }
 
+export function requestBulkActivateSources() {
+  pendingAction = { kind: 'bulk_activate_sources' };
+  qs('ds-confirm-message').textContent = 'Activer toutes les sources actuellement en brouillon ? Les sources déjà actives, archivées ou supprimées ne seront pas touchées.';
+  qs('ds-confirm-overlay').style.display = 'flex';
+}
+
 export function cancelDsAction() { pendingAction = null; qs('ds-confirm-overlay').style.display = 'none'; }
 
 export async function confirmDsAction() {
   if (!pendingAction) return;
   const action = pendingAction; pendingAction = null;
   qs('ds-confirm-overlay').style.display = 'none';
+
+  if (action.kind === 'bulk_activate_sources') {
+    const result = await activateAllDraftSources();
+    showMessage(result.status, result.message);
+    if (result.status === 'success') await loadSources();
+    return;
+  }
 
   const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
 
@@ -243,5 +256,6 @@ window.onSourcesFilterChange = onSourcesFilterChange;
 window.selectSource = selectSource;
 window.requestSourceStatus = requestSourceStatus;
 window.requestDeleteSource = requestDeleteSource;
+window.requestBulkActivateSources = requestBulkActivateSources;
 window.cancelDsAction = cancelDsAction;
 window.confirmDsAction = confirmDsAction;

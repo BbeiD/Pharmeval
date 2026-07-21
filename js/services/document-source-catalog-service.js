@@ -6,7 +6,7 @@
 
 import { db } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, increment,
+  doc, getDoc, setDoc, updateDoc, increment, writeBatch,
   collection, query, where, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
@@ -140,5 +140,30 @@ export async function incrementDocumentSourceCounters(sourceId, deltas) {
   } catch (err) {
     logCatalogError('mise à jour des compteurs de la source ' + sourceId, err);
     return { success: false, error: true };
+  }
+}
+
+/**
+ * Active EN MASSE toutes les sources actuellement au statut "draft"
+ * (bouton "Activer toutes les sources en brouillon", voir
+ * document-source-service.js). Ne touche a aucune source dans un autre
+ * statut (active/archived/deleted restent inchangees).
+ * @returns {Promise<{success:boolean, activatedCount:number, error:boolean}>}
+ */
+export async function activateAllDraftSources() {
+  try {
+    const snap = await getDocs(query(collection(db, SOURCE_COLLECTION), where('status', '==', 'draft'), limit(500)));
+    const refs = [];
+    snap.forEach(function(d) { refs.push(d.ref); });
+    if (refs.length === 0) return { success: true, activatedCount: 0, error: false };
+
+    const now = new Date().toISOString();
+    const batch = writeBatch(db); // <=500 sources attendues, jamais un volume comparable a `questions`
+    refs.forEach(function(ref) { batch.update(ref, { status: 'active', isActive: true, updatedAt: now }); });
+    await batch.commit();
+    return { success: true, activatedCount: refs.length, error: false };
+  } catch (err) {
+    logCatalogError('activation en masse des sources en brouillon', err);
+    return { success: false, activatedCount: 0, error: true };
   }
 }

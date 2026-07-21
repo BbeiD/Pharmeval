@@ -36,6 +36,7 @@ import {
   updateQuestionStatus,
   updateQuestionFields,
   deleteQuestionDocument,
+  publishAllDraftQuestions as publishAllDraftQuestionsInCatalog,
   DEFAULT_BANK_PAGE_SIZE,
 } from "./question-catalog-service.js";
 import { searchQuestions as searchQuestionsViaProvider } from "./question-search-provider.js";
@@ -189,6 +190,31 @@ export function archiveQuestion(question) {
 /** Remet une question au statut "draft". Indisponible depuis la corbeille. */
 export function revertQuestionToDraft(question) {
   return changeStatus(question, QUESTION_STATUSES.DRAFT, 'Question remise en brouillon', [QUESTION_STATUSES.TRASH]);
+}
+
+/**
+ * Publie EN MASSE toutes les questions en brouillon (bouton dedie de
+ * l'ecran, apres confirmation explicite cote interface) - jamais appelee
+ * automatiquement par la synchronisation du catalogue elle-meme (qui
+ * n'ecrit jamais que des brouillons, deliberement).
+ * @returns {Promise<object>}
+ */
+export async function publishAllDraftQuestions() {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+
+  const result = await publishAllDraftQuestionsInCatalog();
+  if (result.error) return errorResult('La publication en masse a échoué. Veuillez réessayer.');
+  if (result.publishedCount === 0) return denied('Aucune question en brouillon à publier.');
+
+  const ctx = getCurrentUserContext();
+  logQuestionAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    pedagogicalId: null, actionType: 'bulk_publish',
+    oldValue: 'draft', newValue: 'published (' + result.publishedCount + ' question(s))',
+  }).catch(function() {});
+
+  return success(result.publishedCount + ' question(s) publiée(s) avec succès.');
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   collection,
   query,
   where,
@@ -179,6 +180,34 @@ export async function updateCompetencyStatus(competencyId, newStatus) {
   } catch (err) {
     logCatalogError('changement de statut de la compétence ' + competencyId, err);
     return { success: false, error: true };
+  }
+}
+
+/**
+ * Publie EN MASSE toutes les compétences actuellement au statut "draft"
+ * (bouton "Publier toutes les compétences en brouillon", voir
+ * competency-service.js). Ne touche a aucune compétence dans un autre
+ * statut (published/archived/trash restent inchangees).
+ * @returns {Promise<{success:boolean, publishedCount:number, error:boolean}>}
+ */
+export async function publishAllDraftCompetencies() {
+  try {
+    const snap = await getDocs(query(collection(db, COMPETENCY_COLLECTION), where('status', '==', 'draft'), limit(2000)));
+    const refs = [];
+    snap.forEach(function(d) { refs.push(d.ref); });
+    if (refs.length === 0) return { success: true, publishedCount: 0, error: false };
+
+    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
+    const now = new Date().toISOString();
+    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + CHUNK_SIZE).forEach(function(ref) { batch.update(ref, { status: 'published', updatedAt: now }); });
+      await batch.commit();
+    }
+    return { success: true, publishedCount: refs.length, error: false };
+  } catch (err) {
+    logCatalogError('publication en masse des compétences en brouillon', err);
+    return { success: false, publishedCount: 0, error: true };
   }
 }
 
