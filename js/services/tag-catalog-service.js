@@ -31,7 +31,13 @@ function logTagError(context, err) {
 
 /**
  * Cle de document = cle normalisee (meme fonction que le moteur de
- * synchronisation). Volontairement EXPOSEE : tout appelant qui a besoin
+ * synchronisation), en remplacant en plus tout "/" par un "-" : un
+ * identifiant de document Firestore ne peut jamais contenir "/" (interprete
+ * comme un separateur de segments de chemin) - un libelle comme
+ * "Vitamine PP/B6" produirait sinon une reference invalide et ferait
+ * echouer silencieusement la resolution de CE tag precis (voir
+ * logTagError, catch defensif existant qui masquait ce cas sans le
+ * corriger). Volontairement EXPOSEE : tout appelant qui a besoin
  * de savoir "a quel document Firestore un libelle donne correspond-il"
  * (ex. pour filtrer des questions par tag) doit passer par CETTE fonction,
  * jamais recalculer sa propre normalisation.
@@ -39,7 +45,7 @@ function logTagError(context, err) {
  * @returns {string}
  */
 export function tagIdForLabel(label) {
-  return normalizeForDedup(label);
+  return normalizeForDedup(label).replace(/\//g, '-');
 }
 
 /**
