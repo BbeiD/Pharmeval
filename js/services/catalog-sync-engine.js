@@ -90,6 +90,13 @@ export class CatalogSyncEngine {
    * @param {function({label:string, dryRun:boolean, cache:object}):Promise<object>} deps.resolveCompetency
    * @param {function({tags:Array<string>, dryRun:boolean, cache:object}):Promise<object>} deps.resolveTags
    * @param {function(Map<string,object>):Promise<{success:boolean, writtenCount:number}>} deps.writeQuestionsChunk
+   * @param {function(Array<object>, {success:boolean}, {sources:Map, sections:Map}):Promise<void>} [deps.onChunkWritten]
+   *   - OPTIONNELLE (Sprint 22) : appelee apres CHAQUE ecriture de chunk,
+   *   UNIQUEMENT si son succes est confirme - jamais pour un chunk en
+   *   echec. Sert au recalcul automatique des compteurs source/section
+   *   (voir catalog-sync-firestore-backend.js). Absente = aucun
+   *   comportement supplementaire (retrocompatible avec les backends
+   *   existants, ex. FakeFirestoreBackend).
    * @param {function():string} [deps.now] - injectable pour des tests deterministes
    */
   constructor(deps) {
@@ -364,6 +371,17 @@ export class CatalogSyncEngine {
         chunkResults.push({ size: chunk.length, success: writeResult.success });
         if (writeResult.success) {
           chunk.forEach(function(qa) { if (qa.action === 'create') createdCount++; else updatedCount++; });
+          // SPRINT 22 : recalcul automatique des compteurs source/section -
+          // dependance OPTIONNELLE (les backends qui ne la fournissent pas,
+          // ex. FakeFirestoreBackend des tests existants, continuent de
+          // fonctionner a l'identique, aucune regression). GARANTIE PORTEE
+          // PAR L'ENGINE LUI-MEME (pas seulement par l'implementation du
+          // backend) : cet appel est a l'INTERIEUR du bloc `if
+          // (writeResult.success)` - jamais execute pour un chunk en echec,
+          // meme si un futur backend oubliait sa propre verification.
+          if (this._d.onChunkWritten) {
+            await this._d.onChunkWritten(chunk, writeResult, referentialCache);
+          }
         }
       }
     }

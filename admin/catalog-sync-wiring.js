@@ -1,38 +1,43 @@
-// ===================== CABLAGE DU MOTEUR (Sprint 21, phase 3) =====================
+// ===================== CABLAGE DU MOTEUR (Sprint 21 phase 3 -> Sprint 22) =====================
 // Point d'assemblage UNIQUE de CatalogSyncEngine avec ses dependances.
 // "L'interface ne doit pas contenir la logique metier du moteur" (cadrage) -
 // ce fichier NON PLUS : il ne fait qu'injecter des dependances deja
 // existantes dans le moteur, sans ajouter de regle metier ici.
 //
-// CORRECTIF (suite au signalement "boucle infinie de controle d'acces") :
-// ce fichier importait auparavant depuis ../tests/fake-firestore-
-// backend.mjs - une dependance de PRODUCTION vers un fichier de TEST,
-// potentiellement absent d'un hebergement reel (voir js/services/catalog-
-// sync-demo-backend.js pour le detail). Corrige : le backend de
-// demonstration vit desormais dans js/services/, aux cotes du reste du
-// code reellement deploye.
+// SPRINT 22 : le backend REEL (js/services/catalog-sync-firestore-
+// backend.js) remplace desormais FakeFirestoreBackend PAR DEFAUT. Le
+// backend de demonstration reste disponible mais doit desormais etre
+// fourni EXPLICITEMENT (utilise par les tests, voir tests/test-catalog-
+// sync-*.mjs) - jamais plus le comportement implicite en production.
 //
-// ETAT ACTUEL (phase 3, a corriger au Sprint 22 - voir
-// NOTES_INTEGRATION_PRODUCTION.md) : les dependances Firestore reelles
-// n'ont pas encore ete cablees sur de vrais services Firestore - seul
-// writeQuestionsBatch (deja existant, question-catalog-service.js) serait
-// directement reutilisable sans travail supplementaire. Ce fichier
-// utilise donc, EXPLICITEMENT et visiblement (voir bandeau #cs-demo-
-// banner dans catalog-sync.html), le MEME backend simule que les tests -
-// jamais un Firestore reel tant que le Sprint 22 n'a pas fait ce cablage.
+// GARDE-FOU CONSERVE (correctif "boucle infinie de controle d'acces") :
+// ce fichier n'importe toujours aucune dependance de PRODUCTION vers un
+// fichier de TEST.
 
 import { CatalogSyncEngine } from "../js/services/catalog-sync-engine.js";
 import { validateImportPayload } from "../js/services/question-import-validator.js";
-import { FakeFirestoreBackend } from "../js/services/catalog-sync-demo-backend.js";
+import * as FirestoreBackend from "../js/services/catalog-sync-firestore-backend.js";
 
 /**
- * @param {object} [backend] - injectable pour les tests ; par defaut, une
- *   instance de demonstration PERSISTANTE POUR LA DUREE DE LA SESSION DE
- *   PAGE (perdue au rechargement - comportement normal d'un mode
- *   demonstration, jamais presente comme une persistance reelle).
+ * @param {object} [backend] - injectable pour les tests (ex.
+ *   `new FakeFirestoreBackend()`). Par defaut (aucun argument, usage
+ *   normal en production) : le VRAI backend Firestore (Sprint 22) - plus
+ *   aucune ecriture simulee par defaut.
  */
 export function createCatalogSyncEngine(backend) {
-  const b = backend || new FakeFirestoreBackend();
+  const isRealBackend = !backend;
+  const b = backend || FirestoreBackend;
+
+  // Reinitialise les caches de LECTURE du backend reel avant CHAQUE
+  // synchronisation (analyze() + synchronize() sont deux appels
+  // separes de ce meme backend partage au niveau du module) - sans quoi
+  // une source/competence creee par la synchronisation precedente ne
+  // serait relue qu'a la prochaine ouverture de page. Sans effet sur un
+  // backend de test qui n'expose pas cette fonction (ex. FakeFirestoreBackend).
+  if (isRealBackend && typeof b.resetAllReadCaches === 'function') {
+    b.resetAllReadCaches();
+  }
+
   return {
     engine: new CatalogSyncEngine({
       validateImportPayload: validateImportPayload,
@@ -43,8 +48,9 @@ export function createCatalogSyncEngine(backend) {
       resolveCompetency: b.resolveCompetency,
       resolveTags: b.resolveTags,
       writeQuestionsChunk: b.writeQuestionsChunk,
+      onChunkWritten: b.onChunkWritten, // absente sur un backend de test -> aucun effet (voir catalog-sync-engine.js)
     }),
     backend: b,
-    isDemoBackend: !backend, // true si aucun backend explicite n'a ete fourni (donc: pas encore branche sur Firestore reel)
+    isDemoBackend: !isRealBackend, // true UNIQUEMENT si un backend explicite (ex. demo) a ete fourni
   };
 }

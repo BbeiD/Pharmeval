@@ -318,4 +318,6 @@ if (typeof document !== 'undefined' && document.getElementById('cs-file-input'))
   wireEvents();
   initAuthGate();
   applyUiState('no-file');
+  const demoBanner = document.getElementById('cs-demo-banner');
+  if (demoBanner) demoBanner.style.display = isDemoBackend ? 'block' : 'none';
 }
