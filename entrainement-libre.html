@@ -11,6 +11,19 @@
 
 <div id="etl-loading">Chargement…</div>
 
+<!-- ACCES REFUSE / NON CONNECTE : jamais de redirection automatique ici
+     (voir RAPPORT_CORRECTIF_ACCES_INFINI.md - meme principe que
+     admin/catalog-sync.html) - Firebase peut declencher un premier
+     user=null transitoire avant de restaurer une session persistee sur
+     un chargement direct de page. -->
+<div id="etl-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Connexion requise</h2>
+    <p>Vous devez être connecté pour accéder à l'entraînement libre.</p>
+    <div class="btn-row"><a class="btn-primary" href="index.html">Retour à l'accueil</a></div>
+  </div>
+</div>
+
 <div id="etl-view" style="display:none;">
   <div class="bank-page import-page">
     <div class="import-header">

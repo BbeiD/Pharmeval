@@ -50,13 +50,27 @@ let state = { pool: null, replacingSessionId: null };
 // permission d'administration requise, uniquement une connexion valide)
 // ---------------------------------------------------------------------------
 
+// CORRECTIF (meme cause que RAPPORT_CORRECTIF_ACCES_INFINI.md, applique
+// ici a l'identique) : ne jamais rediriger automatiquement des le
+// premier user=null - Firebase peut declencher ce callback une premiere
+// fois avec null avant d'avoir fini de restaurer une session persistee,
+// surtout sur un chargement direct de page (lien classique, pas une
+// navigation interne "a chaud"). On affiche un ecran explicite AVEC UN
+// LIEN a la place - si un appel ulterieur confirme un utilisateur reel,
+// ce meme gestionnaire sera rappele et basculera normalement vers
+// l'affichage, sans avoir perdu la page entre-temps.
+let initDone = false; // garde anti-double-appel (meme principe que catalog-sync-auth-gate.js)
+
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = qs('etl-loading');
+  const deniedEl = qs('etl-denied');
   const viewEl = qs('etl-view');
 
   if (!user) {
     clearCurrentUserContext();
-    window.location.href = 'index.html';
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (viewEl) viewEl.style.display = 'none';
+    if (deniedEl) deniedEl.style.display = 'block';
     return;
   }
 
@@ -68,8 +82,11 @@ onAuthStateChanged(auth, async function(user) {
   }
 
   if (loadingEl) loadingEl.style.display = 'none';
+  if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
 
+  if (initDone) return;
+  initDone = true;
   await init();
 });
 

@@ -20,6 +20,11 @@ const erHtml = fs.readFileSync(BASE + '/evaluation-result.html', 'utf-8');
 const erJs = fs.readFileSync(BASE + '/js/evaluation-result.js', 'utf-8');
 const indexHtml = fs.readFileSync(BASE + '/index.html', 'utf-8');
 
+console.log('=== entrainement-libre.js — correctif "boucle infinie" (meme cause que RAPPORT_CORRECTIF_ACCES_INFINI.md) ===');
+check('id="etl-denied" present dans le HTML (ecran explicite, jamais une redirection automatique)', etlHtml.indexOf('id="etl-denied"') !== -1);
+check('aucune redirection automatique vers index.html sur user=null (plus de window.location.href dans le gestionnaire d\'auth)', etlJs.indexOf("window.location.href = 'index.html'") === -1);
+check('garde anti-double-appel presente (initDone)', etlJs.indexOf('initDone') !== -1);
+
 console.log('=== entrainement-libre.html — elements requis ===');
 ['etl-source', 'etl-section', 'etl-difficulty', 'etl-tag', 'etl-with-images', 'etl-never-seen',
  'etl-never-succeeded', 'etl-count', 'etl-compose-btn', 'etl-preview-card', 'etl-launch-btn',
