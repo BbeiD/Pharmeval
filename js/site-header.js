@@ -125,7 +125,7 @@ export function renderSiteHeader(activeKey) {
   mount.innerHTML =
     '<div class="site-sidebar">' +
       '<a class="sh-logo-link" href="' + escapeHtml(base + 'index.html') + '">' +
-        '<div class="logo">Fp</div>' +
+        '<img class="logo" src="' + escapeHtml(base + 'assets/brand/pharmeval-mark.png') + '" alt="">' +
         '<span class="sh-logo-text">' +
           '<span class="sh-app-name">Pharmeval</span>' +
           '<span class="sh-app-tagline">Apprendre · Comprendre · Progresser</span>' +
