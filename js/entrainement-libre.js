@@ -143,7 +143,10 @@ function renderSourceIcons() {
   const container = qs('etl-source-icons');
   container.innerHTML = state.sources.map(function(s) {
     const selectedCls = state.selectedSourceIds.has(s.id) ? ' etl-source-icon-selected' : '';
-    const icon = SOURCE_TYPE_ICON[s.sourceType] || '📄';
+    // Icone personnalisee par l'administration (display.icon, voir
+    // admin/document-sources.js#saveSourceIcon) si renseignee, sinon repli
+    // sur l'icone par type de source.
+    const icon = (s.display && s.display.icon) || SOURCE_TYPE_ICON[s.sourceType] || '📄';
     return (
       '<button type="button" class="etl-source-icon' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
         '<span class="etl-source-icon-emoji" aria-hidden="true">' + icon + '</span>' +

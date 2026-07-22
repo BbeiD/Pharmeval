@@ -24,7 +24,7 @@ import {
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
-  setSourceHiddenFromFreeTraining,
+  setSourceHiddenFromFreeTraining, editDocumentSource,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
@@ -162,6 +162,22 @@ function sourceDetailHtml(s, sections) {
   html += '<div class="bank-detail-row"><strong>Entraînement libre :</strong> ' + (s.hiddenFromFreeTraining ? '🚫 Masquée (indisponible pour l\'entraînement libre)' : '🟢 Visible') + '</div>';
   html += '</div>';
 
+  // AJOUT (refonte visuelle, phase 1, decision validee avec David) : icone
+  // affichee sur la tuile de selection de l'entrainement libre
+  // (js/entrainement-libre.js) - stockee dans le champ deja reserve
+  // `display.icon` (document-source-metadata-service.js, jamais exploite
+  // jusqu'ici). Repli sur une icone par TYPE de source si non renseignee -
+  // voir SOURCE_TYPE_ICON, entrainement-libre.js. Une vraie image/photo
+  // n'est PAS construite ici (aucun chemin d'upload n'existe aujourd'hui,
+  // meme limitation que "Mon profil") - simple emoji texte pour l'instant.
+  html += '<div class="bank-detail-section"><h4>Icône (entraînement libre)</h4>';
+  html += '<p class="admin-users-disclaimer">Un emoji affiché sur la tuile de sélection de l\'entraînement libre. Laissez vide pour revenir à l\'icône par défaut selon le type de source.</p>';
+  html += '<div class="btn-row">';
+  html += '<input type="text" id="ds-icon-input" class="bank-select" style="max-width:100px;text-align:center;font-size:20px;" maxlength="4" value="' + escapeHtml((s.display && s.display.icon) || '') + '" placeholder="📕">';
+  html += '<button class="btn-secondary" onclick="saveSourceIcon()">Enregistrer l\'icône</button>';
+  html += '</div>';
+  html += '</div>';
+
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
   if (s.status !== DOCUMENT_SOURCE_STATUSES.DELETED) {
     if (s.status !== DOCUMENT_SOURCE_STATUSES.ACTIVE) html += '<button class="btn-primary" onclick="requestSourceStatus(\'active\')">Activer</button>';
@@ -229,6 +245,21 @@ export function requestBulkActivateSources() {
   qs('ds-confirm-overlay').style.display = 'flex';
 }
 
+export async function saveSourceIcon() {
+  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
+  if (!source) return;
+  const value = qs('ds-icon-input').value.trim();
+
+  const result = await editDocumentSource(source, {
+    display: Object.assign({}, source.display, { icon: value || null }),
+  });
+  showMessage(result.status, result.message);
+  if (result.status === 'success') {
+    source.display = Object.assign({}, source.display, { icon: value || null });
+    await selectSource(state.selectedSourceId);
+  }
+}
+
 export async function toggleSourceFreeTrainingVisibility(hidden) {
   const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
   if (!source) return;
@@ -280,5 +311,6 @@ window.requestSourceStatus = requestSourceStatus;
 window.requestDeleteSource = requestDeleteSource;
 window.requestBulkActivateSources = requestBulkActivateSources;
 window.toggleSourceFreeTrainingVisibility = toggleSourceFreeTrainingVisibility;
+window.saveSourceIcon = saveSourceIcon;
 window.cancelDsAction = cancelDsAction;
 window.confirmDsAction = confirmDsAction;
