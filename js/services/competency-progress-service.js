@@ -22,7 +22,7 @@ import { getProgressionById, saveProgressionDocument, listProgressionsByUser } f
 import {
   getProgressionPolicy, computeTrend, computeLevel, computeConfidenceScore,
 } from "./progression-policy-service.js";
-import { computeCompetencyStatus } from "./correction-policy-service.js";
+import { computeCompetencyStatus, COMPETENCY_STATUS } from "./correction-policy-service.js";
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -120,6 +120,36 @@ export async function getMyCompetencyProgress() {
   const result = await listProgressionsByUser(ctx.uid);
   if (result.error) return { authorized: true, error: true, message: 'Impossible de charger vos compétences pour le moment. Réessayez plus tard.', items: [] };
   return { authorized: true, items: result.items };
+}
+
+/**
+ * AJOUT (refonte visuelle, phase 1) : agrège le `masteryStatus` DEJA REEL
+ * de chaque competence rencontree en un compte par statut (mastered/
+ * to_reinforce/not_acquired) + un pourcentage arrondi - fonction pure,
+ * partagee par l'accueil (donut "Votre progression globale") ET "Mes
+ * compétences" (meme calcul, jamais duplique a deux endroits). N'invente
+ * jamais de donnee : un utilisateur sans aucune competence rencontree
+ * retourne `total:0`, a afficher comme un etat vide explicite, jamais
+ * "0%" qui laisserait croire a un echec.
+ * @param {Array<object>} items - resultat de getMyCompetencyProgress().items
+ * @returns {{total:number, counts:Object<string,number>, percentages:Object<string,number>}}
+ */
+export function summarizeMasteryStatus(items) {
+  const list = Array.isArray(items) ? items : [];
+  const counts = {
+    [COMPETENCY_STATUS.MASTERED]: 0,
+    [COMPETENCY_STATUS.TO_REINFORCE]: 0,
+    [COMPETENCY_STATUS.NOT_ACQUIRED]: 0,
+  };
+  list.forEach(function(item) {
+    if (Object.prototype.hasOwnProperty.call(counts, item.masteryStatus)) counts[item.masteryStatus]++;
+  });
+  const total = list.length;
+  const percentages = {};
+  Object.keys(counts).forEach(function(status) {
+    percentages[status] = total > 0 ? Math.round((counts[status] / total) * 100) : 0;
+  });
+  return { total: total, counts: counts, percentages: percentages };
 }
 
 /**

@@ -1,8 +1,11 @@
-// ===================== CONTROLEUR DE L'ACCUEIL (Sprint 21.5+) =====================
-// Complete l'accueil (index.html, #home-view) avec un apercu des parcours
-// attribues a l'utilisateur, en plus de l'entree "Entrainement libre" deja
-// presente - meme service que js/mes-parcours.js (getAssignedParcoursForUser),
-// aucune logique metier ici, aucune ecriture Firestore.
+// ===================== CONTROLEUR DE L'ACCUEIL (Sprint 21.5+, refonte visuelle phase 1) =====================
+// Accueil de l'application - en-tete partage (site-header.js), tuiles de
+// statistiques REELLES (jamais de chiffre invente), donut de progression
+// globale, et apercu des parcours attribues a l'utilisateur. Aucune
+// logique metier ici : chaque donnee provient d'un service deja existant
+// (assignment-service.js, statistics-service.js, parcours-completion-
+// service.js, competency-progress-service.js), ce fichier ne fait
+// qu'assembler et afficher.
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -10,6 +13,12 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { renderSiteHeader } from "./site-header.js";
+import { getEvaluationsForStatistics } from "./services/history-service.js";
+import { calculateOverview } from "./services/statistics-service.js";
+import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
+import { getMyCompetencyProgress, summarizeMasteryStatus } from "./services/competency-progress-service.js";
+import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 
 // Nombre maximal de parcours affiches sur l'accueil - au-dela, l'utilisateur
 // est renvoye vers "Mes parcours" (lien deja present dans la section, voir
@@ -32,8 +41,87 @@ onAuthStateChanged(auth, async function(user) {
     console.error('Erreur lors de la vérification du compte :', err);
   }
 
-  await loadHomeParcours();
+  renderSiteHeader('accueil');
+  renderWelcomeTitle();
+
+  await Promise.all([
+    loadHomeParcours(),
+    loadHomeStats(),
+    loadMasteryDonut(),
+  ]);
 });
+
+function renderWelcomeTitle() {
+  const el = document.getElementById('home-welcome-title');
+  if (!el) return;
+  const ctx = getCurrentUserContext();
+  // "Prenom" reel si disponible (displayName), jamais invente - a defaut,
+  // salutation neutre plutot qu'un nom devine depuis l'e-mail.
+  const firstName = ((ctx && ctx.displayName) || '').trim().split(/\s+/)[0];
+  el.textContent = firstName ? ('Bienvenue ' + firstName + ' ! 👋') : 'Bienvenue sur Pharmeval 👋';
+}
+
+// ---------------------------------------------------------------------------
+// Tuiles de statistiques (donnees deja calculees ailleurs, jamais recalculees)
+// ---------------------------------------------------------------------------
+
+async function loadHomeStats() {
+  const gridEl = document.getElementById('home-stats-grid');
+  if (!gridEl) return;
+
+  const [evalResult, completionResult] = await Promise.all([
+    getEvaluationsForStatistics(),
+    getParcoursCompletionForUser((getCurrentUserContext() || {}).uid),
+  ]);
+
+  const overview = calculateOverview(evalResult.items);
+  const completionItems = (completionResult && !completionResult.error) ? completionResult.items : [];
+  // "En cours" = un parcours ayant deja une progression mesuree (au moins
+  // une question deja repondue correctement) mais pas encore termine -
+  // jamais "0" invente pour un parcours sans donnee (percent === null).
+  const inProgressCount = completionItems.filter(function(c) { return c.percent !== null && c.percent < 100; }).length;
+
+  const tiles = [
+    {
+      icon: '🎒', iconCls: 'stat-card-icon-blue',
+      value: String(inProgressCount), label: 'Formations en cours',
+    },
+    {
+      icon: '📊', iconCls: 'stat-card-icon-orange',
+      value: String(overview.count), label: 'Évaluations réalisées',
+    },
+    {
+      icon: '⭐', iconCls: 'stat-card-icon-green',
+      value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen',
+    },
+  ];
+
+  gridEl.innerHTML = tiles.map(function(t) {
+    return (
+      '<div class="stat-card">' +
+        '<div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
+        '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
+        '<div class="stat-card-label">' + escapeHtml(t.label) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Donut "progression globale" (masteryStatus agrege - voir mastery-donut-chart.js)
+// ---------------------------------------------------------------------------
+
+async function loadMasteryDonut() {
+  const el = document.getElementById('home-mastery-donut');
+  if (!el) return;
+  const result = await getMyCompetencyProgress();
+  const summary = summarizeMasteryStatus(result.items);
+  el.innerHTML = renderMasteryDonutHtml(summary);
+}
+
+// ---------------------------------------------------------------------------
+// Apercu des parcours attribues
+// ---------------------------------------------------------------------------
 
 async function loadHomeParcours() {
   const gridEl = document.getElementById('home-parcours-grid');

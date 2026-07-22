@@ -177,9 +177,19 @@ function revealApp(user) {
   // normal sur le bouton "Administration".
   var params = new URLSearchParams(window.location.search);
   var wantsDirectAdmin = params.get('admin') === '1' && hasPermission(PERMISSIONS.MANAGE_USERS);
+  // AJOUT (refonte visuelle, phase 1) : meme principe que "?admin=1"
+  // ci-dessus - le lien "Mes évaluations" de l'en-tete partage
+  // (js/site-header.js) pointe vers "index.html?history=1" depuis toute
+  // AUTRE page, et ce parametre declenche ici l'ouverture directe de
+  // l'historique, sans jamais charger l'accueil en dessous. Aucune
+  // permission particuliere requise (chaque utilisateur consulte
+  // uniquement son propre historique, deja garanti par history-service.js).
+  var wantsDirectHistory = params.get('history') === '1';
 
   if (wantsDirectAdmin) {
     openAdminZone();
+  } else if (wantsDirectHistory && typeof window.openHistoryView === 'function') {
+    window.openHistoryView();
   } else if (typeof window.selectProfile === 'function') {
     window.selectProfile();
   }

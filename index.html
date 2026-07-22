@@ -55,63 +55,56 @@
 
 
 
-<div class="site-header">
-  <div class="logo">Fp</div>
-  <h1>Pharmeval <span style="font-size:12px;font-weight:400;color:var(--text2);margin-left:6px;">Évaluation des connaissances officinales</span></h1>
-  <button class="btn-secondary" id="btn-history" onclick="openHistoryView()" style="padding:7px 14px;font-size:12px;margin-left:14px;">
-    <i class="ti ti-history"></i> Mes évaluations
-  </button>
-  <a class="btn-secondary" id="btn-mes-parcours" href="mes-parcours.html" style="padding:7px 14px;font-size:12px;margin-left:8px;">
-    <i class="ti ti-route"></i> Mes parcours
-  </a>
-  <a class="btn-secondary" id="btn-mes-competences" href="mes-competences.html" style="padding:7px 14px;font-size:12px;margin-left:8px;">
-    <i class="ti ti-brain"></i> Mes compétences
-  </a>
-  <a class="btn-secondary" id="btn-entrainement-libre" href="entrainement-libre.html" style="padding:7px 14px;font-size:12px;margin-left:8px;">
-    <i class="ti ti-target-arrow"></i> Entraînement libre
-  </a>
-  <button class="btn-secondary" id="btn-logout" onclick="doSignOut()" style="padding:7px 14px;font-size:12px;margin-left:8px;">
-    <i class="ti ti-logout"></i> Déconnexion
-  </button>
-  <button class="btn-secondary" id="btn-admin-zone" onclick="openAdminZone()" style="padding:7px 14px;font-size:12px;margin-left:8px;display:none;">
-    <i class="ti ti-shield-lock"></i> Administration
-  </button>
-  <span id="user-email-display"></span>
+<!-- AJOUT (refonte visuelle, phase 1) : en-tete partage a toute l'application
+     (js/site-header.js) - remplace le .site-header historique, jusque-la
+     copie nulle part ailleurs que sur cette page (voir RAPPORT
+     correspondant). renderSiteHeader() est appele par js/home.js, juste
+     apres setCurrentUserContext(). -->
+<div id="site-header-mount"></div>
+
+<div id="home-view" class="bank-page">
+
+  <!-- HOME (Sprint 21.5, Phase B2, refonte visuelle phase 1) : l'ancien
+       accueil base sur les themes/pathologies et le moteur de quiz V1 a
+       ete definitivement supprime (voir RAPPORT_PHASE_B2.md). -->
+  <div class="card" id="home-welcome-card" style="margin-bottom:var(--space-4);">
+    <h2 id="home-welcome-title" style="margin-bottom:4px;"></h2>
+    <p class="import-intro" style="margin:0;">Prêt à développer vos compétences aujourd'hui ?</p>
+  </div>
+
+  <!-- AJOUT : tuiles de statistiques REELLES (jamais de chiffre invente) -
+       voir js/home.js, loadHomeStats(). -->
+  <div class="stat-card-grid" id="home-stats-grid" style="margin-bottom:var(--space-4);"></div>
+
+  <div class="import-card-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
+    <div class="card">
+      <h3 style="margin-bottom:var(--space-3);">Votre progression globale</h3>
+      <div id="home-mastery-donut"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:var(--space-3);">🎯 Entraînement libre</h3>
+      <p class="import-intro" style="margin-bottom:var(--space-3);">
+        Composez librement une séance d'entraînement à partir du catalogue de questions
+        (source documentaire, section, difficulté, tags).
+      </p>
+      <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Commencer un entraînement libre</a>
+    </div>
+  </div>
+
+  <!-- Apercu des parcours attribues a l'utilisateur (deja construit ce soir,
+       reutilise ici tel quel - meme service que js/mes-parcours.js,
+       getAssignedParcoursForUser(), aucune logique metier ici). -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
+      <h3 style="margin:0;">Vos parcours</h3>
+      <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
+    </div>
+    <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
+    <div id="home-parcours-grid" class="mesparcours-grid"></div>
+  </div>
 </div>
 
 <div class="container">
-
-  <!-- HOME (Sprint 21.5, Phase B2) : l'ancien accueil base sur les themes/
-       pathologies et le moteur de quiz V1 a ete definitivement supprime
-       (voir RAPPORT_PHASE_B2.md). L'entree utilisateur se fait desormais
-       exclusivement par l'Entrainement libre (Phase B1, entrainement-
-       libre.html), branche sur le catalogue de questions reel (Firestore). -->
-  <div id="home-view">
-    <div class="import-card" style="max-width:640px;margin:48px auto;text-align:center;">
-      <h2 style="margin-top:0;">🎯 Bienvenue sur Pharmeval</h2>
-      <p class="import-intro">
-        Composez librement une séance d'entraînement à partir du catalogue de questions
-        (source documentaire, section, difficulté, tags), ou consultez votre historique
-        et votre progression via les liens ci-dessus.
-      </p>
-      <div class="btn-row" style="justify-content:center;margin-top:16px;">
-        <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Commencer un entraînement libre</a>
-      </div>
-    </div>
-
-    <!-- AJOUT : apercu des parcours attribues a l'utilisateur, directement
-         sur l'accueil (jusqu'ici visible uniquement via "Mes parcours" -
-         meme service que js/mes-parcours.js, getAssignedParcoursForUser(),
-         aucune logique metier ici, voir js/home.js). -->
-    <div style="max-width:960px;margin:0 auto 48px auto;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <h2 style="margin:24px 0 12px 0;">Vos parcours</h2>
-        <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
-      </div>
-      <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
-      <div id="home-parcours-grid" class="mesparcours-grid"></div>
-    </div>
-  </div>
 
   <!-- ADMINISTRATION (Sprint 3 - base minimale, Sprint 8 - Centre
        d'administration complet) : masquee par defaut, ne s'affiche que via
