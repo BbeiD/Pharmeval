@@ -133,12 +133,27 @@ service cloud.firestore {
       // utilisateur ne peut jamais modifier ces champs sur son propre
       // document, meme s'il est administrateur (voir plus bas, regle
       // separee et plus restrictive pour l'auto-modification).
+      //
+      // CORRECTIF SECURITE (audit du 22/07/2026, signalement IT) :
+      // organizationId/profileId/groupIds etaient jusqu'ici absents de
+      // cette liste de champs proteges - un utilisateur pouvait donc
+      // s'attribuer LUI-MEME n'importe quel profileId/groupIds via une
+      // ecriture Firestore directe (hors interface), et ainsi se rendre
+      // visible des attributions/parcours cibles sur ce profil/groupe
+      // (voir match /assignments/{assignmentId} ci-dessous, qui verifie
+      // precisement ces champs pour decider ce qu'un utilisateur standard
+      // peut lire). Ces trois champs restent reserves a la regle
+      // ADMINISTRATEUR dediee (Sprint 14, plus bas), jamais a l'utilisateur
+      // lui-meme, exactement comme role/status/uid/createdAt.
       allow update: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.uid == resource.data.uid
                     && request.resource.data.role == resource.data.role
                     && request.resource.data.status == resource.data.status
-                    && request.resource.data.createdAt == resource.data.createdAt;
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.profileId == resource.data.profileId
+                    && request.resource.data.groupIds == resource.data.groupIds;
 
       // --- Mise a jour par un ADMINISTRATEUR, sur le document d'un AUTRE
       // utilisateur uniquement (CORRECTIF v1.9.1 - regle resserree) ---
