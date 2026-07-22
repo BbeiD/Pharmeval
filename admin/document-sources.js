@@ -20,7 +20,7 @@ import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/a
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
 import {
-  DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES,
+  DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES, DOCUMENT_SOURCE_TYPE_DEFAULT_ICON,
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
@@ -113,18 +113,22 @@ async function loadSources() {
   listEl.innerHTML = result.items.map(sourceRowHtml).join('');
 }
 
+// AJOUT (refonte visuelle, phase 1, decision validee avec David) :
+// presentation "comme l'entrainement libre" - tuile a icone + nom
+// uniquement, la fiche complete (statut, type, compteurs...) n'apparait
+// plus qu'au clic, dans le panneau de detail en dessous (voir
+// sourceDetailHtml). Le badge de statut reste visible en surimpression
+// (coin superieur droit) - seule information conservee sur la tuile.
 function sourceRowHtml(s) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
-  const selected = s.id === state.selectedSourceId ? ' bank-row-selected' : '';
+  const selectedCls = s.id === state.selectedSourceId ? ' source-tile-selected' : '';
+  const icon = (s.display && s.display.icon) || DOCUMENT_SOURCE_TYPE_DEFAULT_ICON[s.sourceType] || '📄';
   return (
-    '<div class="bank-row' + selected + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')">' +
-      '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + escapeHtml(s.name) + '</span>' +
-        '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
-      '</div>' +
-      '<div class="bank-row-question">' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + (s.version ? ' · v' + escapeHtml(s.version) : '') + '</div>' +
-      '<div class="bank-row-meta">' + s.questionCount + ' question(s) · ' + s.sectionCount + ' section(s)</div>' +
-    '</div>'
+    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')" title="' + escapeHtml(badge.label) + '">' +
+      '<span class="source-tile-status-dot" aria-hidden="true">' + badge.emoji + '</span>' +
+      '<span class="source-tile-emoji" aria-hidden="true">' + icon + '</span>' +
+      '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
+    '</button>'
   );
 }
 

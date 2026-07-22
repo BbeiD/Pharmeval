@@ -45,6 +45,16 @@ export const DOCUMENT_SOURCE_TYPE_LABELS = Object.freeze({
   ETU: 'Enseignement',
 });
 
+// AJOUT (refonte visuelle, phase 1) : icone PAR DEFAUT d'une source (tuiles
+// entrainement libre ET admin/document-sources.js) quand aucune icone
+// personnalisee n'a ete choisie (display.icon) - centralise ICI pour
+// eviter deux tables dupliquees en train de diverger.
+export const DOCUMENT_SOURCE_TYPE_DEFAULT_ICON = Object.freeze({
+  REF: '📕',
+  PROC: '📋',
+  ETU: '🎓',
+});
+
 /** Statuts d'une source documentaire (cadrage : "draft | active | archived").
  * CORRECTIF : ajout de "deleted" - masquage non destructif distinct de
  * "archived" (une source "deleted" cascade l'archivage de ses questions

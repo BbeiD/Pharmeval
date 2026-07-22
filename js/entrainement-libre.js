@@ -24,6 +24,7 @@ import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
 } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
+import { DOCUMENT_SOURCE_TYPE_DEFAULT_ICON } from "./services/document-source-metadata-service.js";
 
 function qs(id) { return document.getElementById(id); }
 function escapeHtml(s) {
@@ -48,11 +49,6 @@ function showMessage(status, message) {
 // validee avec David) - remplace l'ancien <select> a choix unique.
 let state = { pool: null, replacingSessionId: null, sources: [], selectedSourceIds: new Set() };
 
-// Icone par type de source (DOCUMENT_SOURCE_TYPE_LABELS, document-source-
-// metadata-service.js) - aucun systeme d'icone par source individuelle
-// n'existe dans le modele de donnees, ce regroupement par type reste donc
-// une donnee reelle, jamais inventee par source.
-const SOURCE_TYPE_ICON = { REF: '📕', PROC: '📋', ETU: '🎓' };
 
 // ---------------------------------------------------------------------------
 // Authentification (meme principe que js/mes-parcours.js : aucune
@@ -142,15 +138,15 @@ async function populateSources() {
 function renderSourceIcons() {
   const container = qs('etl-source-icons');
   container.innerHTML = state.sources.map(function(s) {
-    const selectedCls = state.selectedSourceIds.has(s.id) ? ' etl-source-icon-selected' : '';
+    const selectedCls = state.selectedSourceIds.has(s.id) ? ' source-tile-selected' : '';
     // Icone personnalisee par l'administration (display.icon, voir
     // admin/document-sources.js#saveSourceIcon) si renseignee, sinon repli
     // sur l'icone par type de source.
-    const icon = (s.display && s.display.icon) || SOURCE_TYPE_ICON[s.sourceType] || '📄';
+    const icon = (s.display && s.display.icon) || DOCUMENT_SOURCE_TYPE_DEFAULT_ICON[s.sourceType] || '📄';
     return (
-      '<button type="button" class="etl-source-icon' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
-        '<span class="etl-source-icon-emoji" aria-hidden="true">' + icon + '</span>' +
-        '<span class="etl-source-icon-name">' + escapeHtml(s.name) + '</span>' +
+      '<button type="button" class="source-tile' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
+        '<span class="source-tile-emoji" aria-hidden="true">' + icon + '</span>' +
+        '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
       '</button>'
     );
   }).join('');

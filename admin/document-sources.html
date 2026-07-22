@@ -61,16 +61,15 @@
       <button class="btn-primary" onclick="requestBulkActivateSources()">✅ Activer toutes les sources en brouillon</button>
     </div>
 
-    <div class="bank-columns">
-      <div class="bank-list-column">
-        <div id="ds-list-empty" class="bank-list-empty" style="display:none;"></div>
-        <div id="ds-list" class="bank-list"></div>
-      </div>
-      <div class="bank-detail-column">
-        <div id="ds-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour afficher sa fiche et son arborescence de sections.</div>
-        <div id="ds-detail" class="bank-detail" style="display:none;"></div>
-      </div>
-    </div>
+    <!-- AJOUT (refonte visuelle, phase 1, decision validee avec David) :
+         presentation "comme l'entrainement libre" - tuiles a icones (juste
+         le nom en dessous), la fiche complete apparait EN DESSOUS de la
+         grille au clic, jamais dans une colonne separee. -->
+    <div id="ds-list-empty" class="bank-list-empty" style="display:none;"></div>
+    <div id="ds-list" class="source-tile-grid" style="margin-bottom:var(--space-4);"></div>
+
+    <div id="ds-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour afficher sa fiche et son arborescence de sections.</div>
+    <div id="ds-detail" class="bank-detail" style="display:none;"></div>
 
   </div>
 </div>
