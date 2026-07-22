@@ -10,6 +10,13 @@
 //
 // ⚠️ CE FICHIER DOIT ETRE (RE)PUBLIE MANUELLEMENT s'il n'est pas deja a
 // jour en production, en particulier pour les corrections/ajouts suivants :
+//   - CORRECTIF URGENT (22/07/2026, PRIORITAIRE) : la version deployee le
+//     22/07/2026 (correctif organizationId/profileId/groupIds ci-dessous)
+//     bloquait la connexion de TOUT compte cree avant le Sprint 14 (erreur
+//     d'evaluation sur un champ absent, voir la regle "Mise a jour par le
+//     PROPRIETAIRE" - match /users/{userId}). Ce fichier corrige ce bug
+//     (acces via .get(champ, null) plutot qu'un acces direct) - A REPUBLIER
+//     IMMEDIATEMENT pour retablir l'acces a l'application.
 //   - Sprint 8 puis resserree au correctif v1.9.1 : mise a jour
 //     administrative de users/{userId} strictement limitee aux champs
 //     role/status (voir RAPPORT_CORRECTIF_1.9.1.md).
@@ -145,15 +152,29 @@ service cloud.firestore {
       // peut lire). Ces trois champs restent reserves a la regle
       // ADMINISTRATEUR dediee (Sprint 14, plus bas), jamais a l'utilisateur
       // lui-meme, exactement comme role/status/uid/createdAt.
+      // CORRECTIF URGENT (22/07/2026, casse constatee en production juste
+      // apres le deploiement du correctif de securite ci-dessus) : un acces
+      // direct par point (`resource.data.organizationId`) leve une ERREUR
+      // D'EVALUATION - traitee comme un refus - si le champ n'existe pas du
+      // tout sur le document, plutot que de renvoyer `null`. Ces trois
+      // champs n'existent que depuis le Sprint 14 (voir
+      // completeUserBusinessFields(), user-profile-metadata-service.js) et
+      // ne sont JAMAIS retro-remplis sur les comptes crees avant - `.get(...,
+      // null)` (au lieu d'un acces direct) resout ce cas en renvoyant `null`
+      // pour un champ absent, des deux cotes de la comparaison, exactement
+      // comme le fait deja `get()` au niveau document (isRequesterAdmin())
+      // plus haut dans ce fichier. Sans ce correctif, TOUT compte cree avant
+      // le Sprint 14 perdait purement et simplement l'acces a Pharmeval a
+      // chaque connexion (ensureUserDocument() echouant systematiquement).
       allow update: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.uid == resource.data.uid
                     && request.resource.data.role == resource.data.role
                     && request.resource.data.status == resource.data.status
                     && request.resource.data.createdAt == resource.data.createdAt
-                    && request.resource.data.organizationId == resource.data.organizationId
-                    && request.resource.data.profileId == resource.data.profileId
-                    && request.resource.data.groupIds == resource.data.groupIds;
+                    && request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                    && request.resource.data.get('profileId', null) == resource.data.get('profileId', null)
+                    && request.resource.data.get('groupIds', null) == resource.data.get('groupIds', null);
 
       // --- Mise a jour par un ADMINISTRATEUR, sur le document d'un AUTRE
       // utilisateur uniquement (CORRECTIF v1.9.1 - regle resserree) ---
