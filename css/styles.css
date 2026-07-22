@@ -12,7 +12,6 @@
     --green-light: #E1F5EE;
     --red-light: #FCEBEB;
     --red: #E24B4A;
-    --bg: #f8f7f4;
     --surface: #ffffff;
     --surface2: #f1efe8;
     --border: rgba(0,0,0,0.09);
@@ -43,11 +42,30 @@
     --space-3: 16px;
     --space-4: 24px;
     --space-5: 32px;
+
+    /* AJOUT (refonte visuelle, phase 2 - "trop blanc", retour direct de
+       David apres la phase 1) : la phase 1 posait la structure (en-tete
+       partage, cartes, icones) mais laissait --bg quasi identique a
+       --surface (#f8f7f4 contre #ffffff, ~2% d'ecart) et aucune ombre
+       nulle part - resultat, tout se confondait en une seule surface
+       blanche plate. --bg vire desormais nettement plus creme/sable pour
+       que les cartes blanches "flottent" visiblement au-dessus, et une
+       echelle d'ombres coherente (--shadow-xs a --shadow-lg) est
+       appliquee plus bas a toutes les cartes existantes - jamais une
+       nouvelle couleur de marque, uniquement de la profondeur. */
+    --bg: #F1EDE3;
+    --shadow-xs: 0 1px 2px rgba(26,26,24,.05);
+    --shadow-sm: 0 2px 8px rgba(26,26,24,.07), 0 1px 2px rgba(26,26,24,.05);
+    --shadow-md: 0 10px 28px rgba(26,26,24,.11), 0 2px 6px rgba(26,26,24,.06);
+    --shadow-lg: 0 20px 48px rgba(26,26,24,.18);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
+    /* Dégradé tres subtil (pas une nouvelle couleur, juste une variation
+       de luminosite de --bg lui-meme) - casse la platitude d'un aplat
+       unique sans jamais nuire a la lisibilite. */
+    background: linear-gradient(180deg, #F8F5EC 0%, var(--bg) 420px, var(--bg) 100%);
     color: var(--text);
     min-height: 100vh;
   }
@@ -386,9 +404,10 @@
     border: none; border-radius: var(--radius);
     padding: 11px 22px; font-size: 15px; font-weight: 600;
     cursor: pointer; display:inline-flex; align-items:center; gap:7px;
-    transition: background .15s;
+    transition: background .15s, box-shadow .15s, transform .15s;
   }
-  .btn-primary:hover { background: var(--green-dark); }
+  .btn-primary:hover { background: var(--green-dark); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); box-shadow: none; }
   .btn-secondary {
     background: var(--surface); color: var(--text);
     border: 1.5px solid var(--border2);
@@ -397,7 +416,7 @@
     cursor: pointer; display:inline-flex; align-items:center; gap:7px;
     transition: all .15s;
   }
-  .btn-secondary:hover { border-color: var(--green); color: var(--green); }
+  .btn-secondary:hover { border-color: var(--green); color: var(--green); box-shadow: var(--shadow-xs); }
 
   /* QUIZ VIEW */
   .quiz-panel { }
@@ -1768,4 +1787,83 @@
   @media (max-width: 600px) {
     .mc-radar-card { flex-direction: column; text-align: center; }
   }
-  
+
+  /* =========================================================================
+     REFONTE VISUELLE — PHASE 2 (profondeur/richesse, retour direct de David :
+     "le style est un peu trop blanc")
+     =========================================================================
+     La phase 1 avait pose la structure (en-tete partage, cartes, icones) mais
+     laissait --bg quasi identique a --surface et aucune carte n'avait
+     d'ombre - tout se lisait comme une seule surface blanche plate. Ce bloc
+     est deliberement ADDITIF et regroupe ELEVATION UNIQUEMENT (box-shadow,
+     transition, quelques cercles de fond pour les icones d'etat vide) sur
+     des selecteurs DEJA existants plus haut dans ce fichier - jamais de
+     nouvelle couleur de marque, jamais de restructuration HTML/JS. Pense a
+     ajouter le/les selecteur(s) d'une future nouvelle carte a la liste
+     correspondante ci-dessous plutot que d'inventer une ombre ad hoc au cas
+     par cas. */
+
+  /* --- Cartes d'INFORMATION statiques (jamais cliquables elles-memes) :
+     une seule ombre de repos, jamais de survol. --- */
+  .card,
+  .stat-card,
+  .theme-group,
+  .question-card,
+  .stats-loading, .stats-error, .stats-empty, .stats-card, .stats-trend, .stats-space-card,
+  .reco-loading, .reco-error, .reco-empty, .reco-card,
+  .import-card,
+  .bank-list-loading, .bank-list-empty, .bank-detail-placeholder, .bank-detail-card,
+  .mesparcours-card,
+  .pv-header-card, .pv-stat-card, .pv-competency-card, .pv-evaluation-row,
+  .ev-question-card,
+  .er-score-card, .er-question-card,
+  .mc-radar-card,
+  .history-card, .history-detail-summary, .history-question-row,
+  .mpc-parcours-card,
+  .parcours-competency-card {
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow .2s ease, transform .2s ease;
+  }
+
+  /* --- Cartes/tuiles reellement CLIQUABLES : meme ombre de repos, plus
+     nette et legerement soulevee au survol - reprend et enrichit les regles
+     :hover deja existantes plus haut (border-color, background), n'entre en
+     conflit avec aucune d'entre elles (proprietes disjointes). --- */
+  .cat-card, .source-tile, .theme-tab, .admin-modal-close,
+  .bank-row, .admin-user-row {
+    box-shadow: var(--shadow-xs);
+    transition: box-shadow .2s ease, transform .2s ease, border-color .15s, background-color .15s;
+  }
+  .cat-card:hover, .source-tile:hover, .theme-tab:hover {
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+
+  /* --- Superpositions (modales) : ombre nettement plus marquee, coherente
+     avec leur plan au-dessus de tout le reste de l'interface. --- */
+  .admin-modal { box-shadow: var(--shadow-lg); }
+
+  /* --- En-tete partage : une ombre tres legere remplace/complete le simple
+     trait actuel, pour que le contenu se lise comme "sous" l'en-tete plutot
+     que juste "apres" lui. --- */
+  .site-header { box-shadow: 0 1px 0 var(--border), var(--shadow-xs); }
+
+  /* --- Etats vides : l'icone (deja une icone du pack, voir js/icons.js)
+     flottait seule sur fond blanc - un cercle de couleur douce derriere lui
+     donne un point focal, meme principe que .stat-card-icon-* plus haut. --- */
+  .mastery-donut-empty-icon, .history-empty-icon, .reco-empty-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 56px; height: 56px; margin: 0 auto 10px;
+    border-radius: 50%; background: var(--green-light); color: var(--green-dark);
+  }
+  .reco-empty-compact .reco-empty-icon { width: 44px; height: 44px; margin-bottom: 8px; }
+
+  /* --- Etats de focus clavier coherents (accessibilite + finition visuelle)
+     sur tous les elements interactifs generiques - certains ecrans en
+     avaient deja un bespoke (ev-option), la plupart n'en avaient aucun. --- */
+  .btn-primary:focus-visible, .btn-secondary:focus-visible,
+  .bank-select:focus-visible, .history-search-input:focus-visible,
+  .admin-users-search-input:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+  }
