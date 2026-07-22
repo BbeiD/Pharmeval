@@ -5,13 +5,15 @@
 // js/services/assignment-service.js, getAssignedParcoursForUser(), et
 // firestore.rules pour la garantie reelle cote serveur).
 //
-// AJOUT (refonte visuelle, phase 1) : "Mes formations" est un renommage/
-// reorganisation de cet ecran (decision validee avec David) - MEME
-// donnee que "Mes parcours" precedemment, desormais complete par la
-// progression REELLE (parcours-completion-service.js, deja utilisee sur
-// "Mes évaluations") et repartie en onglets par statut. Aucune nouvelle
-// notion de donnee, seulement un affichage plus riche de ce qui existait
-// deja.
+// CORRECTIF (demande directe de David, 22/07/2026) : cet ecran affichait
+// jusqu'ici un % de questions repondues correctement (parcours-completion-
+// service.js, metrique gardee INCHANGEE sur "Mes évaluations") - jugee peu
+// lisible ici ("je viens de terminer le parcours, pourquoi 0%/44% ?").
+// Remplacee par une metrique "par tentative" bien plus simple : nombre de
+// fois ou une evaluation de ce parcours a ete SOUMISE (getParcoursAttemptSummaryForUser(),
+// evaluation-result-service.js) + meilleur score obtenu - plus une session
+// EN COURS (non terminee) detectee separement (getActiveSession(),
+// evaluation-session-service.js) pour l'onglet "En cours".
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -19,7 +21,8 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
-import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
+import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
+import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon } from "./icons.js";
 
@@ -37,12 +40,11 @@ function showMessage(status, message) {
   el.style.display = 'block';
 }
 
-// TABS : classification DERIVEE du pourcentage reel deja calcule par
-// parcours-completion-service.js (jamais une nouvelle donnee) -
-// percent === 0 -> "a-commencer" (aucune question repondue correctement
-// pour l'instant), 0 < percent < 100 -> "en-cours", percent === 100 ->
-// "terminees". percent === null (parcours sans aucune question jouable,
-// cas limite) est traite comme "a-commencer".
+// TABS : classification DERIVEE de deux donnees deja calculees ailleurs
+// (jamais une nouvelle notion) - une session EN COURS (non soumise)
+// l'emporte toujours sur un decompte de tentatives passees (si on a
+// recommence, c'est "en cours" avant tout, meme avec des tentatives
+// anterieures) ; sinon, 0 tentative -> "a-commencer", au moins 1 -> "terminees".
 const TABS = [
   { key: 'toutes', label: 'Toutes' },
   { key: 'en-cours', label: 'En cours' },
@@ -50,7 +52,7 @@ const TABS = [
   { key: 'terminees', label: 'Terminées' },
 ];
 
-let state = { entries: [], completionByParcoursId: new Map(), activeTab: 'toutes' };
+let state = { entries: [], attemptsByParcoursId: new Map(), activeSessionByParcoursId: new Map(), activeTab: 'toutes' };
 
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = document.getElementById('mesparcours-loading');
@@ -93,10 +95,10 @@ export function selectMesFormationsTab(key) {
 }
 window.selectMesFormationsTab = selectMesFormationsTab;
 
-function statusForPercent(percent) {
-  if (percent === null || percent === 0) return 'a-commencer';
-  if (percent === 100) return 'terminees';
-  return 'en-cours';
+function statusForEntry(parcoursId) {
+  if (state.activeSessionByParcoursId.get(parcoursId)) return 'en-cours';
+  const attempts = state.attemptsByParcoursId.get(parcoursId);
+  return (attempts && attempts.attemptsCount > 0) ? 'terminees' : 'a-commencer';
 }
 
 async function loadMyParcours() {
@@ -106,9 +108,9 @@ async function loadMyParcours() {
   gridEl.innerHTML = '<div class="bank-list-loading">Chargement de vos parcours…</div>';
   emptyEl.style.display = 'none';
 
-  const [assignedResult, completionResult] = await Promise.all([
+  const [assignedResult, attemptResult] = await Promise.all([
     getAssignedParcoursForUser(ctx && ctx.uid),
-    getParcoursCompletionForUser(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
   ]);
 
   if (assignedResult.error) {
@@ -124,14 +126,19 @@ async function loadMyParcours() {
   }
 
   // Lecture de progression INDEPENDANTE (meme principe que js/history.js) :
-  // une erreur ici masque simplement la barre de progression (0 partout,
-  // jamais affiche comme une erreur bloquante), la liste reste consultable.
-  state.completionByParcoursId = new Map();
-  if (!completionResult.error) {
-    completionResult.items.forEach(function(c) { state.completionByParcoursId.set(c.parcoursId, c); });
-  }
+  // une erreur ici masque simplement les statistiques de tentatives (jamais
+  // affiche comme une erreur bloquante), la liste reste consultable.
+  state.attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
 
+  // Session EN COURS par parcours - un appel PARALLELE par parcours attribue
+  // (liste toujours modeste, meme volumetrie que le reste de cet ecran).
   state.entries = assignedResult.items;
+  state.activeSessionByParcoursId = new Map();
+  await Promise.all(state.entries.map(async function(entry) {
+    const active = await getActiveSession(entry.parcours.id, null).catch(function() { return null; });
+    if (active) state.activeSessionByParcoursId.set(entry.parcours.id, active);
+  }));
+
   renderGrid();
 }
 
@@ -141,9 +148,7 @@ function renderGrid() {
 
   const filtered = state.entries.filter(function(entry) {
     if (state.activeTab === 'toutes') return true;
-    const completion = state.completionByParcoursId.get(entry.parcours.id);
-    const percent = completion ? completion.percent : null;
-    return statusForPercent(percent) === state.activeTab;
+    return statusForEntry(entry.parcours.id) === state.activeTab;
   });
 
   if (filtered.length === 0) {
@@ -156,11 +161,22 @@ function renderGrid() {
   }
   emptyEl.style.display = 'none';
   gridEl.innerHTML = filtered.map(function(entry) {
-    return cardHtml(entry, state.completionByParcoursId.get(entry.parcours.id));
+    return cardHtml(entry, state.attemptsByParcoursId.get(entry.parcours.id), !!state.activeSessionByParcoursId.get(entry.parcours.id));
   }).join('');
 }
 
-function cardHtml(entry, completion) {
+function attemptsLineHtml(attempts, hasActiveSession) {
+  const n = attempts ? attempts.attemptsCount : 0;
+  if (hasActiveSession) {
+    return n > 0
+      ? 'Évaluation en cours · déjà terminé ' + n + ' fois (meilleur score ' + attempts.bestPercent + ' %)'
+      : 'Évaluation en cours';
+  }
+  if (n === 0) return 'Pas encore commencé';
+  return 'Terminé ' + n + ' fois · Meilleur score : ' + attempts.bestPercent + ' %';
+}
+
+function cardHtml(entry, attempts, hasActiveSession) {
   const p = entry.parcours;
   const hex = p.color ? resolveParcoursColorHex(p.color) : null;
   const stripe = hex ? 'background:' + escapeHtml(hex) + ';' : '';
@@ -168,19 +184,6 @@ function cardHtml(entry, completion) {
     ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
   const dueBadge = entry.assignment && entry.assignment.dueDate
     ? '<span class="bank-chip">Échéance : ' + escapeHtml(entry.assignment.dueDate) + '</span>' : '';
-
-  // Barre de progression REELLE (parcours-completion-service.js, deja
-  // utilisee sur "Mes évaluations") - jusqu'ici jamais affichee sur cette
-  // page. `percent === null` (parcours sans aucune question jouable) ->
-  // pas de barre, jamais "0%" trompeur.
-  const percent = completion ? completion.percent : null;
-  const progressHtml = percent !== null
-    ? (
-      '<div class="mesparcours-progress">' +
-        '<div class="mesparcours-progress-track"><div class="mesparcours-progress-fill" style="width:' + percent + '%;"></div></div>' +
-        '<span class="mesparcours-progress-label">' + percent + '%</span>' +
-      '</div>'
-    ) : '';
 
   return (
     '<div class="mesparcours-card">' +
@@ -191,7 +194,7 @@ function cardHtml(entry, completion) {
         '<div class="bank-detail-tags-row">' +
           '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + mandatoryBadge + dueBadge +
         '</div>' +
-        progressHtml +
+        '<p class="mesparcours-attempts">' + escapeHtml(attemptsLineHtml(attempts, hasActiveSession)) + '</p>' +
         '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +
       '</div>' +
     '</div>'

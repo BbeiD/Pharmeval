@@ -167,6 +167,48 @@ export async function reconcileProgressForUser(uid) {
 }
 
 /**
+ * AJOUT (demande directe de David, 22/07/2026) : "Mes parcours" et la
+ * fiche d'un parcours ne doivent plus afficher un % de questions
+ * répondues correctement (métrique déjà utilisée par "Mes évaluations",
+ * voir parcours-completion-service.js - INCHANGÉE, ce n'est pas ce qui
+ * est corrigé ici) mais le nombre de fois où le parcours a été TERMINÉ
+ * (une évaluation soumise), avec le meilleur score obtenu, et un
+ * historique complet des tentatives - métrique "par tentative", pas "par
+ * question". Regroupe TOUS les résultats déjà enregistrés (un seul appel
+ * getAllResultsForUser(), jamais un par parcours) par `parcoursId`.
+ * @param {string} uid
+ * @returns {Promise<{error:boolean, byParcoursId:Map<string,{attemptsCount:number, bestPercent:number, lastAttemptAt:string, attempts:Array<object>}>}>}
+ */
+export async function getParcoursAttemptSummaryForUser(uid) {
+  if (!uid) return { error: false, byParcoursId: new Map() };
+  const { items, error } = await getAllResultsForUser(uid);
+  if (error) return { error: true, byParcoursId: new Map() };
+
+  const grouped = new Map();
+  items.forEach(function(r) {
+    if (!r.parcoursId) return; // entrainement libre sans parcours - hors perimetre de cette metrique
+    if (!grouped.has(r.parcoursId)) grouped.set(r.parcoursId, []);
+    grouped.get(r.parcoursId).push(r);
+  });
+
+  const byParcoursId = new Map();
+  grouped.forEach(function(results, parcoursId) {
+    const sorted = results.slice().sort(function(a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+    const bestPercent = results.reduce(function(max, r) { return Math.max(max, r.score.percent); }, 0);
+    byParcoursId.set(parcoursId, {
+      attemptsCount: results.length,
+      bestPercent: bestPercent,
+      lastAttemptAt: sorted[0].createdAt,
+      attempts: sorted.map(function(r) {
+        return { resultId: r.id, date: r.createdAt, percent: r.score.percent, correctCount: r.score.correctCount, totalCount: r.score.totalCount };
+      }),
+    });
+  });
+
+  return { error: false, byParcoursId: byParcoursId };
+}
+
+/**
  * Relit, pour chaque question d'un résultat, l'explication pédagogique
  * ACTUELLE si elle existe encore dans la Banque de questions - "Si une
  * explication existe dans la banque de questions : l'afficher. Sinon : ne

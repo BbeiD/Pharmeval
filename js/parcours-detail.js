@@ -15,6 +15,7 @@ import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext }
 import { getParcoursDetailForUser } from "./services/parcours-view-service.js";
 import { formatDateFr } from "./services/date-utils.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { icon } from "./icons.js";
 
 const LEVEL_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
@@ -68,6 +69,15 @@ async function loadParcours() {
   deniedEl.style.display = 'none';
   viewEl.style.display = 'block';
   render(result.view);
+
+  // AJOUT (demande directe de David, 22/07/2026) : historique des
+  // tentatives - lecture INDEPENDANTE du reste de cette page (une erreur
+  // ici n'empeche jamais l'affichage du parcours lui-meme, meme principe
+  // que js/mes-parcours.js). Toujours "aucune ecriture Firestore" (voir
+  // en-tete de fichier) : purement une lecture supplementaire.
+  const attemptResult = await getParcoursAttemptSummaryForUser(ctx && ctx.uid);
+  const attempts = (!attemptResult.error && attemptResult.byParcoursId.get(parcoursId)) || null;
+  renderHistory(attempts);
 }
 
 function render(view) {
@@ -140,6 +150,33 @@ function renderEvaluations(view) {
       '<span class="pv-evaluation-name">Ce parcours (' + view.stats.questionCount + ' question(s))</span>' +
       '<button class="btn-primary" onclick="startParcoursEvaluation()">Commencer</button>' +
     '</div>';
+}
+
+// AJOUT (demande directe de David, 22/07/2026) : historique de toutes les
+// tentatives DEJA SOUMISES de ce parcours - date + score, la plus recente
+// en premier (deja triee par getParcoursAttemptSummaryForUser()). Chaque
+// ligne renvoie vers la page de resultat deja existante (evaluation-
+// result.html), jamais un nouvel affichage de detail duplique ici.
+function renderHistory(attempts) {
+  const listEl = document.getElementById('pv-history');
+  const emptyEl = document.getElementById('pv-history-empty');
+  if (!listEl || !emptyEl) return;
+
+  if (!attempts || attempts.attemptsCount === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  listEl.innerHTML = attempts.attempts.map(function(a) {
+    return (
+      '<a class="pv-evaluation-row" href="evaluation-result.html?resultId=' + encodeURIComponent(a.resultId) + '" style="text-decoration:none;color:inherit;">' +
+        '<span class="pv-evaluation-name">' + escapeHtml(formatDateFr(a.date)) + '</span>' +
+        '<span class="bank-chip">' + a.correctCount + ' / ' + a.totalCount + ' · ' + a.percent + ' %</span>' +
+      '</a>'
+    );
+  }).join('');
 }
 
 // SPRINT17 : ouvre désormais réellement l'évaluation (evaluation.html), qui
