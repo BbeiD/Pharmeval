@@ -199,8 +199,21 @@ async function onComposeClick() {
   }
 
   state.pool = result.items;
-  qs('etl-preview-text').textContent = result.items.length + ' question(s) correspondent à cette sélection.';
+  updatePreviewText();
   qs('etl-preview-card').style.display = 'block';
+}
+
+// AJOUT : rend explicite AVANT le lancement que seul un tirage aleatoire
+// de "Nombre de questions souhaite" sera reellement utilise - le pool
+// compose ci-dessus represente le TOTAL correspondant aux filtres, jamais
+// ce qui sera reellement joue (source de confusion constatee : sans ce
+// texte, rien ne distinguait visuellement les deux avant le lancement).
+function updatePreviewText() {
+  const total = state.pool.length;
+  const desiredCount = parseInt(qs('etl-count').value, 10) || 1;
+  const actualCount = Math.min(desiredCount, total);
+  qs('etl-preview-text').textContent = total + ' question(s) correspondent à cette sélection — ' +
+    actualCount + ' seront tirée(s) au hasard pour cet entraînement.';
 }
 
 // ---------------------------------------------------------------------------
@@ -238,4 +251,9 @@ function wireEvents() {
   qs('etl-source').addEventListener('change', onSourceChange);
   qs('etl-compose-btn').addEventListener('click', onComposeClick);
   qs('etl-launch-btn').addEventListener('click', onLaunchClick);
+  // Si le pool est deja compose, un changement du nombre souhaite met a
+  // jour l'apercu immediatement, sans devoir recomposer le pool.
+  qs('etl-count').addEventListener('input', function() {
+    if (state.pool) updatePreviewText();
+  });
 }
