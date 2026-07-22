@@ -300,6 +300,8 @@
   }
   .explanation.show { display: block; }
   .explanation strong { color: var(--green-dark); }
+  .explanation.explanation-incorrect { background: var(--red-light); border-left-color: var(--red); }
+  .explanation.explanation-incorrect strong { color: var(--red); }
   .explanation .point-pratique {
     display: block;
     margin-top: 10px;

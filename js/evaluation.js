@@ -355,8 +355,9 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
   // disparaitre completement ce retour.
   const explanationEl = qs('ev-explanation');
   const verdict = '<strong>' + (correction.isCorrect ? '✓ Bonne réponse' : '✗ Incorrect') + '</strong>';
+  const explanationClass = 'explanation show' + (correction.isCorrect ? '' : ' explanation-incorrect');
   explanationEl.innerHTML = verdict;
-  explanationEl.className = 'explanation show';
+  explanationEl.className = explanationClass;
 
   let text = explanationCache.get(pedagogicalId);
   if (text === undefined) {
