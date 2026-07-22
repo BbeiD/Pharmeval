@@ -24,17 +24,34 @@ function escapeHtml(str) {
 
 /**
  * @param {{total:number, counts:Object<string,number>, percentages:Object<string,number>}} summary
- *   voir summarizeMasteryStatus() (competency-progress-service.js)
+ *   voir summarizeMasteryStatus() (competency-progress-service.js) ou
+ *   summarizeQuestionMastery() (question-progress-logic.js)
+ * @param {{statusOrder?:Array<string>, statusColor?:Object<string,string>,
+ *   statusLabels?:Object<string,string>, centerLabel?:string, ariaLabel?:string,
+ *   emptyTitle?:string, emptySubtitle?:string}} [options] - AJOUT (demande
+ *   directe de David, 22/07/2026) : ce composant etait cable EN DUR sur les
+ *   3 statuts de competence - reutilise desormais tel quel pour la
+ *   "progression globale" par QUESTION (accueil, voir js/home.js), qui n'a
+ *   que 2 statuts et un libelle different. AUCUN changement de comportement
+ *   pour un appelant existant qui n'en passe pas (mes-competences.js) - les
+ *   valeurs par defaut ci-dessous restent EXACTEMENT celles d'avant.
  * @returns {string} HTML complet (donut SVG + legende), ou un etat vide
  *   explicite si `summary.total === 0` - jamais un donut a 0% trompeur.
  */
-export function renderMasteryDonutHtml(summary) {
+export function renderMasteryDonutHtml(summary, options) {
+  const opts = options || {};
+  const statusOrder = opts.statusOrder || STATUS_ORDER;
+  const statusColor = opts.statusColor || STATUS_COLOR;
+  const statusLabels = opts.statusLabels || COMPETENCY_STATUS_LABELS;
+  const centerLabel = opts.centerLabel || 'Maîtrisées';
+  const ariaLabel = opts.ariaLabel || 'Répartition de vos compétences par niveau de maîtrise';
+
   if (!summary || summary.total === 0) {
     return (
       '<div class="mastery-donut-empty">' +
         '<div class="mastery-donut-empty-icon">' + icon('highlight-star-premium', { size: 32 }) + '</div>' +
-        '<p class="mastery-donut-empty-title">Aucune compétence évaluée pour le moment</p>' +
-        '<p class="pv-list-empty">Vos compétences apparaîtront ici dès votre première évaluation terminée.</p>' +
+        '<p class="mastery-donut-empty-title">' + escapeHtml(opts.emptyTitle || 'Aucune compétence évaluée pour le moment') + '</p>' +
+        '<p class="pv-list-empty">' + escapeHtml(opts.emptySubtitle || 'Vos compétences apparaîtront ici dès votre première évaluation terminée.') + '</p>' +
       '</div>'
     );
   }
@@ -42,23 +59,23 @@ export function renderMasteryDonutHtml(summary) {
   const size = 160, stroke = 18, radius = (size - stroke) / 2, center = size / 2;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
-  const arcs = STATUS_ORDER.map(function(status) {
+  const arcs = statusOrder.map(function(status) {
     const pct = summary.percentages[status] || 0;
     const arcLength = (pct / 100) * circumference;
-    const circle = '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="' + STATUS_COLOR[status] + '" stroke-width="' + stroke +
+    const circle = '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="' + statusColor[status] + '" stroke-width="' + stroke +
       '" stroke-dasharray="' + arcLength.toFixed(1) + ' ' + (circumference - arcLength).toFixed(1) +
       '" stroke-dashoffset="' + (-offset).toFixed(1) + '" transform="rotate(-90 ' + center + ' ' + center + ')"></circle>';
     offset += arcLength;
     return circle;
   }).join('');
 
-  const dominant = summary.percentages.mastered || 0;
+  const dominant = summary.percentages[statusOrder[0]] || 0;
 
-  const legend = STATUS_ORDER.map(function(status) {
+  const legend = statusOrder.map(function(status) {
     return (
       '<div class="mastery-donut-legend-row">' +
-        '<span class="mastery-donut-dot" style="background:' + STATUS_COLOR[status] + ';"></span>' +
-        '<span class="mastery-donut-legend-label">' + escapeHtml(COMPETENCY_STATUS_LABELS[status]) + '</span>' +
+        '<span class="mastery-donut-dot" style="background:' + statusColor[status] + ';"></span>' +
+        '<span class="mastery-donut-legend-label">' + escapeHtml(statusLabels[status]) + '</span>' +
         '<span class="mastery-donut-legend-value">' + summary.percentages[status] + '&nbsp;% (' + summary.counts[status] + ')</span>' +
       '</div>'
     );
@@ -66,11 +83,11 @@ export function renderMasteryDonutHtml(summary) {
 
   return (
     '<div class="mastery-donut-widget">' +
-      '<svg viewBox="0 0 ' + size + ' ' + size + '" width="160" height="160" role="img" aria-label="Répartition de vos compétences par niveau de maîtrise">' +
+      '<svg viewBox="0 0 ' + size + ' ' + size + '" width="160" height="160" role="img" aria-label="' + escapeHtml(ariaLabel) + '">' +
         '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="var(--border)" stroke-width="' + stroke + '"></circle>' +
         arcs +
         '<text x="' + center + '" y="' + (center - 2) + '" text-anchor="middle" font-size="26" font-weight="700" fill="var(--text)">' + dominant + '%</text>' +
-        '<text x="' + center + '" y="' + (center + 16) + '" text-anchor="middle" font-size="11" fill="var(--text2)">Maîtrisées</text>' +
+        '<text x="' + center + '" y="' + (center + 16) + '" text-anchor="middle" font-size="11" fill="var(--text2)">' + escapeHtml(centerLabel) + '</text>' +
       '</svg>' +
       '<div class="mastery-donut-legend">' + legend + '</div>' +
     '</div>'

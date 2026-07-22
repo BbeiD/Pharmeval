@@ -45,3 +45,38 @@ export function classifyCandidatesByProgress(candidatePedagogicalIds, progressMa
   });
   return { neverSeen: neverSeen, neverSucceeded: neverSucceeded, seen: seen };
 }
+
+/**
+ * AJOUT (demande directe de David, 22/07/2026) : "progression globale" par
+ * QUESTION plutôt que par compétence - remplace le donut mastered/
+ * to_reinforce/not_acquired (competency-progress-service.js), qui ne se
+ * remplit plus jamais depuis que plus aucun flux d'évaluation ne renseigne
+ * `competencyId` (parcours mixte, entraînement libre, "Test me", défi du
+ * jour - tous `competencyId: null`, voir evaluation-session-metadata-
+ * service.js). Même forme de retour QUE summarizeMasteryStatus()
+ * (competency-progress-service.js) - {total, counts, percentages} - pour
+ * rester compatible avec le composant de rendu partagé (mastery-donut-
+ * chart.js), simplement DEUX statuts au lieu de trois : une question
+ * jamais vue n'a tout simplement pas de document ici, elle n'existe pas
+ * dans ce calcul (ce n'est pas "à charge" de ce widget de connaître la
+ * taille du catalogue global).
+ *
+ * @param {Array<object>} progressDocs - voir getAllQuestionProgressForUser()
+ * @returns {{total:number, counts:{mastered:number,to_reinforce:number}, percentages:{mastered:number,to_reinforce:number}}}
+ */
+export function summarizeQuestionMastery(progressDocs) {
+  let mastered = 0;
+  let toReinforce = 0;
+  (progressDocs || []).forEach(function(p) {
+    if ((p.timesSeen || 0) === 0) return; // document orphelin/incoherent - jamais compte
+    if ((p.timesCorrect || 0) > 0) mastered += 1;
+    else toReinforce += 1;
+  });
+  const total = mastered + toReinforce;
+  const pct = function(n) { return total > 0 ? Math.round((n / total) * 100) : 0; };
+  return {
+    total: total,
+    counts: { mastered: mastered, to_reinforce: toReinforce },
+    percentages: { mastered: pct(mastered), to_reinforce: pct(toReinforce) },
+  };
+}

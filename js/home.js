@@ -4,8 +4,17 @@
 // globale, et apercu des parcours attribues a l'utilisateur. Aucune
 // logique metier ici : chaque donnee provient d'un service deja existant
 // (assignment-service.js, statistics-service.js, parcours-completion-
-// service.js, competency-progress-service.js), ce fichier ne fait
-// qu'assembler et afficher.
+// service.js, question-progress-service.js, evaluation-result-service.js),
+// ce fichier ne fait qu'assembler et afficher.
+//
+// CORRECTIF (demande directe de David, 22/07/2026) : le donut utilisait
+// competency-progress-service.js (repartition par competence) - jamais
+// alimente depuis que plus aucun flux d'evaluation ne renseigne
+// competencyId (parcours mixte, entrainement libre, "Test me", defi du
+// jour). Remplace par une repartition par QUESTION (question-progress-
+// service.js), reellement alimentee par l'usage actuel de l'application.
+// "Mes compétences" (mes-competences.html) utilise ENCORE l'ancienne
+// donnee - hors perimetre de ce correctif, qui ne concerne que l'accueil.
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -17,9 +26,25 @@ import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
 import { calculateOverview } from "./services/statistics-service.js";
 import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
-import { getMyCompetencyProgress, summarizeMasteryStatus } from "./services/competency-progress-service.js";
+import { getMyQuestionMasterySummary } from "./services/question-progress-service.js";
+import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon } from "./icons.js";
+
+// AJOUT (demande directe de David, 22/07/2026) : config du donut "progression
+// globale" en QUESTIONS (voir renderMasteryDonutHtml(), mastery-donut-
+// chart.js) - remplace la repartition par competence (jamais alimentee
+// depuis que plus aucun flux d'evaluation ne renseigne competencyId, voir
+// question-progress-service.js#getMyQuestionMasterySummary()).
+const QUESTION_MASTERY_DONUT_OPTIONS = {
+  statusOrder: ['mastered', 'to_reinforce'],
+  statusColor: { mastered: 'var(--green)', to_reinforce: 'var(--accent-orange)' },
+  statusLabels: { mastered: 'Maîtrisées', to_reinforce: 'À renforcer' },
+  centerLabel: 'Maîtrisées',
+  ariaLabel: 'Répartition de vos questions par niveau de maîtrise',
+  emptyTitle: 'Aucune question évaluée pour le moment',
+  emptySubtitle: 'Votre progression apparaîtra ici dès votre première évaluation terminée.',
+};
 
 // Nombre maximal de parcours affiches sur l'accueil - au-dela, l'utilisateur
 // est renvoye vers "Mes parcours" (lien deja present dans la section, voir
@@ -130,9 +155,8 @@ async function loadHomeStats() {
 async function loadMasteryDonut() {
   const el = document.getElementById('home-mastery-donut');
   if (!el) return;
-  const result = await getMyCompetencyProgress();
-  const summary = summarizeMasteryStatus(result.items);
-  el.innerHTML = renderMasteryDonutHtml(summary);
+  const summary = await getMyQuestionMasterySummary();
+  el.innerHTML = renderMasteryDonutHtml(summary, QUESTION_MASTERY_DONUT_OPTIONS);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +169,10 @@ async function loadHomeParcours() {
   if (!gridEl) return;
 
   const ctx = getCurrentUserContext();
-  const result = await getAssignedParcoursForUser(ctx && ctx.uid);
+  const [result, attemptResult] = await Promise.all([
+    getAssignedParcoursForUser(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+  ]);
 
   if (result.error || result.items.length === 0) {
     gridEl.innerHTML = '';
@@ -153,11 +180,25 @@ async function loadHomeParcours() {
     return;
   }
 
+  // AJOUT (demande directe de David, "les parcours posés là comme ça c'est
+  // pas ouf") : meme metrique par tentative que js/mes-parcours.js (nombre
+  // de fois termine + meilleur score) - jamais une barre de % par question,
+  // pour rester coherent avec cette page.
+  const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
+
   emptyEl.style.display = 'none';
-  gridEl.innerHTML = result.items.slice(0, MAX_HOME_PARCOURS).map(cardHtml).join('');
+  gridEl.innerHTML = result.items.slice(0, MAX_HOME_PARCOURS).map(function(entry) {
+    return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id));
+  }).join('');
 }
 
-function cardHtml(entry) {
+function attemptsLineHtml(attempts) {
+  const n = attempts ? attempts.attemptsCount : 0;
+  if (n === 0) return 'Pas encore commencé';
+  return 'Terminé ' + n + ' fois · Meilleur score : ' + attempts.bestPercent + ' %';
+}
+
+function cardHtml(entry, attempts) {
   const p = entry.parcours;
   const hex = p.color ? resolveParcoursColorHex(p.color) : null;
   const stripe = hex ? 'background:' + escapeHtml(hex) + ';' : '';
@@ -170,6 +211,7 @@ function cardHtml(entry) {
         '<h3>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h3>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
+        '<p class="mesparcours-attempts">' + escapeHtml(attemptsLineHtml(attempts)) + '</p>' +
         '<a class="btn-primary" href="parcours-detail.html?id=' + encodeURIComponent(p.id) + '">Ouvrir</a>' +
       '</div>' +
     '</div>'

@@ -19,6 +19,7 @@
 import { db } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, increment, runTransaction,
+  collection, query, where, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const PROGRESS_COLLECTION = 'question_progress';
@@ -67,6 +68,28 @@ export async function getQuestionProgressForMany(userId, pedagogicalIds) {
   } catch (err) {
     logProgressError('lecture groupee de progression pour ' + userId, err);
     return { map: new Map(), error: true };
+  }
+}
+
+/**
+ * AJOUT (demande directe de David, 22/07/2026 - "progression globale" de
+ * l'accueil/"Mes compétences" jamais alimentée) : relit TOUTES les
+ * questions déjà rencontrées par un utilisateur, SANS liste d'identifiants
+ * préalable - contrairement à getQuestionProgressForMany() ci-dessus,
+ * pensée pour un pool DÉJÀ borné (voir son en-tête). Un seul filtre
+ * d'égalité (`userId`), indexé automatiquement par Firestore - aucun index
+ * composite à déployer. Volume réaliste pour un usage personnel (jamais
+ * plus que le catalogue entier de questions).
+ * @param {string} userId
+ * @returns {Promise<{items:Array<object>, error:boolean}>}
+ */
+export async function getAllQuestionProgressForUser(userId) {
+  try {
+    const snap = await getDocs(query(collection(db, PROGRESS_COLLECTION), where('userId', '==', userId)));
+    return { items: snap.docs.map(function(d) { return d.data(); }), error: false };
+  } catch (err) {
+    logProgressError('lecture complète de la progression de ' + userId, err);
+    return { items: [], error: true };
   }
 }
 

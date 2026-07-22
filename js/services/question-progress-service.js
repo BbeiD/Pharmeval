@@ -13,8 +13,9 @@
 // directement) - ce fichier-ci ne fait qu'orchestrer les appels Firestore
 // autour de cette logique, jamais la dupliquer.
 
-import { applyEvaluationResultIfNew, getQuestionProgressForMany } from "./question-progress-catalog-service.js";
-import { buildProgressEntriesFromResult, classifyCandidatesByProgress } from "./question-progress-logic.js";
+import { getCurrentUserContext } from "./app-context.js";
+import { applyEvaluationResultIfNew, getQuestionProgressForMany, getAllQuestionProgressForUser } from "./question-progress-catalog-service.js";
+import { buildProgressEntriesFromResult, classifyCandidatesByProgress, summarizeQuestionMastery } from "./question-progress-logic.js";
 
 export { buildProgressEntriesFromResult, classifyCandidatesByProgress };
 
@@ -59,4 +60,20 @@ export async function classifyCandidatePoolForUser(userId, candidatePedagogicalI
   const result = await getQuestionProgressForMany(userId, candidatePedagogicalIds);
   const classification = classifyCandidatesByProgress(candidatePedagogicalIds, result.map);
   return Object.assign({}, classification, { error: result.error });
+}
+
+/**
+ * AJOUT (demande directe de David, 22/07/2026) : "progression globale" par
+ * question pour l'utilisateur COURANT - voir summarizeQuestionMastery()
+ * (question-progress-logic.js) pour le detail du calcul et la raison de ce
+ * remplacement (donut de competences jamais alimente).
+ * @returns {Promise<{total:number, counts:object, percentages:object, error:boolean}>}
+ */
+export async function getMyQuestionMasterySummary() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return Object.assign(summarizeQuestionMastery([]), { error: false });
+
+  const result = await getAllQuestionProgressForUser(ctx.uid);
+  const summary = summarizeQuestionMastery(result.items);
+  return Object.assign(summary, { error: result.error });
 }
