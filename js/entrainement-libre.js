@@ -18,7 +18,7 @@ import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-c
 import { browseActiveDocumentSources } from "./services/document-source-service.js";
 import { getActiveSectionTree } from "./services/document-section-service.js";
 import { listMostUsedTags } from "./services/tag-catalog-service.js";
-import { composeFreeTrainingPool } from "./services/free-training-service.js";
+import { composeFreeTrainingPool, launchTestMe } from "./services/free-training-service.js";
 import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
@@ -293,7 +293,35 @@ async function onLaunchClick() {
 // Cablage des evenements
 // ---------------------------------------------------------------------------
 
+// AJOUT ("Test me", demande directe de David) : raccourci qui court-circuite
+// tout le formulaire de filtres - 10 questions reparties sur l'ensemble
+// des themes (sources) actifs, aucune configuration prealable. Reutilise
+// TOUTES les sources deja chargees par populateSources() (state.sources,
+// deja filtrees "actives ET non masquees de l'entrainement libre" par
+// browseActiveDocumentSources() - jamais un second filtre duplique ici).
+const TEST_ME_QUESTION_COUNT = 10;
+
+async function onTestMeClick() {
+  const btn = qs('etl-testme-btn');
+  btn.disabled = true;
+  btn.textContent = 'Préparation du test…';
+
+  const activeSourceIds = state.sources.map(function(s) { return s.id; });
+  const result = await launchTestMe(activeSourceIds, TEST_ME_QUESTION_COUNT);
+
+  btn.disabled = false;
+  btn.textContent = 'Test me !';
+
+  if (result.status !== 'success') {
+    showMessage('error', result.message || 'Impossible de démarrer le test pour le moment. Réessayez.');
+    return;
+  }
+
+  window.location.href = 'evaluation.html?sessionType=free_training';
+}
+
 function wireEvents() {
+  qs('etl-testme-btn').addEventListener('click', onTestMeClick);
   qs('etl-compose-btn').addEventListener('click', onComposeClick);
   qs('etl-launch-btn').addEventListener('click', onLaunchClick);
   // Si le pool est deja compose, un changement du nombre souhaite met a

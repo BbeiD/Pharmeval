@@ -58,3 +58,43 @@ export function pickRandomSubset(items, count) {
   const selected = shuffle(items).slice(0, n);
   return { selected: selected, actualCount: selected.length, requestedCount: count };
 }
+
+/**
+ * AJOUT ("Test me", demande directe de David) : comme pickRandomSubset()
+ * ci-dessus, mais REPARTIT le tirage sur les groupes (ex. une source
+ * documentaire = un theme) plutot qu'un tirage uniforme sur le pool fusionne
+ * - sans cette repartition, une grosse source (ex. 84 questions) dominerait
+ * mecaniquement le tirage face a une petite (ex. 5 questions), a l'oppose
+ * de l'objectif "sur tous les themes". Repartition en tourniquet : un
+ * groupe melange (ordre des groupes ET ordre au sein de chaque groupe,
+ * jamais un biais previsible), une question prise a chaque groupe a tour
+ * de role jusqu'a atteindre `count` ou epuiser tous les groupes.
+ *
+ * @param {Array<object>} items
+ * @param {number} count
+ * @param {function(object):string} groupKeyFn - ex. q => q.documentSourceId
+ * @returns {{selected:Array<object>, actualCount:number, requestedCount:number}}
+ */
+export function pickDiversifiedSubset(items, count, groupKeyFn) {
+  const groupsMap = new Map();
+  items.forEach(function(item) {
+    const key = groupKeyFn(item);
+    if (!groupsMap.has(key)) groupsMap.set(key, []);
+    groupsMap.get(key).push(item);
+  });
+
+  const groups = shuffle(Array.from(groupsMap.values()).map(shuffle));
+  const selected = [];
+  let remaining = groups.reduce(function(acc, g) { return acc + g.length; }, 0);
+  let cursor = 0;
+  while (selected.length < count && remaining > 0) {
+    const group = groups[cursor % groups.length];
+    if (group.length > 0) {
+      selected.push(group.shift());
+      remaining -= 1;
+    }
+    cursor += 1;
+  }
+
+  return { selected: selected, actualCount: selected.length, requestedCount: count };
+}

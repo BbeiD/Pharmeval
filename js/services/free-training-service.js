@@ -11,7 +11,7 @@
 
 import { searchQuestionsBounded } from "./question-catalog-service.js";
 import { evaluateTrainingPoolReadiness } from "./question-filter-utils.js";
-import { applySecondaryFilters, pickRandomSubset } from "./free-training-logic.js";
+import { applySecondaryFilters, pickRandomSubset, pickDiversifiedSubset } from "./free-training-logic.js";
 import { classifyCandidatePoolForUser } from "./question-progress-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { startNewFreeTrainingSession } from "./evaluation-session-service.js";
@@ -118,6 +118,34 @@ export async function composeFreeTrainingPool(filters) {
  */
 export async function launchFreeTraining(poolItems, questionCount) {
   const picked = pickRandomSubset(poolItems, questionCount);
+  const pedagogicalIds = picked.selected.map(function(q) { return q.pedagogicalId; });
+  const result = await startNewFreeTrainingSession(pedagogicalIds);
+  return Object.assign({}, result, { requestedCount: picked.requestedCount, actualCount: picked.actualCount });
+}
+
+/**
+ * AJOUT ("Test me", demande directe de David) : lance directement
+ * `questionCount` questions réparties sur TOUS les thèmes disponibles
+ * (une source documentaire = un thème), sans aucune configuration
+ * préalable - compose le pool sur l'ENSEMBLE des sources actives fournies
+ * (réutilise composeFreeTrainingPool() à l'identique, aucun filtre
+ * supplémentaire), puis pioche via pickDiversifiedSubset() plutôt que
+ * pickRandomSubset() ci-dessus - un tirage uniforme sur le pool fusionné
+ * laisserait une grosse source (ex. 84 questions) écraser mécaniquement
+ * les petites, à l'opposé de l'objectif "sur tous les thèmes".
+ * @param {Array<string>} activeSourceIds - sources actives ET non masquées
+ *   de l'entraînement libre (voir browseActiveDocumentSources(), déjà
+ *   filtrée - jamais un second filtre dupliqué ici)
+ * @param {number} questionCount
+ * @returns {Promise<object>} même forme de retour que startNewFreeTrainingSession()
+ */
+export async function launchTestMe(activeSourceIds, questionCount) {
+  const poolResult = await composeFreeTrainingPool({ documentSourceIds: activeSourceIds });
+  if (!poolResult.ready) {
+    return { status: 'error', message: poolResult.message || 'Impossible de préparer le test pour le moment.' };
+  }
+
+  const picked = pickDiversifiedSubset(poolResult.items, questionCount, function(q) { return q.documentSourceId; });
   const pedagogicalIds = picked.selected.map(function(q) { return q.pedagogicalId; });
   const result = await startNewFreeTrainingSession(pedagogicalIds);
   return Object.assign({}, result, { requestedCount: picked.requestedCount, actualCount: picked.actualCount });
