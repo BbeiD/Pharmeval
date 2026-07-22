@@ -11,37 +11,44 @@
 
 <div id="mc-loading">Chargement…</div>
 
-<div id="mc-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2>🧠 Mes compétences</h2>
-      <a href="index.html" class="btn-secondary">← Retour à l'accueil</a>
+<div id="site-header-mount"></div>
+
+<div id="mc-view" class="bank-page" style="display:none;">
+  <div class="bank-header">
+    <h2>🧠 Mes compétences</h2>
+  </div>
+
+  <p class="admin-users-disclaimer">Cette page rassemble la progression mesurée à travers vos évaluations, compétence par compétence. Le niveau affiché tient compte à la fois de vos performances et du nombre d'évaluations réalisées.</p>
+
+  <div id="mc-message" class="admin-message" style="display:none;"></div>
+
+  <div id="mc-empty" class="bank-list-empty" style="display:none;">Vous n'avez encore réalisé aucune évaluation. Vos compétences apparaîtront ici dès votre première évaluation terminée.</div>
+
+  <div id="mc-content" style="display:none;">
+    <!-- AJOUT (refonte visuelle, phase 1) : donut "progression globale",
+         meme composant que l'accueil (js/mastery-donut-chart.js) -
+         agrege le masteryStatus deja reel de chaque competence. -->
+    <div class="card" style="margin-bottom:var(--space-4);">
+      <h3 style="margin-bottom:var(--space-3);">Votre progression globale</h3>
+      <div id="mc-mastery-donut"></div>
     </div>
 
-    <p class="admin-users-disclaimer">Cette page rassemble la progression mesurée à travers vos évaluations, compétence par compétence. Le niveau affiché tient compte à la fois de vos performances et du nombre d'évaluations réalisées.</p>
+    <!-- RADAR DE COMPETENCES (SPRINT19) -->
+    <section class="card" style="margin-bottom:var(--space-4);">
+      <h3 style="margin-bottom:var(--space-3);">Vue d'ensemble par compétence</h3>
+      <div class="mc-radar-card">
+        <div id="mc-radar-chart" aria-hidden="true"></div>
+        <div id="mc-radar-legend" class="mc-radar-legend"></div>
+      </div>
+    </section>
 
-    <div id="mc-message" class="admin-message" style="display:none;"></div>
-
-    <div id="mc-empty" class="bank-list-empty" style="display:none;">Vous n'avez encore réalisé aucune évaluation. Vos compétences apparaîtront ici dès votre première évaluation terminée.</div>
-
-    <div id="mc-content" style="display:none;">
-      <!-- RADAR DE COMPETENCES (SPRINT19) -->
-      <section class="pv-section">
-        <h3>Vue d'ensemble</h3>
-        <div class="mc-radar-card">
-          <div id="mc-radar-chart" aria-hidden="true"></div>
-          <div id="mc-radar-legend" class="mc-radar-legend"></div>
-        </div>
-      </section>
-
-      <div class="bank-columns">
-        <div class="bank-list-column">
-          <div id="mc-list" class="bank-list"></div>
-        </div>
-        <div class="bank-detail-column">
-          <div id="mc-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une compétence pour voir son évolution détaillée.</div>
-          <div id="mc-detail" class="bank-detail" style="display:none;"></div>
-        </div>
+    <div class="bank-columns">
+      <div class="bank-list-column">
+        <div id="mc-list" class="bank-list"></div>
+      </div>
+      <div class="bank-detail-column">
+        <div id="mc-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une compétence pour voir son évolution détaillée.</div>
+        <div id="mc-detail" class="bank-detail" style="display:none;"></div>
       </div>
     </div>
   </div>

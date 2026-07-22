@@ -10,12 +10,14 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { formatDateFr } from "./services/date-utils.js";
-import { getMyCompetencyProgress } from "./services/competency-progress-service.js";
+import { getMyCompetencyProgress, summarizeMasteryStatus } from "./services/competency-progress-service.js";
 import {
   COMPETENCY_LEVEL_LABELS, COMPETENCY_LEVEL_NUMERIC_VALUE,
   PROGRESSION_TREND_LABELS,
 } from "./services/progression-policy-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
+import { renderSiteHeader } from "./site-header.js";
+import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -41,6 +43,7 @@ async function init() {
   const result = await getMyCompetencyProgress();
   qs('mc-loading').style.display = 'none';
   qs('mc-view').style.display = 'block';
+  renderSiteHeader('mes-competences');
 
   if (!result.authorized) {
     qs('mc-message').className = 'admin-message admin-message-denied';
@@ -67,6 +70,7 @@ async function init() {
   // service, conserve tel quel).
 
   qs('mc-content').style.display = 'block';
+  qs('mc-mastery-donut').innerHTML = renderMasteryDonutHtml(summarizeMasteryStatus(result.items));
   renderRadar();
   renderList();
 
