@@ -41,7 +41,18 @@ onAuthStateChanged(auth, async function(user) {
     console.error('Erreur lors de la vérification du compte :', err);
   }
 
-  renderSiteHeader('accueil');
+  // CORRECTIF : si l'arrivee sur index.html vient d'un lien "Mes
+  // évaluations"/"Administration" de l'en-tete partage (depuis une AUTRE
+  // page), js/auth.js#revealApp() a deja bascule vers la bonne vue ET deja
+  // surligne la bonne entree de navigation (openHistoryView()/openAdminZone(),
+  // voir js/history.js/js/admin.js). Sans cette garde, cet appel ecrasait
+  // systematiquement ce surlignage avec "accueil", meme quand l'utilisateur
+  // etait en realite sur "Mes évaluations" - constat fait en testant
+  // depuis "Sources documentaires".
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('history') !== '1' && params.get('admin') !== '1') {
+    renderSiteHeader('accueil');
+  }
   renderWelcomeTitle();
 
   await Promise.all([
