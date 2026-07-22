@@ -349,20 +349,32 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
     else if (i === value) label.classList.add('ev-option-incorrect');
   });
 
+  // Affiche IMMEDIATEMENT le verdict (correct/incorrect), avant meme la
+  // lecture reseau de la justification ci-dessous - une erreur reseau ou
+  // une justification absente pour cette question ne doit jamais faire
+  // disparaitre completement ce retour.
+  const explanationEl = qs('ev-explanation');
+  const verdict = '<strong>' + (correction.isCorrect ? '✓ Bonne réponse' : '✗ Incorrect') + '</strong>';
+  explanationEl.innerHTML = verdict;
+  explanationEl.className = 'explanation show';
+
   let text = explanationCache.get(pedagogicalId);
   if (text === undefined) {
-    const map = await resolveExplanations([pedagogicalId]);
-    text = map.get(pedagogicalId) || '';
+    try {
+      const map = await resolveExplanations([pedagogicalId]);
+      text = map.get(pedagogicalId) || '';
+    } catch (err) {
+      console.error('Impossible de charger la justification de cette question :', err);
+      text = '';
+    }
     explanationCache.set(pedagogicalId, text);
   }
   // L'utilisateur a pu changer de question pendant la lecture reseau -
   // jamais afficher une justification sur la mauvaise question.
   if (state.session.questionIds[state.session.currentQuestionIndex] !== pedagogicalId) return;
 
-  const explanationEl = qs('ev-explanation');
-  explanationEl.innerHTML = '<strong>' + (correction.isCorrect ? '✓ Bonne réponse' : '✗ Incorrect') + ' :</strong> ' +
+  explanationEl.innerHTML = verdict.replace('</strong>', ' :</strong>') + ' ' +
     escapeHtml(text || 'Aucune justification disponible pour cette question.');
-  explanationEl.className = 'explanation show';
 }
 
 // ---------------------------------------------------------------------------
