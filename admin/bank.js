@@ -25,6 +25,7 @@ import {
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
 import { getDocumentSectionById } from "../js/services/document-section-catalog-service.js";
+import { renderSiteHeader } from "../js/site-header.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -88,6 +89,7 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
+  renderSiteHeader('administration');
 
   await loadPage();
 });

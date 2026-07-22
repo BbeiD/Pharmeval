@@ -14,6 +14,7 @@ import { formatDateFr } from "../js/services/date-utils.js";
 import { organizationsBank, ORGANIZATION_TYPE_OPTIONS } from "../js/services/organizations-bank-service.js";
 import { profilesBank, SUGGESTED_PROFILE_NAMES } from "../js/services/profiles-bank-service.js";
 import { groupsBank, SUGGESTED_GROUP_NAMES } from "../js/services/groups-bank-service.js";
+import { renderSiteHeader } from "../js/site-header.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -86,6 +87,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
+  renderSiteHeader('administration');
 
   updateTabButtons();
   await loadPage();

@@ -28,6 +28,7 @@ import {
   moveCompetencyToTrash, restoreCompetencyFromTrash, permanentlyDeleteCompetency,
   countCompetencyUsage, getCompetencyTimeline, publishAllDraftCompetencies,
 } from "../js/services/competency-service.js";
+import { renderSiteHeader } from "../js/site-header.js";
 
 const STATUS_BADGES = {
   draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
@@ -99,6 +100,7 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
+  renderSiteHeader('administration');
 
   await loadPage();
 });

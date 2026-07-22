@@ -16,6 +16,7 @@ import {
   deactivateUser, reactivateUser, editUserBusinessProfile, getUserTimeline,
   createPendingInvite, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
+import { renderSiteHeader } from "../js/site-header.js";
 
 const STATUS_BADGES = {
   active: { emoji: '🟢', label: 'Actif', cls: 'bank-badge-published' },
@@ -72,6 +73,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
+  renderSiteHeader('administration');
 
   await loadReferenceSelectors();
   await loadPage();
