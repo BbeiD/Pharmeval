@@ -15,7 +15,7 @@
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
 import { getCompetencyById } from "./competency-catalog-service.js";
-import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
+import { getExistingQuestionsByPedagogicalIds, getPublishedQuestionIdsBySourceIds } from "./question-catalog-service.js";
 import { completeQuestionSnapshot } from "./evaluation-session-metadata-service.js";
 
 /**
@@ -173,6 +173,60 @@ export async function prepareEvaluation(uid, parcoursId, competencyId) {
     authorized: true,
     parcours: parcours,
     competency: competency,
+    assignmentId: (entry.assignment && entry.assignment.id) || null,
+    orderedQuestionIds: snapshots.orderedQuestionIds,
+    questionSnapshots: snapshots.questionSnapshots,
+  };
+}
+
+/**
+ * Meme role que prepareEvaluation() ci-dessus, mais pour UN SEUL bouton
+ * "Commencer" couvrant TOUT le contenu du parcours (competences + sources
+ * documentaires + questions directement liees - voir parcours-service.js,
+ * sourceIds/directQuestionIds) plutot qu'une competence a la fois. Le pool
+ * est l'UNION dedoublonnee des trois origines ; buildOrderedQuestionSnapshots()
+ * (deja partagee avec l'entrainement libre) filtre ensuite lui-meme sur
+ * les questions reellement publiees - aucune duplication de cette regle.
+ *
+ * @param {string} uid
+ * @param {string} parcoursId
+ * @returns {Promise<{authorized:boolean, reason?:string, message?:string, parcours?:object, assignmentId?:string, orderedQuestionIds?:Array<string>, questionSnapshots?:object}>}
+ */
+export async function prepareParcoursMixedEvaluation(uid, parcoursId) {
+  if (!uid) return { authorized: false, reason: 'not_authenticated', message: 'Vous devez être connecté pour démarrer une évaluation.' };
+
+  const assigned = await getAssignedParcoursForUser(uid);
+  if (assigned.error) {
+    return { authorized: false, reason: 'error', message: 'Impossible de vérifier votre accès à ce parcours pour le moment. Réessayez plus tard.' };
+  }
+  const entry = assigned.items.find(function(e) { return e.parcours.id === parcoursId; });
+  if (!entry) {
+    return { authorized: false, reason: 'not_assigned', message: 'Ce parcours ne vous a pas été attribué, ou n\'est plus disponible.' };
+  }
+  const parcours = entry.parcours;
+
+  const fromCompetencies = (parcours.competencies || []).reduce(function(acc, c) {
+    return acc.concat(Array.isArray(c.questionIds) ? c.questionIds : []);
+  }, []);
+  const fromDirect = Array.isArray(parcours.directQuestionIds) ? parcours.directQuestionIds : [];
+  const fromSources = await getPublishedQuestionIdsBySourceIds(parcours.sourceIds || []);
+
+  const pooledIds = Array.from(new Set(fromCompetencies.concat(fromDirect, fromSources)));
+  if (pooledIds.length === 0) {
+    return { authorized: false, reason: 'no_questions', message: NO_QUESTIONS_AVAILABLE_MESSAGE };
+  }
+
+  const snapshots = await buildOrderedQuestionSnapshots(pooledIds);
+  if (snapshots.error) {
+    return { authorized: false, reason: 'error', message: 'Impossible de charger les questions de cette évaluation pour le moment. Réessayez plus tard.' };
+  }
+  if (snapshots.orderedQuestionIds.length === 0) {
+    return { authorized: false, reason: 'no_questions', message: NO_QUESTIONS_AVAILABLE_MESSAGE };
+  }
+
+  return {
+    authorized: true,
+    parcours: parcours,
     assignmentId: (entry.assignment && entry.assignment.id) || null,
     orderedQuestionIds: snapshots.orderedQuestionIds,
     questionSnapshots: snapshots.questionSnapshots,

@@ -19,6 +19,7 @@ import {
   getActiveSession, startNewSession, resumeSession, restartSession,
   saveAnswer, saveCurrentQuestionIndex,
   getActiveFreeTrainingSession,
+  startParcoursMixedSession, restartParcoursMixedSession,
 } from "./services/evaluation-session-service.js";
 import { finalizeEvaluation } from "./services/evaluation-result-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
@@ -87,6 +88,15 @@ async function init() {
   state.parcoursId = params.get('parcoursId');
   state.competencyId = params.get('competencyId');
 
+  // AJOUT : "Commencer" unique d'un parcours (competences + sources +
+  // questions directes melangees, voir parcours-detail.js) - un parcoursId
+  // present SANS competencyId identifie ce mode, distinct du mode
+  // "parcours classique" ci-dessous (une competence precise).
+  if (state.parcoursId && !state.competencyId) {
+    await initParcoursMixed();
+    return;
+  }
+
   if (!state.parcoursId || !state.competencyId) {
     showDenied('Paramètres manquants', 'Cette évaluation n\'a pas pu être identifiée. Retournez à votre parcours et réessayez.', 'mes-parcours.html');
     return;
@@ -119,6 +129,40 @@ async function initFreeTraining() {
     return;
   }
   state.session = result.session;
+  renderTaking();
+}
+
+// AJOUT : "Commencer" unique d'un parcours mixte - meme principe que le
+// mode "parcours classique" ci-dessus (dialogue Reprendre/Recommencer si
+// une session est deja en cours), mais sans competence unique : la
+// verification d'une session active reutilise getActiveSession() TELLE
+// QUELLE, avec competencyId=null (aucune autre session ne peut porter ce
+// meme couple parcoursId+competencyId=null, voir evaluation-session-
+// service.js#startParcoursMixedSession).
+async function initParcoursMixed() {
+  state.sessionType = 'parcours_mixed';
+  showOnly('ev-loading');
+
+  const active = await getActiveSession(state.parcoursId, null);
+  if (active) {
+    state.pendingSession = active;
+    state.parcoursName = (await getParcoursById(state.parcoursId) || {}).name || 'Parcours';
+    showOnly('ev-session-dialog');
+    return;
+  }
+
+  await startFreshMixed();
+}
+
+async function startFreshMixed() {
+  showOnly('ev-loading');
+  const result = await startParcoursMixedSession(state.parcoursId);
+  if (result.status !== 'success') {
+    showDenied('Évaluation indisponible', result.message || 'Cette évaluation n\'est pas accessible pour le moment.', backLinkForParcours());
+    return;
+  }
+  state.session = result.session;
+  state.parcoursName = (result.parcours && result.parcours.name) || 'Parcours';
   renderTaking();
 }
 
@@ -181,7 +225,9 @@ export function cancelRestart() {
 export async function confirmRestart() {
   qs('ev-restart-confirm-overlay').style.display = 'none';
   showOnly('ev-loading');
-  const result = await restartSession(state.pendingSession.id, state.parcoursId, state.competencyId);
+  const result = state.sessionType === 'parcours_mixed'
+    ? await restartParcoursMixedSession(state.pendingSession.id, state.parcoursId)
+    : await restartSession(state.pendingSession.id, state.parcoursId, state.competencyId);
   if (result.status !== 'success') {
     showDenied('Évaluation indisponible', result.message || 'Cette évaluation n\'est pas accessible pour le moment.', backLinkForParcours());
     return;
@@ -211,6 +257,16 @@ function renderTaking() {
     qs('ev-breadcrumb-sep2').style.display = 'none';
     qs('ev-breadcrumb-competency').textContent = '';
     qs('ev-competency-name').textContent = 'Entraînement libre';
+    qs('ev-parcours-name').textContent = state.session.questionIds.length + ' question(s)';
+  } else if (state.sessionType === 'parcours_mixed') {
+    // AJOUT : parcours mixte - meme fil d'Ariane que le mode classique
+    // (le parcours reste affiche), sans le second maillon "competence"
+    // (aucune competence unique pour ce type de session).
+    qs('ev-breadcrumb-parcours').textContent = state.parcoursName;
+    qs('ev-breadcrumb-parcours').href = backLinkForParcours();
+    qs('ev-breadcrumb-sep2').style.display = 'none';
+    qs('ev-breadcrumb-competency').style.display = 'none';
+    qs('ev-competency-name').textContent = state.parcoursName;
     qs('ev-parcours-name').textContent = state.session.questionIds.length + ' question(s)';
   } else {
     qs('ev-breadcrumb-parcours').textContent = state.parcoursName;

@@ -35,7 +35,7 @@
 
 import { getCurrentUserContext } from "./app-context.js";
 import { getUserByUid } from "./user-management-service.js";
-import { prepareEvaluation, buildOrderedQuestionSnapshots } from "./parcours-evaluation-service.js";
+import { prepareEvaluation, prepareParcoursMixedEvaluation, buildOrderedQuestionSnapshots } from "./parcours-evaluation-service.js";
 import {
   SESSION_STATUSES, completeSessionMetadata, completeAnswerEntry, validateSessionMetadata,
 } from "./evaluation-session-metadata-service.js";
@@ -194,6 +194,65 @@ export async function startNewSession(parcoursId, competencyId) {
 }
 
 /**
+ * AJOUT : demarre une evaluation couvrant TOUT le contenu d'un parcours
+ * (competences + sources + questions directement liees, voir
+ * prepareParcoursMixedEvaluation() ci-dessus) - UN SEUL bouton "Commencer"
+ * par parcours, plus un par competence. Reutilise `sessionType:
+ * 'free_training'` (aucune competence unique exigee par
+ * validateSessionMetadata pour ce type) tout en renseignant `parcoursId`
+ * (contrairement a une vraie session d'entrainement libre) - ce qui
+ * permet a `findActiveSession()`/`countPreviousAttempts()` deja existantes
+ * (parametrees par parcoursId+competencyId) de continuer a fonctionner
+ * telles quelles avec `competencyId: null`, sans nouvelle fonction de
+ * comptage. Meme garantie que startNewSession() : ne cree jamais de
+ * session vide si aucune question n'est disponible.
+ * @param {string} parcoursId
+ * @returns {Promise<object>}
+ */
+export async function startParcoursMixedSession(parcoursId) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour démarrer une évaluation.', 'not_authenticated');
+
+  const prepared = await prepareParcoursMixedEvaluation(ctx.uid, parcoursId);
+  if (!prepared.authorized) {
+    return denied(prepared.message, prepared.reason);
+  }
+
+  const [user, previousAttempts] = await Promise.all([
+    getUserByUid(ctx.uid),
+    countPreviousAttempts(ctx.uid, parcoursId, null),
+  ]);
+
+  const now = nowIso();
+  const session = completeSessionMetadata({
+    userId: ctx.uid,
+    organizationId: (user && user.organizationId) || null,
+    sessionType: 'free_training',
+    parcoursId: parcoursId,
+    competencyId: null,
+    assignmentId: prepared.assignmentId,
+    status: SESSION_STATUSES.IN_PROGRESS,
+    startedAt: now,
+    updatedAt: now,
+    questionIds: prepared.orderedQuestionIds,
+    currentQuestionIndex: 0,
+    answers: {},
+    questionSnapshot: prepared.questionSnapshots,
+    createdBy: ctx.uid,
+    attemptNumber: previousAttempts + 1,
+  });
+  session.events = [{ type: 'evaluation_started', at: now }];
+
+  const validation = validateSessionMetadata(session);
+  if (!validation.valid) return errorResult(validation.errors.join(' '));
+
+  const result = await createSessionDocument(session);
+  if (!result.success) return errorResult('Le démarrage de l\'évaluation a échoué. Veuillez réessayer.');
+
+  return success('Évaluation démarrée.', { session: session, parcours: prepared.parcours });
+}
+
+/**
  * Reprend une session EXISTANTE (bouton "Reprendre", SPRINT17 section 10).
  * Revalide que la session appartient bien à l'utilisateur courant et
  * qu'elle est toujours `in_progress` (défense en profondeur, en plus des
@@ -240,6 +299,27 @@ export async function restartSession(oldSessionId, parcoursId, competencyId) {
   }
 
   return startNewSession(parcoursId, competencyId);
+}
+
+/**
+ * Equivalent de restartSession() ci-dessus pour une evaluation de parcours
+ * MIXTE (voir startParcoursMixedSession) - meme principe, l'ancienne
+ * session n'est jamais supprimee, seulement marquee `abandoned`.
+ * @param {string} oldSessionId
+ * @param {string} parcoursId
+ * @returns {Promise<object>}
+ */
+export async function restartParcoursMixedSession(oldSessionId, parcoursId) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour recommencer une évaluation.', 'not_authenticated');
+
+  const oldSession = await getSessionById(oldSessionId);
+  if (oldSession && oldSession.userId === ctx.uid && oldSession.status === SESSION_STATUSES.IN_PROGRESS) {
+    const events = appendEvent(oldSession, 'evaluation_restarted');
+    await updateSessionFields(oldSessionId, { status: SESSION_STATUSES.ABANDONED, updatedAt: nowIso(), events: events });
+  }
+
+  return startParcoursMixedSession(parcoursId);
 }
 
 /**

@@ -98,6 +98,7 @@ function renderHeader(view) {
   if (view.stats.estimatedMinutes) html += '<span class="bank-chip">⏱️ ≈ ' + escapeHtml(view.stats.estimatedMinutes) + ' min (estimation)</span>';
   html += '<span class="bank-chip">🧩 ' + view.stats.competencyCount + ' compétence(s)</span>';
   html += '<span class="bank-chip">❓ ' + view.stats.questionCount + ' question(s)</span>';
+  if (view.stats.sourceCount) html += '<span class="bank-chip">📚 ' + view.stats.sourceCount + ' source(s)</span>';
   html += '</div>';
 
   html += '<div class="pv-header-meta">';
@@ -115,6 +116,7 @@ function renderStats(view) {
   const items = [
     { label: 'Compétences', value: s.competencyCount },
     { label: 'Questions', value: s.questionCount },
+    { label: 'Sources', value: s.sourceCount },
     { label: 'Difficulté moyenne', value: s.averageLevel ? (LEVEL_LABELS[s.averageLevel] || s.averageLevel) : '—' },
     { label: 'Temps estimé', value: s.estimatedMinutes ? '≈ ' + s.estimatedMinutes + ' min' : '—' },
   ];
@@ -157,39 +159,36 @@ function renderCompetencies(view) {
   }).join('');
 }
 
+// AJOUT : un SEUL bouton "Commencer" pour tout le parcours (competences +
+// sources + questions directes melangees), plus un par competence -
+// decision validee avec David. Visible tant que le parcours a du contenu
+// (voir view.stats.questionCount, deja calcule cote service en incluant
+// les questions directement liees - voir parcours-view-service.js).
 function renderEvaluations(view) {
   const listEl = document.getElementById('pv-evaluations');
   const emptyEl = document.getElementById('pv-evaluations-empty');
-  const competencies = view.competencies;
 
-  if (competencies.length === 0) {
+  if (view.stats.questionCount === 0) {
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
     return;
   }
   emptyEl.style.display = 'none';
 
-  listEl.innerHTML = competencies.map(function(c) {
-    const bank = c.bankData;
-    const name = bank ? bank.name : c.name;
-    const competencyId = c.competencyId;
-    const disabled = !competencyId; // competence pas encore migree vers la banque (Sprint 13) : pas d'evaluation possible tant que la reference n'existe pas
-    return (
-      '<div class="pv-evaluation-row">' +
-        '<span class="pv-evaluation-name">' + escapeHtml(name || 'Compétence sans nom') + '</span>' +
-        '<button class="btn-primary" onclick="startEvaluation(\'' + escapeHtml(competencyId || '') + '\')"' + (disabled ? ' disabled title="Compétence non reliée à la banque"' : '') + '>Commencer</button>' +
-      '</div>'
-    );
-  }).join('');
+  listEl.innerHTML =
+    '<div class="pv-evaluation-row">' +
+      '<span class="pv-evaluation-name">Ce parcours (' + view.stats.questionCount + ' question(s))</span>' +
+      '<button class="btn-primary" onclick="startParcoursEvaluation()">Commencer</button>' +
+    '</div>';
 }
 
-// SPRINT17 : ouvre désormais réellement l'évaluation de cette compétence
-// (evaluation.html), qui revérifie elle-même l'accès au parcours avant
-// d'afficher quoi que ce soit. Ce fichier ne fait que naviguer, aucune
-// logique métier ici.
-export function startEvaluation(competencyId) {
-  if (!competencyId) return;
+// SPRINT17 : ouvre désormais réellement l'évaluation (evaluation.html), qui
+// revérifie elle-même l'accès au parcours et construit le pool de questions
+// avant d'afficher quoi que ce soit. Ce fichier ne fait que naviguer,
+// AUCUNE écriture Firestore ici (voir en-tête de fichier) - la session
+// n'est créée que sur evaluation.html elle-même.
+export function startParcoursEvaluation() {
   const parcoursId = getParcoursIdFromUrl();
-  window.location.href = 'evaluation.html?parcoursId=' + encodeURIComponent(parcoursId) + '&competencyId=' + encodeURIComponent(competencyId);
+  window.location.href = 'evaluation.html?parcoursId=' + encodeURIComponent(parcoursId);
 }
-window.startEvaluation = startEvaluation;
+window.startParcoursEvaluation = startParcoursEvaluation;

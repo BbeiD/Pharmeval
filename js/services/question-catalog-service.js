@@ -418,6 +418,40 @@ export async function archiveQuestionsBySource(documentSourceId) {
 }
 
 /**
+ * Resout les identifiants pedagogiques de toutes les questions PUBLIEES
+ * rattachees a un LOT de sources documentaires (utilise pour construire le
+ * pool d'une evaluation de parcours mixte ainsi que pour le calcul de
+ * progression - voir parcours-evaluation-service.js et parcours-completion-
+ * service.js, un seul point de verite pour cette resolution). Decoupe par
+ * lots de 30 (limite Firestore d'une clause `in`, meme limite deja
+ * documentee et appliquee dans assignment-catalog-service.js).
+ * @param {Array<string>} sourceIds
+ * @returns {Promise<Array<string>>}
+ */
+export async function getPublishedQuestionIdsBySourceIds(sourceIds) {
+  const unique = Array.from(new Set((sourceIds || []).filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const CHUNK_SIZE = 30;
+  const ids = [];
+  try {
+    for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
+      const chunk = unique.slice(i, i + CHUNK_SIZE);
+      const snap = await getDocs(query(
+        collection(db, QUESTIONS_COLLECTION),
+        where('status', '==', 'published'),
+        where('documentSourceId', 'in', chunk),
+      ));
+      snap.forEach(function(d) { ids.push(d.id); });
+    }
+    return ids;
+  } catch (err) {
+    logCatalogError('resolution des questions publiees pour ' + unique.length + ' source(s)', err);
+    return [];
+  }
+}
+
+/**
  * Publie EN MASSE toutes les questions actuellement au statut "draft"
  * (bouton "Publier toutes les questions en brouillon", voir
  * question-bank-service.js). Ne touche a aucune question dans un autre

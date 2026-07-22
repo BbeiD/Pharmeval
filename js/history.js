@@ -7,6 +7,11 @@ import { formatDateFr } from "./services/date-utils.js";
 import { getScoreClass } from "./services/score-utils.js";
 import { renderStatisticsFromData, renderError as renderStatisticsError, renderLoading as renderStatisticsLoading } from "./statistics.js";
 import { renderRecommendationsFromData, renderRecommendationsError, renderRecommendationsLoading } from "./recommendation.js";
+import { getCurrentUserContext } from "./services/app-context.js";
+import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
+import {
+  renderParcoursCompletionFromData, renderParcoursCompletionError, renderParcoursCompletionLoading,
+} from "./mes-parcours-completion.js";
 
 const PAGE_SIZE = 20;
 
@@ -33,6 +38,7 @@ export function openHistoryView() {
   showHistoryList();
   loadFirstPage();
   loadStatisticsAndRecommendations();
+  loadParcoursCompletion();
 }
 
 async function loadStatisticsAndRecommendations() {
@@ -46,6 +52,19 @@ async function loadStatisticsAndRecommendations() {
   }
   renderStatisticsFromData(result.items, result.truncated);
   renderRecommendationsFromData(result.items);
+}
+
+// AJOUT : "Mes parcours" - lecture Firestore INDEPENDANTE de tout le reste
+// de cet ecran (meme principe que loadStatisticsAndRecommendations()
+// ci-dessus) - une erreur ici ne bloque jamais la liste des evaluations,
+// et inversement.
+async function loadParcoursCompletion() {
+  renderParcoursCompletionLoading();
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) { renderParcoursCompletionError(); return; }
+  const result = await getParcoursCompletionForUser(ctx.uid);
+  if (result.error) { renderParcoursCompletionError(); return; }
+  renderParcoursCompletionFromData(result.items);
 }
 
 export function closeHistoryView() {

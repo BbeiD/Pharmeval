@@ -154,6 +154,17 @@
     <div id="history-list-section">
       <h2>Mes évaluations</h2>
 
+      <!-- AJOUT : "Mes parcours" - progression par parcours, puis par
+           source/competence/question au sein de chacun (voir
+           js/services/parcours-completion-service.js + js/mes-parcours-
+           completion.js + js/history.js, loadParcoursCompletion). Lecture
+           Firestore independante du reste de cet ecran, meme principe que
+           les sections ci-dessous. -->
+      <div id="parcours-completion-section" class="stats-section">
+        <h3>Mes parcours</h3>
+        <div id="parcours-completion-body"></div>
+      </div>
+
       <!-- VOS RECOMMANDATIONS (Sprint 7) : lecture Firestore partagee avec
            l'Analyse de progression ci-dessous (voir js/history.js,
            loadStatisticsAndRecommendations). Le moteur propose, explique et

@@ -1482,6 +1482,21 @@
   .ev-progress-bar-track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
   .ev-progress-bar-fill { height: 100%; background: var(--accent, #1D9E75); transition: width .2s ease; }
 
+  /* AJOUT : "Mes parcours" (Mes evaluations) - reutilise .ev-progress-bar-*
+     ci-dessus tel quel, uniquement la disposition en arborescence est propre
+     a cette section. */
+  .mpc-parcours-card {
+    background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .mpc-parcours-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .mpc-progress-row { display: flex; align-items: center; gap: 10px; }
+  .mpc-progress-row .ev-progress-bar-track { flex: 1; }
+  .mpc-progress-label { font-size: 12px; color: var(--text2); min-width: 40px; text-align: right; }
+  .mpc-bucket-list { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); display: flex; flex-direction: column; gap: 8px; }
+  .mpc-bucket-row { display: flex; flex-direction: column; gap: 4px; }
+  .mpc-bucket-label { font-size: 12px; color: var(--text2); }
+
   .ev-question-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
   .ev-nav-btn {
     min-width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
