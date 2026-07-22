@@ -26,7 +26,10 @@ check('aucune redirection automatique vers index.html sur user=null (plus de win
 check('garde anti-double-appel presente (initDone)', etlJs.indexOf('initDone') !== -1);
 
 console.log('=== entrainement-libre.html — elements requis ===');
-['etl-source', 'etl-section', 'etl-difficulty', 'etl-tag', 'etl-with-images', 'etl-never-seen',
+// CORRECTIF (refonte visuelle, phase 1) : "etl-source" (select a choix
+// unique) remplace par "etl-source-icons" (tuiles a selection multiple) ;
+// "etl-with-images" retire (filtre supprime, decision validee avec David).
+['etl-source-icons', 'etl-section-wrap', 'etl-section', 'etl-difficulty', 'etl-tag', 'etl-never-seen',
  'etl-never-succeeded', 'etl-count', 'etl-compose-btn', 'etl-preview-card', 'etl-launch-btn',
  'etl-active-session-card', 'etl-resume-btn', 'etl-replace-btn', 'etl-errors-card'].forEach(function(id) {
   check('id="' + id + '" present', etlHtml.indexOf('id="' + id + '"') !== -1);

@@ -13,7 +13,7 @@
 /**
  * @param {Array<object>} items - questions (documents complets) deja
  *   chargees, deja bornees (voir searchQuestionsBounded)
- * @param {{tag?:string, difficulty?:string, sectionAlreadyScoped?:boolean, withImages?:boolean}} filters
+ * @param {{tag?:string, difficulty?:string, sectionAlreadyScoped?:boolean}} filters
  * @returns {Array<object>}
  */
 export function applySecondaryFilters(items, filters) {
@@ -24,7 +24,6 @@ export function applySecondaryFilters(items, filters) {
     // deja ete choisie - sinon elle est deja filtree cote serveur (voir
     // free-training-service.js) et ne doit jamais l'etre deux fois.
     if (f.difficulty && f.sectionAlreadyScoped && q.difficulty !== f.difficulty) return false;
-    if (f.withImages && !(Array.isArray(q.pendingResourceRefs) && q.pendingResourceRefs.length > 0)) return false;
     return true;
   });
 }

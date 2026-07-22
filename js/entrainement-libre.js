@@ -44,7 +44,15 @@ function showMessage(status, message) {
 // remplacer un entrainement en cours (voir etl-replace-btn) - determine
 // alors si le lancement appelle startNewFreeTrainingSession() ou
 // restartFreeTrainingSession(), jamais les deux a la fois.
-let state = { pool: null, replacingSessionId: null };
+// state.selectedSourceIds : selection MULTIPLE (tuiles a icones, decision
+// validee avec David) - remplace l'ancien <select> a choix unique.
+let state = { pool: null, replacingSessionId: null, sources: [], selectedSourceIds: new Set() };
+
+// Icone par type de source (DOCUMENT_SOURCE_TYPE_LABELS, document-source-
+// metadata-service.js) - aucun systeme d'icone par source individuelle
+// n'existe dans le modele de donnees, ce regroupement par type reste donc
+// une donnee reelle, jamais inventee par source.
+const SOURCE_TYPE_ICON = { REF: '📕', PROC: '📋', ETU: '🎓' };
 
 // ---------------------------------------------------------------------------
 // Authentification (meme principe que js/mes-parcours.js : aucune
@@ -126,12 +134,32 @@ async function checkActiveSession() {
 // ---------------------------------------------------------------------------
 
 async function populateSources() {
-  const select = qs('etl-source');
   const result = await browseActiveDocumentSources();
-  const items = (result && result.items) || [];
-  select.innerHTML = '<option value="">— Choisir —</option>' +
-    items.map(function(s) { return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>'; }).join('');
+  state.sources = (result && result.items) || [];
+  renderSourceIcons();
 }
+
+function renderSourceIcons() {
+  const container = qs('etl-source-icons');
+  container.innerHTML = state.sources.map(function(s) {
+    const selectedCls = state.selectedSourceIds.has(s.id) ? ' etl-source-icon-selected' : '';
+    const icon = SOURCE_TYPE_ICON[s.sourceType] || '📄';
+    return (
+      '<button type="button" class="etl-source-icon' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
+        '<span class="etl-source-icon-emoji" aria-hidden="true">' + icon + '</span>' +
+        '<span class="etl-source-icon-name">' + escapeHtml(s.name) + '</span>' +
+      '</button>'
+    );
+  }).join('');
+}
+
+export function toggleEtlSource(sourceId) {
+  if (state.selectedSourceIds.has(sourceId)) state.selectedSourceIds.delete(sourceId);
+  else state.selectedSourceIds.add(sourceId);
+  renderSourceIcons();
+  onSourceSelectionChange();
+}
+window.toggleEtlSource = toggleEtlSource;
 
 async function populateTags() {
   const select = qs('etl-tag');
@@ -141,29 +169,43 @@ async function populateTags() {
     items.map(function(t) { return '<option value="' + escapeHtml(t.label) + '">' + escapeHtml(t.label) + '</option>'; }).join('');
 }
 
-async function onSourceChange() {
-  const sourceId = qs('etl-source').value;
+async function onSourceSelectionChange() {
+  resetDownstream();
+  const sectionWrap = qs('etl-section-wrap');
   const sectionSelect = qs('etl-section');
   const composeBtn = qs('etl-compose-btn');
 
-  resetDownstream();
+  const selectedIds = Array.from(state.selectedSourceIds);
 
-  if (!sourceId) {
+  if (selectedIds.length === 0) {
+    sectionWrap.style.display = 'none';
     sectionSelect.innerHTML = '<option value="">—</option>';
     sectionSelect.disabled = true;
     composeBtn.disabled = true;
     return;
   }
 
-  const result = await getActiveSectionTree(sourceId);
-  const items = (result && result.items) || [];
-  sectionSelect.innerHTML = '<option value="">— Toute la source —</option>' +
-    items.map(function(s) {
-      const indent = '— '.repeat(s.level);
-      return '<option value="' + escapeHtml(s.id) + '">' + indent + escapeHtml(s.name) + '</option>';
-    }).join('');
-  sectionSelect.disabled = false;
   composeBtn.disabled = false;
+
+  // La section n'a de sens QUE si une seule source est selectionnee - une
+  // section appartient a UNE source precise (voir composeFreeTrainingPool,
+  // meme regle cote service) : masquee/reinitialisee des que plusieurs
+  // sources sont choisies, jamais laissee visible dans un etat ambigu.
+  if (selectedIds.length === 1) {
+    sectionWrap.style.display = 'block';
+    const result = await getActiveSectionTree(selectedIds[0]);
+    const items = (result && result.items) || [];
+    sectionSelect.innerHTML = '<option value="">— Toute la source —</option>' +
+      items.map(function(s) {
+        const indent = '— '.repeat(s.level);
+        return '<option value="' + escapeHtml(s.id) + '">' + indent + escapeHtml(s.name) + '</option>';
+      }).join('');
+    sectionSelect.disabled = false;
+  } else {
+    sectionWrap.style.display = 'none';
+    sectionSelect.innerHTML = '<option value="">—</option>';
+    sectionSelect.disabled = true;
+  }
 }
 
 function resetDownstream() {
@@ -182,11 +224,10 @@ async function onComposeClick() {
   composeBtn.disabled = true;
 
   const filters = {
-    documentSourceId: qs('etl-source').value,
+    documentSourceIds: Array.from(state.selectedSourceIds),
     documentSectionId: qs('etl-section').value || undefined,
     difficulty: qs('etl-difficulty').value || undefined,
     tag: qs('etl-tag').value || undefined,
-    withImages: qs('etl-with-images').checked,
     neverSeen: qs('etl-never-seen').checked,
     neverSucceeded: qs('etl-never-succeeded').checked,
   };
@@ -250,7 +291,6 @@ async function onLaunchClick() {
 // ---------------------------------------------------------------------------
 
 function wireEvents() {
-  qs('etl-source').addEventListener('change', onSourceChange);
   qs('etl-compose-btn').addEventListener('click', onComposeClick);
   qs('etl-launch-btn').addEventListener('click', onLaunchClick);
   // Si le pool est deja compose, un changement du nombre souhaite met a

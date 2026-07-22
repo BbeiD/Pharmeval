@@ -24,6 +24,7 @@ import {
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
+  setSourceHiddenFromFreeTraining,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
@@ -158,6 +159,7 @@ function sourceDetailHtml(s, sections) {
   html += '<div class="bank-detail-row"><strong>Questions rattachées :</strong> ' + s.questionCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Sections :</strong> ' + s.sectionCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Créé le :</strong> ' + escapeHtml(s.createdAt ? formatDateFr(s.createdAt) : '—') + '</div>';
+  html += '<div class="bank-detail-row"><strong>Entraînement libre :</strong> ' + (s.hiddenFromFreeTraining ? '🚫 Masquée (indisponible pour l\'entraînement libre)' : '🟢 Visible') + '</div>';
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
@@ -165,6 +167,13 @@ function sourceDetailHtml(s, sections) {
     if (s.status !== DOCUMENT_SOURCE_STATUSES.ACTIVE) html += '<button class="btn-primary" onclick="requestSourceStatus(\'active\')">Activer</button>';
     if (s.status !== DOCUMENT_SOURCE_STATUSES.ARCHIVED) html += '<button class="btn-secondary bank-trash-btn" onclick="requestSourceStatus(\'archived\')">Archiver</button>';
     if (s.status === DOCUMENT_SOURCE_STATUSES.ARCHIVED) html += '<button class="btn-secondary" onclick="requestSourceStatus(\'active\')">Réactiver</button>';
+    // AJOUT (refonte visuelle, phase 1) : rendre une source invisible pour
+    // l'entrainement libre uniquement - n'affecte ni son statut, ni sa
+    // disponibilite pour les parcours/la banque de questions (voir
+    // setSourceHiddenFromFreeTraining, document-source-service.js).
+    html += s.hiddenFromFreeTraining
+      ? '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(false)">🟢 Rendre visible dans l\'entraînement libre</button>'
+      : '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(true)">🚫 Masquer de l\'entraînement libre</button>';
     html += '<button class="btn-secondary bank-delete-btn" onclick="requestDeleteSource()">🗑️ Supprimer le référentiel</button>';
   } else {
     html += '<p class="admin-users-disclaimer">Cette source est supprimée : ses questions ont été archivées en cascade. Aucune donnée n\'a été effacée.</p>';
@@ -220,6 +229,17 @@ export function requestBulkActivateSources() {
   qs('ds-confirm-overlay').style.display = 'flex';
 }
 
+export async function toggleSourceFreeTrainingVisibility(hidden) {
+  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
+  if (!source) return;
+  const result = await setSourceHiddenFromFreeTraining(source, hidden);
+  showMessage(result.status, result.message);
+  if (result.status === 'success') {
+    source.hiddenFromFreeTraining = hidden;
+    await selectSource(state.selectedSourceId);
+  }
+}
+
 export function cancelDsAction() { pendingAction = null; qs('ds-confirm-overlay').style.display = 'none'; }
 
 export async function confirmDsAction() {
@@ -259,5 +279,6 @@ window.selectSource = selectSource;
 window.requestSourceStatus = requestSourceStatus;
 window.requestDeleteSource = requestDeleteSource;
 window.requestBulkActivateSources = requestBulkActivateSources;
+window.toggleSourceFreeTrainingVisibility = toggleSourceFreeTrainingVisibility;
 window.cancelDsAction = cancelDsAction;
 window.confirmDsAction = confirmDsAction;

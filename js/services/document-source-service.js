@@ -64,10 +64,18 @@ export async function browseDocumentSources(options) {
  * Liste les sources documentaires ACTIVES, accessible a tout utilisateur
  * connecte (aucune permission d'administration requise) - coherent avec
  * la regle Firestore document_sources (lecture ouverte a tout utilisateur
- * authentifie pour le statut 'active', voir firestore.rules). Destine aux
- * ecrans UTILISATEUR (entrainement libre, parcours) pour peupler un
- * selecteur de source, jamais a la gestion du catalogue (voir
- * browseDocumentSources() ci-dessus pour l'administration).
+ * authentifie pour le statut 'active', voir firestore.rules). Destinee a
+ * l'ecran UTILISATEUR "Entrainement libre" (seule consommatrice
+ * aujourd'hui) pour peupler le selecteur de source, jamais a la gestion
+ * du catalogue (voir browseDocumentSources() ci-dessus pour
+ * l'administration).
+ *
+ * EXCLUT les sources marquees `hiddenFromFreeTraining` (decision validee
+ * avec David) : une source peut rester active/utilisee ailleurs (parcours,
+ * banque de questions) tout en etant retiree de l'entrainement libre
+ * specifiquement - ce filtre est donc APPLIQUE ICI UNIQUEMENT, jamais
+ * dans browseDocumentSources() (l'administration doit toujours voir
+ * TOUTES les sources, y compris celles masquees pour l'entrainement).
  * @returns {Promise<object>}
  */
 export async function browseActiveDocumentSources() {
@@ -75,7 +83,40 @@ export async function browseActiveDocumentSources() {
   if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté.', items: [] };
   const result = await queryDocumentSources({ status: DOCUMENT_SOURCE_STATUSES.ACTIVE });
   if (result.error) return { authorized: true, error: true, message: result.message || 'Impossible de charger les sources documentaires pour le moment.', items: [] };
-  return { authorized: true, items: result.items };
+  const items = result.items.filter(function(s) { return !s.hiddenFromFreeTraining; });
+  return { authorized: true, items: items };
+}
+
+/**
+ * Bascule la visibilite d'une source dans l'entrainement libre (decision
+ * validee avec David) - n'affecte JAMAIS son statut actif/brouillon/
+ * archive, ni sa disponibilite pour les parcours ou la banque de
+ * questions : seul browseActiveDocumentSources() (ci-dessus, seule
+ * consommatrice de ce champ) en tient compte.
+ * @param {object} source
+ * @param {boolean} hidden
+ * @returns {Promise<object>}
+ */
+export async function setSourceHiddenFromFreeTraining(source, hidden) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!source || !source.id) return errorResult('Source cible introuvable.');
+
+  const ctx = getCurrentUserContext();
+  const result = await updateDocumentSourceFields(source.id, {
+    hiddenFromFreeTraining: !!hidden,
+    updatedAt: nowIso(), updatedBy: (ctx && ctx.email) || null,
+  });
+  if (!result.success) return errorResult('La mise à jour a échoué. Veuillez réessayer.');
+
+  logAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    targetUid: null, targetEmail: null,
+    actionType: hidden ? 'document_source_hidden_from_training' : 'document_source_shown_in_training',
+    oldValue: source.name, newValue: hidden ? 'masquée de l\'entraînement libre' : 'visible dans l\'entraînement libre',
+  }).catch(function() {});
+
+  return success(hidden ? 'Source masquée de l\'entraînement libre.' : 'Source de nouveau visible dans l\'entraînement libre.');
 }
 
 /** @param {string} sourceId @returns {Promise<object|null>} */

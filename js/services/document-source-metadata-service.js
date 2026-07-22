@@ -98,6 +98,14 @@ export function completeDocumentSourceMetadata(partial) {
     status: p.status || DOCUMENT_SOURCE_STATUSES.DRAFT,
     isActive: (p.isActive !== undefined) ? !!p.isActive : (p.status === DOCUMENT_SOURCE_STATUSES.ACTIVE),
 
+    // AJOUT (refonte visuelle, phase 1) : une source ACTIVE peut rester
+    // utilisee ailleurs (parcours, banque de questions) tout en etant
+    // exclue de l'entrainement libre - concept DISTINCT du statut
+    // actif/brouillon/archive ci-dessus. Jamais utilise pour filtrer les
+    // parcours (voir document-source-service.js#browseActiveDocumentSources,
+    // seule consommatrice de ce champ).
+    hiddenFromFreeTraining: !!p.hiddenFromFreeTraining,
+
     metadata: {
       author: (p.metadata && p.metadata.author) || null,
       publisher: (p.metadata && p.metadata.publisher) || null, // utile pour les referentiels externes

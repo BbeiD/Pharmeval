@@ -18,38 +18,71 @@ import { startNewFreeTrainingSession } from "./evaluation-session-service.js";
 
 /**
  * Compose le pool de questions candidates pour un ensemble de filtres
- * (source obligatoire, tout le reste optionnel) - LECTURE SEULE, ne crée
- * aucune session. C'est l'étape "Filtres optionnels" du workflow (voir
- * cadrage). Jamais silencieux sur un pool tronqué (Phase B0, point 4).
+ * (au moins une source obligatoire, tout le reste optionnel) - LECTURE
+ * SEULE, ne crée aucune session. C'est l'étape "Filtres optionnels" du
+ * workflow (voir cadrage). Jamais silencieux sur un pool tronqué (Phase
+ * B0, point 4).
  *
- * @param {{documentSourceId:string, documentSectionId?:string, tag?:string, difficulty?:string, neverSeen?:boolean, neverSucceeded?:boolean, withImages?:boolean}} filters
+ * AJOUT (refonte visuelle, phase 1, decision validee avec David) :
+ * `documentSourceIds` (tableau, selection multiple par icones) remplace
+ * l'ancien `documentSourceId` unique - une requete Firestore BORNEE par
+ * source (jamais une clause `in`, pour rester sur les memes index deja
+ * deployes), les resultats sont ensuite fusionnes et dedupliques ICI,
+ * cote client. Si UNE SEULE source scannee est tronquee, le pool ENTIER
+ * est refuse (jamais un agregat partiellement incomplet, meme principe
+ * qu'avant).
+ *
+ * @param {{documentSourceIds:Array<string>, documentSectionId?:string, tag?:string, difficulty?:string, neverSeen?:boolean, neverSucceeded?:boolean}} filters
  * @returns {Promise<{ready:boolean, message:(string|null), items:Array<object>}>}
  */
 export async function composeFreeTrainingPool(filters) {
   const f = filters || {};
-  if (!f.documentSourceId) return { ready: false, message: 'Choisissez une source documentaire.', items: [] };
+  const sourceIds = Array.isArray(f.documentSourceIds) ? f.documentSourceIds.filter(Boolean) : [];
+  if (sourceIds.length === 0) return { ready: false, message: 'Choisissez au moins une source documentaire.', items: [] };
 
-  const serverFilters = { status: 'published', documentSourceId: f.documentSourceId };
-  const sectionAlreadyScoped = !!f.documentSectionId;
-  if (sectionAlreadyScoped) {
-    serverFilters.documentSectionId = f.documentSectionId;
-    // Difficulté appliquée cote CLIENT quand une section est deja choisie
-    // (voir Phase B0 : pas d'index a 4 champs) - jamais ajoutee ici.
-  } else if (f.difficulty) {
-    serverFilters.difficulty = f.difficulty; // aucune section -> peut aller cote serveur (index dedie)
+  // La section ne reste applicable cote serveur QUE si une seule source est
+  // selectionnee (une section appartient a UNE source precise - avec
+  // plusieurs sources choisies, le filtre de section n'a plus de sens et
+  // est ignore, voir js/entrainement-libre.js qui le masque deja dans ce cas).
+  const sectionAlreadyScoped = !!f.documentSectionId && sourceIds.length === 1;
+
+  const perSourceResults = await Promise.all(sourceIds.map(function(sourceId) {
+    const serverFilters = { status: 'published', documentSourceId: sourceId };
+    if (sectionAlreadyScoped) {
+      serverFilters.documentSectionId = f.documentSectionId;
+      // Difficulté appliquée cote CLIENT quand une section est deja choisie
+      // (voir Phase B0 : pas d'index a 4 champs) - jamais ajoutee ici.
+    } else if (f.difficulty) {
+      serverFilters.difficulty = f.difficulty; // aucune section -> peut aller cote serveur (index dedie)
+    }
+    return searchQuestionsBounded({ filters: serverFilters });
+  }));
+
+  const erroredResult = perSourceResults.find(function(r) { return r.error; });
+  if (erroredResult) {
+    return { ready: false, message: erroredResult.message || 'Impossible de charger les questions pour le moment. Réessayez plus tard.', items: [] };
+  }
+  const truncatedResult = perSourceResults.find(function(r) { return r.truncated; });
+  if (truncatedResult) {
+    const readiness = evaluateTrainingPoolReadiness(truncatedResult);
+    return { ready: false, message: readiness.message, items: [] };
   }
 
-  const boundedResult = await searchQuestionsBounded({ filters: serverFilters });
-  const readiness = evaluateTrainingPoolReadiness(boundedResult);
-  if (!readiness.canLaunch) {
-    return { ready: false, message: readiness.message || boundedResult.message, items: [] };
+  const seenIds = new Set();
+  const merged = [];
+  perSourceResults.forEach(function(r) {
+    r.items.forEach(function(q) {
+      if (!seenIds.has(q.pedagogicalId)) { seenIds.add(q.pedagogicalId); merged.push(q); }
+    });
+  });
+  if (merged.length === 0) {
+    return { ready: false, message: 'Aucune question ne correspond à cette sélection.', items: [] };
   }
 
-  let items = applySecondaryFilters(boundedResult.items, {
+  let items = applySecondaryFilters(merged, {
     tag: f.tag,
     difficulty: f.difficulty,
     sectionAlreadyScoped: sectionAlreadyScoped,
-    withImages: f.withImages,
   });
 
   if (f.neverSeen || f.neverSucceeded) {

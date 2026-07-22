@@ -40,7 +40,6 @@ const NAV_ITEMS = [
   { key: 'mes-parcours', href: 'mes-parcours.html', icon: '🧭', label: 'Mes parcours' },
   { key: 'mes-competences', href: 'mes-competences.html', icon: '🧠', label: 'Mes compétences' },
   { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: '🎯', label: 'Entraînement libre' },
-  { key: 'sources', href: 'sources-documentaires.html', icon: '📚', label: 'Sources documentaires' },
   { key: 'mes-evaluations', href: 'index.html?history=1', icon: '📊', label: 'Mes évaluations', viewToggle: 'openHistoryView' },
   { key: 'administration', href: 'index.html?admin=1', icon: '🛡️', label: 'Administration', adminOnly: true, viewToggle: 'openAdminZone' },
 ];

@@ -52,16 +52,12 @@
     <div id="etl-form-card">
 
       <div class="import-card">
-        <h3>1. Source documentaire</h3>
-        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
-          <div>
-            <label class="bank-edit-label">Source documentaire</label>
-            <select id="etl-source" class="bank-select"><option value="">— Choisir —</option></select>
-          </div>
-          <div>
-            <label class="bank-edit-label">Section (optionnel)</label>
-            <select id="etl-section" class="bank-select" disabled><option value="">—</option></select>
-          </div>
+        <h3>1. Source(s) documentaire(s)</h3>
+        <p class="pv-list-empty" style="margin-bottom:10px;">Sélectionnez une ou plusieurs sources (choix multiple).</p>
+        <div id="etl-source-icons" class="etl-source-icon-grid"></div>
+        <div id="etl-section-wrap" style="margin-top:14px;display:none;max-width:320px;">
+          <label class="bank-edit-label">Section (optionnel)</label>
+          <select id="etl-section" class="bank-select" disabled><option value="">—</option></select>
         </div>
       </div>
 
@@ -82,9 +78,6 @@
           </div>
         </div>
         <div class="btn-row" style="margin-top:10px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" id="etl-with-images"> Avec image uniquement
-          </label>
           <label style="display:flex;align-items:center;gap:6px;">
             <input type="checkbox" id="etl-never-seen"> Jamais vue
           </label>

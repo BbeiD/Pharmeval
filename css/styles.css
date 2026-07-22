@@ -98,6 +98,21 @@
   .mastery-donut-empty-icon { font-size: 32px; margin-bottom: var(--space-2); }
   .mastery-donut-empty-title { font-weight: 600; margin-bottom: 4px; }
 
+  /* AJOUT (refonte visuelle, phase 1) : tuiles de selection MULTIPLE des
+     sources documentaires (entrainement libre), a la place de l'ancien
+     <select> a choix unique. */
+  .etl-source-icon-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .etl-source-icon {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    width: 96px; padding: var(--space-2); border: 1.5px solid var(--border2); border-radius: var(--radius);
+    background: var(--surface); cursor: pointer; text-align: center;
+  }
+  .etl-source-icon:hover { border-color: var(--green); }
+  .etl-source-icon-emoji { font-size: 24px; }
+  .etl-source-icon-name { font-size: 11px; color: var(--text2); line-height: 1.3; word-break: break-word; }
+  .etl-source-icon.etl-source-icon-selected { border-color: var(--green); background: var(--green-light); }
+  .etl-source-icon.etl-source-icon-selected .etl-source-icon-name { color: var(--green-dark); font-weight: 600; }
+
   /* HEADER */
   .site-header {
     background: var(--surface);
