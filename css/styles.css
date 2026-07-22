@@ -1510,16 +1510,18 @@
   .ev-option:hover { border-color: var(--accent, #1D9E75); }
   .ev-option input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; }
   .ev-option input[type="radio"]:focus-visible { outline: 2px solid var(--accent, #1D9E75); outline-offset: 2px; }
-  .ev-option:has(input:checked) { border-color: var(--accent, #1D9E75); border-width: 2px; background: rgba(29,158,117,.08); }
+  /* :not(:disabled) DELIBERE : cette surbrillance "selection en cours" ne
+     doit plus s'appliquer une fois la reponse verrouillee (input disabled,
+     voir applyAnswerFeedback() dans evaluation.js), sans quoi elle entre
+     en conflit avec .ev-option-correct/-incorrect ci-dessous - et gagne
+     meme malgre un selecteur plus specifique cote correct/incorrect, car
+     :has() herite de la specificite de son propre contenu ("input:checked"
+     compte un selecteur de type + un pseudo-classe, pas juste 1 classe). */
+  .ev-option:has(input:checked:not(:disabled)) { border-color: var(--accent, #1D9E75); border-width: 2px; background: rgba(29,158,117,.08); }
   /* Retour immediat a la selection (reponse revelee, plus modifiable) -
      reutilise les memes tokens de couleur que l'ancien moteur de quiz. */
-  /* Selecteur double (.ev-option.ev-option-xxx) DELIBERE : doit egaler ou
-     depasser la specificite de .ev-option:has(input:checked) ci-dessus,
-     sans quoi une reponse INCORRECTE mais cochee restait affichee en vert
-     (l'etat "coche" gagnait sur l'etat "incorrect" malgre l'ordre du
-     fichier - specificite CSS, pas une question d'ordre). */
-  .ev-option.ev-option-correct { border-color: var(--green); border-width: 2px; background: var(--green-light); }
-  .ev-option.ev-option-incorrect { border-color: var(--red); border-width: 2px; background: var(--red-light); }
+  .ev-option-correct { border-color: var(--green); border-width: 2px; background: var(--green-light); }
+  .ev-option-incorrect { border-color: var(--red); border-width: 2px; background: var(--red-light); }
   .ev-option:has(input:disabled) { cursor: default; }
 
   .ev-actions-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
