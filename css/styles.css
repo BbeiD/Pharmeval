@@ -1,4 +1,11 @@
 
+  /* AJOUT (typographie, demande directe de David, 22/07/2026) : Manrope pour
+     les titres (h1-h6), Inter pour le corps de texte - @import doit rester
+     la toute premiere regle du fichier (contrainte CSS), pour que TOUTE
+     page utilisant css/styles.css recoive les deux polices sans qu'aucun
+     fichier HTML n'ait besoin d'etre modifie. */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+
   /* AJOUT (bibliotheque d'icones, remplace les emojis) : alignement generique
      de TOUTE icone inline venant de js/icons.js (icon()/dotIcon()/renderAnyIcon())
      - reconnue par ses attributs communs (aria-hidden+focusable), jamais par
@@ -61,13 +68,17 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     /* Dégradé tres subtil (pas une nouvelle couleur, juste une variation
        de luminosite de --bg lui-meme) - casse la platitude d'un aplat
        unique sans jamais nuire a la lisibilite. */
     background: linear-gradient(180deg, #F8F5EC 0%, var(--bg) 420px, var(--bg) 100%);
     color: var(--text);
     min-height: 100vh;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-weight: 700;
   }
 
   /* AJOUT (refonte visuelle, phase 1) : base de carte/tuile commune -
