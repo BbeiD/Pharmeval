@@ -1497,17 +1497,6 @@
   .mpc-bucket-row { display: flex; flex-direction: column; gap: 4px; }
   .mpc-bucket-label { font-size: 12px; color: var(--text2); }
 
-  .ev-question-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
-  .ev-nav-btn {
-    min-width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 600;
-  }
-  .ev-nav-btn:focus-visible { outline: 2px solid var(--accent, #1D9E75); outline-offset: 2px; }
-  .ev-nav-current { border-color: var(--accent, #1D9E75); border-width: 2px; }
-  .ev-nav-answered { background: rgba(29,158,117,.15); border-color: var(--accent, #1D9E75); }
-  .ev-nav-answered::after { content: " ✓"; }
-  .ev-nav-unanswered { background: var(--surface); }
-
   .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }
   .ev-question-card h2 { margin: 0 0 16px 0; font-size: 17px; line-height: 1.4; }
 
@@ -1520,6 +1509,11 @@
   .ev-option input[type="radio"] { width: 18px; height: 18px; flex-shrink: 0; }
   .ev-option input[type="radio"]:focus-visible { outline: 2px solid var(--accent, #1D9E75); outline-offset: 2px; }
   .ev-option:has(input:checked) { border-color: var(--accent, #1D9E75); border-width: 2px; background: rgba(29,158,117,.08); }
+  /* Retour immediat a la selection (reponse revelee, plus modifiable) -
+     reutilise les memes tokens de couleur que l'ancien moteur de quiz. */
+  .ev-option-correct { border-color: var(--green); border-width: 2px; background: var(--green-light); }
+  .ev-option-incorrect { border-color: var(--red); border-width: 2px; background: var(--red-light); }
+  .ev-option:has(input:disabled) { cursor: default; }
 
   .ev-actions-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
   .ev-actions-row .btn-primary, .ev-actions-row .btn-secondary { min-height: 44px; padding-left: 18px; padding-right: 18px; }
@@ -1528,7 +1522,6 @@
   @media (max-width: 600px) {
     .ev-actions-row { flex-direction: column; }
     .ev-actions-row button { width: 100%; }
-    .ev-nav-btn { min-width: 40px; height: 40px; }
   }
 
   /* ---- NOUVEAU (Sprint 18) : page de résultat d'évaluation ---- */

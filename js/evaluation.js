@@ -21,7 +21,8 @@ import {
   getActiveFreeTrainingSession,
   startParcoursMixedSession, restartParcoursMixedSession,
 } from "./services/evaluation-session-service.js";
-import { finalizeEvaluation } from "./services/evaluation-result-service.js";
+import { finalizeEvaluation, resolveExplanations } from "./services/evaluation-result-service.js";
+import { checkAnswerCorrectness } from "./services/evaluation-correction-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
 import { renderQuestionOptions, readAnswerFromDom } from "./services/question-renderer-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
@@ -276,24 +277,7 @@ function renderTaking() {
     qs('ev-parcours-name').textContent = state.parcoursName + (state.competencyDescription ? ' — ' + state.competencyDescription : '');
   }
 
-  renderNav();
   renderQuestion(state.session.currentQuestionIndex || 0);
-}
-
-function renderNav() {
-  const total = state.session.questionIds.length;
-  const navEl = qs('ev-question-nav');
-  navEl.innerHTML = state.session.questionIds.map(function(pid, i) {
-    const answered = isQuestionAnswered(state.session.answers[pid]);
-    const isCurrent = i === state.session.currentQuestionIndex;
-    let cls = 'ev-nav-btn';
-    if (isCurrent) cls += ' ev-nav-current';
-    else if (answered) cls += ' ev-nav-answered';
-    else cls += ' ev-nav-unanswered';
-    const statusLabel = isCurrent ? ' (question actuelle)' : (answered ? ' (répondue)' : ' (sans réponse)');
-    return '<button type="button" class="' + cls + '" onclick="goToQuestion(' + i + ')" aria-current="' + (isCurrent ? 'true' : 'false') + '" aria-label="Question ' + (i + 1) + statusLabel + '">' + (i + 1) + '</button>';
-  }).join('');
-  void total;
 }
 
 function renderProgress() {
@@ -314,19 +298,71 @@ function currentSnapshot() {
 function renderQuestion(index) {
   state.session.currentQuestionIndex = index;
   renderProgress();
-  renderNav();
 
   const { pedagogicalId, snapshot } = currentSnapshot();
   qs('ev-question-statement').textContent = (snapshot && snapshot.question) || 'Question indisponible.';
 
   const currentValue = state.session.answers[pedagogicalId] ? state.session.answers[pedagogicalId].value : null;
   qs('ev-question-options').innerHTML = renderQuestionOptions(snapshot, currentValue);
+  hideExplanation();
 
   const optionsEl = qs('ev-question-options');
-  optionsEl.onchange = function() { handleAnswerChange(pedagogicalId, snapshot); };
+  if (currentValue === null || currentValue === undefined) {
+    optionsEl.onchange = function() { handleAnswerChange(pedagogicalId, snapshot); };
+  } else {
+    // Question deja repondue (revisitee via Precedent/navigation) : reponse
+    // verrouillee, meme retour immediat que juste apres avoir repondu -
+    // jamais de nouvelle modification silencieuse d'une reponse deja vue.
+    optionsEl.onchange = null;
+    applyAnswerFeedback(pedagogicalId, snapshot, currentValue);
+  }
 
   qs('ev-btn-prev').disabled = (index === 0);
   qs('ev-btn-next').disabled = (index === state.session.questionIds.length - 1);
+}
+
+// ---------------------------------------------------------------------------
+// Retour immediat par question (couleur + justification a la selection) -
+// reutilise checkAnswerCorrectness() (meme registre que la correction
+// finale de session, evaluation-correction-service.js) et resolveExplanations()
+// (meme fonction que la page de resultat, evaluation-result-service.js) :
+// aucune logique de comparaison ni de lecture d'explication dupliquee ici.
+// ---------------------------------------------------------------------------
+
+const explanationCache = new Map();
+
+function hideExplanation() {
+  const el = qs('ev-explanation');
+  el.className = 'explanation';
+  el.innerHTML = '';
+}
+
+async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
+  const optionsEl = qs('ev-question-options');
+  const inputs = optionsEl.querySelectorAll('input[type="radio"]');
+  const correction = checkAnswerCorrectness(snapshot.questionType, snapshot, value);
+  inputs.forEach(function(input, i) {
+    input.disabled = true;
+    const label = input.closest('.ev-option');
+    if (!label) return;
+    if (i === snapshot.correctAnswer) label.classList.add('ev-option-correct');
+    else if (i === value) label.classList.add('ev-option-incorrect');
+  });
+
+  let text = explanationCache.get(pedagogicalId);
+  if (text === undefined) {
+    const map = await resolveExplanations([pedagogicalId]);
+    text = map.get(pedagogicalId) || '';
+    explanationCache.set(pedagogicalId, text);
+  }
+  // L'utilisateur a pu changer de question pendant la lecture reseau -
+  // jamais afficher une justification sur la mauvaise question.
+  if (state.session.questionIds[state.session.currentQuestionIndex] !== pedagogicalId) return;
+
+  const explanationEl = qs('ev-explanation');
+  explanationEl.innerHTML = '<strong>' + (correction.isCorrect ? '✓ Bonne réponse' : '✗ Incorrect') + ' :</strong> ' +
+    escapeHtml(text || 'Aucune justification disponible pour cette question.');
+  explanationEl.className = 'explanation show';
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +383,8 @@ async function handleAnswerChange(pedagogicalId, snapshot) {
   }
   state.session.answers[pedagogicalId] = result.entry;
   setSaveIndicator('Enregistré');
-  renderNav(); // met a jour le pastille "repondue" de la navigation compacte
+  qs('ev-question-options').onchange = null; // verrouille : reponse deja revelee, plus de changement possible
+  applyAnswerFeedback(pedagogicalId, snapshot, value);
 }
 
 async function persistCurrentIndex() {
@@ -362,11 +399,6 @@ export function goToPrevious() {
 export function goToNext() {
   if (state.session.currentQuestionIndex >= state.session.questionIds.length - 1) return;
   renderQuestion(state.session.currentQuestionIndex + 1);
-  persistCurrentIndex();
-}
-export function goToQuestion(index) {
-  if (index === state.session.currentQuestionIndex) return;
-  renderQuestion(index);
   persistCurrentIndex();
 }
 
@@ -445,7 +477,6 @@ window.cancelRestart = cancelRestart;
 window.confirmRestart = confirmRestart;
 window.goToPrevious = goToPrevious;
 window.goToNext = goToNext;
-window.goToQuestion = goToQuestion;
 window.requestSubmit = requestSubmit;
 window.cancelSubmit = cancelSubmit;
 window.confirmSubmit = confirmSubmit;

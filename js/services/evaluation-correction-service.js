@@ -88,6 +88,23 @@ export function isQuestionTypeCorrectable(questionType) {
   return Object.prototype.hasOwnProperty.call(CORRECTORS, questionType);
 }
 
+/**
+ * Corrige UNE reponse isolement, en dehors de toute session complete -
+ * reutilise le MEME registre CORRECTORS que correctEvaluationSession()
+ * ci-dessous, jamais une logique de comparaison dupliquee. Utilise par
+ * evaluation.js pour le retour immediat (couleur + justification) a la
+ * selection d'une reponse, avant toute soumission de session.
+ * @param {string} questionType
+ * @param {object} snapshot - session.questionSnapshot[pedagogicalId]
+ * @param {*} userAnswerValue
+ * @returns {{status:string, isCorrect:boolean}}
+ */
+export function checkAnswerCorrectness(questionType, snapshot, userAnswerValue) {
+  const corrector = CORRECTORS[questionType];
+  if (!corrector) return { status: QUESTION_RESULT_STATUS.UNANSWERED, isCorrect: false };
+  return corrector(snapshot, userAnswerValue);
+}
+
 // ---------------------------------------------------------------------------
 // QuestionResult
 // ---------------------------------------------------------------------------
