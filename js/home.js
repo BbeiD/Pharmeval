@@ -28,8 +28,22 @@ import { calculateOverview } from "./services/statistics-service.js";
 import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
 import { getMyQuestionMasterySummary } from "./services/question-progress-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
+import { getRecentActivityForUser } from "./services/recent-activity-service.js";
+import { getDailyChallengeStateForUser, startTodaysChallenge } from "./services/daily-challenge-service.js";
+import { DAILY_CHALLENGE_QUESTION_COUNT } from "./services/daily-challenge-logic.js";
+import { formatRelativeFr } from "./services/date-utils.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon } from "./icons.js";
+
+// AJOUT ("Activité récente", demande directe de David) : une icone + une
+// couleur par type d'evenement (voir recent-activity-logic.js) - jamais de
+// nouvelle icone inventee, toutes deja presentes dans js/icons.js.
+const ACTIVITY_ICON_BY_TYPE = {
+  evaluation_completed: { icon: 'content-question-bank', cls: 'stat-card-icon-blue' },
+  score_improved: { icon: 'feedback-trend-up', cls: 'stat-card-icon-green' },
+  parcours_started: { icon: 'nav-paths-formations', cls: 'stat-card-icon-orange' },
+  streak: { icon: 'feedback-streak-regularity', cls: 'stat-card-icon-orange' },
+};
 
 // AJOUT (demande directe de David, 22/07/2026) : config du donut "progression
 // globale" en QUESTIONS (voir renderMasteryDonutHtml(), mastery-donut-
@@ -37,10 +51,10 @@ import { icon } from "./icons.js";
 // depuis que plus aucun flux d'evaluation ne renseigne competencyId, voir
 // question-progress-service.js#getMyQuestionMasterySummary()).
 const QUESTION_MASTERY_DONUT_OPTIONS = {
-  statusOrder: ['mastered', 'to_reinforce'],
-  statusColor: { mastered: 'var(--green)', to_reinforce: 'var(--accent-orange)' },
-  statusLabels: { mastered: 'Maîtrisées', to_reinforce: 'À renforcer' },
-  centerLabel: 'Maîtrisées',
+  statusOrder: ['mastered', 'in_progress', 'to_work'],
+  statusColor: { mastered: 'var(--green)', in_progress: '#D4A017', to_work: 'var(--red)' },
+  statusLabels: { mastered: 'Maîtrisé', in_progress: 'En cours', to_work: 'À travailler' },
+  centerLabel: 'Progression',
   ariaLabel: 'Répartition de vos questions par niveau de maîtrise',
   emptyTitle: 'Aucune question évaluée pour le moment',
   emptySubtitle: 'Votre progression apparaîtra ici dès votre première évaluation terminée.',
@@ -85,6 +99,8 @@ onAuthStateChanged(auth, async function(user) {
     loadHomeParcours(),
     loadHomeStats(),
     loadMasteryDonut(),
+    loadRecentActivity(),
+    loadDefiCard(),
   ]);
 });
 
@@ -125,7 +141,7 @@ async function loadHomeStats() {
   const tiles = [
     {
       icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue',
-      value: String(inProgressCount), label: 'Formations en cours',
+      value: String(inProgressCount), label: 'Parcours en cours',
     },
     {
       icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange',
@@ -156,7 +172,11 @@ async function loadMasteryDonut() {
   const el = document.getElementById('home-mastery-donut');
   if (!el) return;
   const summary = await getMyQuestionMasterySummary();
-  el.innerHTML = renderMasteryDonutHtml(summary, QUESTION_MASTERY_DONUT_OPTIONS);
+  // "Progression" au centre = deja maitrisee OU en cours (mockup : 7% + 16%
+  // = 23%) - tout ce qui n'est plus "jamais reussie", jamais juste
+  // "maitrisee" seule (voir renderMasteryDonutHtml(), centerValue).
+  const centerValue = (summary.percentages.mastered || 0) + (summary.percentages.in_progress || 0);
+  el.innerHTML = renderMasteryDonutHtml(summary, Object.assign({ centerValue: centerValue }, QUESTION_MASTERY_DONUT_OPTIONS));
 }
 
 // ---------------------------------------------------------------------------
@@ -216,4 +236,88 @@ function cardHtml(entry, attempts) {
       '</div>' +
     '</div>'
   );
+}
+
+// ---------------------------------------------------------------------------
+// Activite recente (demande directe de David, 22/07/2026 - "agrège et
+// renseigne le")
+// ---------------------------------------------------------------------------
+
+async function loadRecentActivity() {
+  const listEl = document.getElementById('home-activity-list');
+  const emptyEl = document.getElementById('home-activity-empty');
+  if (!listEl) return;
+
+  const ctx = getCurrentUserContext();
+  const result = await getRecentActivityForUser(ctx && ctx.uid);
+
+  if (result.error || result.items.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = result.error ? 'none' : 'block';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = result.items.map(activityRowHtml).join('');
+}
+
+function activityRowHtml(event) {
+  const conf = ACTIVITY_ICON_BY_TYPE[event.type] || ACTIVITY_ICON_BY_TYPE.evaluation_completed;
+  return (
+    '<div class="home-activity-row">' +
+      '<div class="stat-card-icon ' + conf.cls + '" style="width:32px;height:32px;margin-bottom:0;">' + icon(conf.icon, { size: 16 }) + '</div>' +
+      '<div class="home-activity-text">' +
+        '<div class="home-activity-label">' + escapeHtml(event.label) + '</div>' +
+        '<div class="home-activity-detail">' + escapeHtml(event.detail) + '</div>' +
+      '</div>' +
+      '<div class="home-activity-time">' + escapeHtml(formatRelativeFr(event.date)) + '</div>' +
+    '</div>'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Défi du jour (demande directe de David, 22/07/2026) - meme donnee que
+// js/defi.js, presentation condensee pour l'accueil. AUCUN "temps estime"
+// (explicitement refuse - personne ne mesure le temps reel par question
+// aujourd'hui, ce serait une valeur inventee).
+// ---------------------------------------------------------------------------
+
+async function loadDefiCard() {
+  const el = document.getElementById('home-defi-body');
+  if (!el) return;
+
+  const state = await getDailyChallengeStateForUser();
+  const trophy = '<div class="home-defi-trophy">' + icon('feedback-success-achievement', { size: 40 }) + '</div>';
+
+  if (state.eligibleCount === 0) {
+    el.innerHTML = '<p class="pv-list-empty">Aucune question disponible pour le moment.</p>';
+    return;
+  }
+
+  if (state.alreadyCompletedToday) {
+    el.innerHTML =
+      trophy +
+      '<p style="text-align:center;"><strong>Défi relevé pour aujourd\'hui !</strong></p>' +
+      '<div class="btn-row" style="justify-content:center;"><a class="btn-secondary" href="defi.html">Voir mon défi</a></div>';
+    return;
+  }
+
+  const questionCount = Math.min(DAILY_CHALLENGE_QUESTION_COUNT, state.eligibleCount);
+  el.innerHTML =
+    '<p>' + questionCount + ' questions sélectionnées pour vous.</p>' +
+    trophy +
+    '<button class="btn-primary" id="home-defi-start-btn" style="width:100%;">Commencer le défi</button>';
+
+  document.getElementById('home-defi-start-btn').addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Préparation…';
+    const result = await startTodaysChallenge();
+    if (result.status !== 'success') {
+      btn.disabled = false;
+      btn.textContent = 'Commencer le défi';
+      return;
+    }
+    window.location.href = 'evaluation.html?sessionType=daily_challenge';
+  });
 }

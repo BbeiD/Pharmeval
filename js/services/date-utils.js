@@ -75,6 +75,38 @@ export function toMillis(value) {
 }
 
 /**
+ * AJOUT ("Activité récente", demande directe de David) : horodatage relatif
+ * lisible ("Il y a 2 h", "Hier", "Il y a 3 jours") - au-dela d'une semaine,
+ * retombe sur formatDateFr() ci-dessus (une date absolue reste plus utile
+ * qu'un "il y a 12 jours" imprecis). `nowMs` est PARAMETRABLE (jamais
+ * Date.now() implicite) uniquement pour rester testable de façon
+ * deterministe - les appelants reels omettent ce parametre.
+ * @param {*} value
+ * @param {number} [nowMs]
+ * @returns {string}
+ */
+export function formatRelativeFr(value, nowMs) {
+  const d = toComparableDate(value);
+  if (!d) return '';
+  const now = (typeof nowMs === 'number') ? nowMs : Date.now();
+  const diffMs = now - d.getTime();
+  if (diffMs < 0) return formatDateFr(value); // horodatage futur (horloge decalee) - jamais "il y a -3h"
+
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'À l\'instant';
+  if (minutes < 60) return 'Il y a ' + minutes + ' min';
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return 'Il y a ' + hours + ' h';
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Hier';
+  if (days < 7) return 'Il y a ' + days + ' jours';
+
+  return formatDateFr(value);
+}
+
+/**
  * AJOUT (Défi du jour) : date du jour, au format 'AAAA-MM-JJ', dans le
  * fuseau LOCAL du navigateur (pas UTC - "aujourd'hui" doit correspondre à
  * la date que voit réellement l'utilisateur). Sert d'identifiant du "défi

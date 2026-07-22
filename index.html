@@ -76,18 +76,32 @@
        voir js/home.js, loadHomeStats(). -->
   <div class="stat-card-grid" id="home-stats-grid" style="margin-bottom:var(--space-4);"></div>
 
-  <div class="import-card-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
+  <div class="card" style="margin-bottom:var(--space-4);">
+    <h3 style="margin-bottom:var(--space-3);"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/><line x1="18" y1="6" x2="21" y2="3"/><line x1="18" y1="6" x2="18" y2="3"/><line x1="18" y1="6" x2="21" y2="6"/></svg> Entraînement libre</h3>
+    <p class="import-intro" style="margin-bottom:var(--space-3);">
+      Composez librement une séance d'entraînement à partir du catalogue de questions
+      (source documentaire, section, difficulté, tags).
+    </p>
+    <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Commencer un entraînement libre</a>
+  </div>
+
+  <!-- AJOUT (mockup, demande directe de David) : progression globale /
+       défi du jour / activité récente, cote a cote - trois lectures
+       INDEPENDANTES (voir js/home.js), une erreur sur l'une n'affecte
+       jamais les deux autres. -->
+  <div class="import-card-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
     <div class="card">
       <h3 style="margin-bottom:var(--space-3);">Votre progression globale</h3>
       <div id="home-mastery-donut"></div>
     </div>
+    <div class="card" id="home-defi-card">
+      <h3 style="margin-bottom:var(--space-3);"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M9 20h6"/><path d="M8 4H5v3c0 2 1.5 3 3 3"/><path d="M16 4h3v3c0 2-1.5 3-3 3"/><path d="M10 16v4M14 16v4"/></svg> Défi du jour</h3>
+      <div id="home-defi-body"></div>
+    </div>
     <div class="card">
-      <h3 style="margin-bottom:var(--space-3);"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/><line x1="18" y1="6" x2="21" y2="3"/><line x1="18" y1="6" x2="18" y2="3"/><line x1="18" y1="6" x2="21" y2="6"/></svg> Entraînement libre</h3>
-      <p class="import-intro" style="margin-bottom:var(--space-3);">
-        Composez librement une séance d'entraînement à partir du catalogue de questions
-        (source documentaire, section, difficulté, tags).
-      </p>
-      <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Commencer un entraînement libre</a>
+      <h3 style="margin-bottom:var(--space-3);">Activité récente</h3>
+      <div id="home-activity-empty" class="bank-list-empty" style="display:none;">Aucune activité pour le moment.</div>
+      <div id="home-activity-list" class="home-activity-list"></div>
     </div>
   </div>
 

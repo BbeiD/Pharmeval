@@ -69,7 +69,13 @@ export function renderMasteryDonutHtml(summary, options) {
     return circle;
   }).join('');
 
-  const dominant = summary.percentages[statusOrder[0]] || 0;
+  // AJOUT (mockup 3 etats, demande directe de David) : le chiffre central
+  // peut etre une somme de plusieurs statuts (ex. mastered + in_progress =
+  // "progression" globale, ni juste "maitrise" ni le premier statut de la
+  // liste) - `centerValue` permet a l'appelant de le preciser explicitement ;
+  // a defaut, comportement INCHANGE (premier statut de `statusOrder`, voir
+  // mes-competences.js qui n'en passe pas).
+  const dominant = (typeof opts.centerValue === 'number') ? opts.centerValue : (summary.percentages[statusOrder[0]] || 0);
 
   const legend = statusOrder.map(function(status) {
     return (

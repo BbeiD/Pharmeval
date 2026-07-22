@@ -1,8 +1,8 @@
-// ===================== EN-TETE PARTAGE (refonte visuelle, Phase 1) =====================
-// Point de verite UNIQUE pour la barre de navigation superieure, reutilisee
-// par TOUTES les pages - jusqu'ici, seule index.html avait un vrai
-// `.site-header` (logo + nav + compte), copie nulle part ailleurs (voir
-// RAPPORT_REFONTE_VISUELLE.md). Chaque page ajoute un point de montage :
+// ===================== EN-TETE PARTAGE — SIDEBAR (refonte visuelle, mockup David 22/07/2026) =====================
+// Point de verite UNIQUE pour la navigation, reutilisee par TOUTES les
+// pages - jusqu'ici une barre HORIZONTALE en haut de page, desormais une
+// SIDEBAR verticale fixee a gauche (mockup valide avec David). Chaque page
+// ajoute un point de montage :
 //
 //   <div id="site-header-mount"></div>
 //   <script type="module" src="js/site-header.js"></script>   (ou "../js/..." depuis admin/*.html)
@@ -10,9 +10,18 @@
 // puis appelle renderSiteHeader('<cle-de-page>') JUSTE APRES avoir peuple
 // le contexte utilisateur (setCurrentUserContext(...)) - meme endroit que
 // chaque page appelle deja aujourd'hui (voir js/mes-parcours.js comme
-// reference). Ce module ne fait JAMAIS d'appel Firebase Authentication/
-// Firestore pour LIRE le contexte : il ne fait que lire ce que la page
-// appelante a deja peuple via getCurrentUserContext().
+// reference). Le decalage du contenu de page (jamais recouvert par la
+// sidebar fixe) est une regle CSS globale sur `body` (voir css/styles.css,
+// ".site-sidebar"/"body") - AUCUNE page n'a besoin de changer sa propre
+// structure HTML pour ca.
+//
+// CORRECTIF (nouvelle exception documentee, 22/07/2026) : ce module ne
+// lisait JAMAIS Firestore lui-meme (uniquement getCurrentUserContext(),
+// deja peuple par la page appelante) - la SERIE du defi du jour, affichee
+// en pied de sidebar sur TOUTE page, est la PREMIERE exception : un appel
+// Firestore "best effort" est declenche APRES le rendu synchrone du reste
+// (jamais bloquant, jamais d'erreur remontee a l'appelant) - voir
+// loadStreakBadge() plus bas.
 //
 // DECONNEXION : geree ICI en autonomie (signOut() + clearCurrentUserContext()
 // + redirection vers l'accueil), plutot que de dependre de js/auth.js (trop
@@ -24,7 +33,10 @@ import { auth } from "./firebase-config.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
+import { PROFESSION_OPTIONS } from "./services/user-service.js";
 import { icon } from "./icons.js";
+
+const PROFESSION_LABEL_BY_VALUE = new Map(PROFESSION_OPTIONS.map(function(o) { return [o.value, o.label]; }));
 
 // Pages REELLEMENT construites aujourd'hui - a completer au fur et a
 // mesure du deploiement (sources documentaires, Mon profil : pas encore
@@ -104,26 +116,82 @@ export function renderSiteHeader(activeKey) {
   const avatarHtml = photoURL
     ? '<img class="sh-avatar-img" src="' + escapeHtml(photoURL) + '" alt="">'
     : '<span class="sh-avatar-initials">' + escapeHtml(initialsFrom(ctx && ctx.displayName, ctx && ctx.email)) + '</span>';
+  // AJOUT (mockup) : profession affichee EN CLAIR sous le nom, dans le pied
+  // de sidebar (jamais juste dans le menu deroulant comme avant) - valeur
+  // libre uniquement si reellement choisie a l'inscription (PROFESSION_LABEL_BY_VALUE),
+  // jamais "Autre"/une valeur brute non traduite affichee telle quelle.
+  const professionLabel = PROFESSION_LABEL_BY_VALUE.get(ctx && ctx.profile && ctx.profile.profession) || '';
 
   mount.innerHTML =
-    '<div class="site-header">' +
+    '<div class="site-sidebar">' +
       '<a class="sh-logo-link" href="' + escapeHtml(base + 'index.html') + '">' +
         '<div class="logo">Fp</div>' +
-        '<span class="sh-app-name">Pharmeval</span>' +
+        '<span class="sh-logo-text">' +
+          '<span class="sh-app-name">Pharmeval</span>' +
+          '<span class="sh-app-tagline">Apprendre · Comprendre · Progresser</span>' +
+        '</span>' +
       '</a>' +
       '<nav class="sh-nav" aria-label="Navigation principale">' + navHtml + '</nav>' +
-      '<div class="sh-account">' +
-        '<button type="button" class="sh-avatar-btn" id="sh-avatar-btn" aria-haspopup="true" aria-expanded="false" aria-label="Mon compte">' + avatarHtml + '</button>' +
-        '<div class="sh-account-menu" id="sh-account-menu" style="display:none;">' +
-          '<div class="sh-account-name">' + escapeHtml(displayName || '—') + '</div>' +
-          (ctx && ctx.email ? '<div class="sh-account-email">' + escapeHtml(ctx.email) + '</div>' : '') +
-          '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">' + icon('nav-profile', { size: 16 }) + ' Mon profil</a>' +
-          '<button type="button" class="sh-account-logout" id="sh-account-logout">' + icon('action-restore', { size: 16 }) + ' Se déconnecter</button>' +
+      '<div class="sh-sidebar-footer">' +
+        '<div class="sh-account">' +
+          '<button type="button" class="sh-avatar-btn" id="sh-avatar-btn" aria-haspopup="true" aria-expanded="false" aria-label="Mon compte">' +
+            '<span class="sh-avatar-circle">' + avatarHtml + '</span>' +
+            '<span class="sh-account-inline">' +
+              '<span class="sh-account-inline-name">' + escapeHtml(displayName || '—') + '</span>' +
+              (professionLabel ? '<span class="sh-account-inline-role">' + escapeHtml(professionLabel) + '</span>' : '') +
+            '</span>' +
+          '</button>' +
+          '<div class="sh-account-menu" id="sh-account-menu" style="display:none;">' +
+            '<div class="sh-account-name">' + escapeHtml(displayName || '—') + '</div>' +
+            (ctx && ctx.email ? '<div class="sh-account-email">' + escapeHtml(ctx.email) + '</div>' : '') +
+            '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">' + icon('nav-profile', { size: 16 }) + ' Mon profil</a>' +
+            '<button type="button" class="sh-account-logout" id="sh-account-logout">' + icon('action-restore', { size: 16 }) + ' Se déconnecter</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sh-streak-block" id="sh-streak-block" style="display:none;">' +
+          '<span class="sh-streak-icon">' + icon('feedback-streak-regularity', { size: 20 }) + '</span>' +
+          '<span class="sh-streak-text">' +
+            '<span class="sh-streak-label">Série actuelle</span>' +
+            '<span class="sh-streak-value" id="sh-streak-value"></span>' +
+          '</span>' +
         '</div>' +
       '</div>' +
     '</div>';
 
   wireInteractions(mount);
+  loadStreakBadge();
+}
+
+/**
+ * AJOUT (exception documentee, voir en-tete) : remplit la serie du defi du
+ * jour APRES le rendu synchrone ci-dessus - "best effort" total (aucune
+ * erreur ici ne doit jamais degrader le reste de la sidebar, deja affichee
+ * et fonctionnelle).
+ *
+ * Lit DIRECTEMENT daily-challenge-catalog-service.js (UNE lecture de
+ * document, la progression seule) plutot que daily-challenge-service.js
+ * (getDailyChallengeStateForUser(), qui recalcule EN PLUS tout le pool de
+ * questions eligibles du jour - inutile ici, ou seul le compteur de serie
+ * est affiche). Import PARESSEUX (dynamique) : evite que cette dependance
+ * Firestore ne s'importe systematiquement au chargement de CHAQUE page,
+ * y compris avant authentification.
+ */
+async function loadStreakBadge() {
+  const block = document.getElementById('sh-streak-block');
+  const valueEl = document.getElementById('sh-streak-value');
+  if (!block || !valueEl) return;
+
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return;
+
+  try {
+    const { getDailyChallengeProgress } = await import('./services/daily-challenge-catalog-service.js');
+    const progress = await getDailyChallengeProgress(ctx.uid);
+    valueEl.textContent = ((progress && progress.currentStreak) || 0) + ' jour(s)';
+    block.style.display = 'flex';
+  } catch (err) {
+    console.error('[site-header] chargement de la série impossible', err);
+  }
 }
 
 function wireInteractions(mount) {
