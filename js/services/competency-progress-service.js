@@ -69,6 +69,20 @@ async function updateOneCompetencyProgression(evaluationResult, competencyResult
   });
 
   const previous = existing ? completeProgressionMetadata(existing) : null;
+
+  // CORRECTIF (idempotence manquante, decouverte en construisant
+  // reconcileProgressForUser(), evaluation-result-service.js) : cette
+  // fonction n'avait AUCUNE protection contre un double appel pour le
+  // MEME evaluationResult - un simple retry reseau, ou tout appelant futur
+  // rejouant un resultat deja applique, aurait compte cette evaluation
+  // DEUX FOIS dans l'historique (evaluationCount/averagePercent fausses).
+  // `history[].resultId` existe deja (voir newHistoryEntry ci-dessus) -
+  // s'il est deja present, on n'ajoute rien de plus, exactement comme
+  // applyEvaluationResultIfNew() le fait deja pour question_progress.
+  if (previous && previous.history.some(function(h) { return h.resultId === evaluationResult.id; })) {
+    return;
+  }
+
   const history = previous ? previous.history.concat([newHistoryEntry]) : [newHistoryEntry]; // "Ne jamais perdre les anciennes valeurs" - toujours un ajout, jamais un remplacement
 
   const evaluationCount = history.length;

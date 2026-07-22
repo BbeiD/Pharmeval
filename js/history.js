@@ -9,6 +9,7 @@ import { renderStatisticsFromData, renderError as renderStatisticsError, renderL
 import { renderRecommendationsFromData, renderRecommendationsError, renderRecommendationsLoading } from "./recommendation.js";
 import { getCurrentUserContext } from "./services/app-context.js";
 import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
+import { reconcileProgressForUser } from "./services/evaluation-result-service.js";
 import {
   renderParcoursCompletionFromData, renderParcoursCompletionError, renderParcoursCompletionLoading,
 } from "./mes-parcours-completion.js";
@@ -61,10 +62,21 @@ async function loadStatisticsAndRecommendations() {
 // de cet ecran (meme principe que loadStatisticsAndRecommendations()
 // ci-dessus) - une erreur ici ne bloque jamais la liste des evaluations,
 // et inversement.
+//
+// CORRECTIF (bug du 22/07/2026) : rejoue d'abord la progression manquante
+// (reconcileProgressForUser(), evaluation-result-service.js) - repare en
+// silence les evaluations terminees AVANT le correctif de finalizeEvaluation()
+// (ecriture de question_progress/competency_progress alors interrompue par
+// la redirection immediate vers la page de resultat). Ne bloque jamais cet
+// ecran en cas d'echec (.catch() local) - au pire, "Mes parcours" affiche
+// simplement l'etat actuel sans avoir pu le reparer cette fois-ci.
 async function loadParcoursCompletion() {
   renderParcoursCompletionLoading();
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) { renderParcoursCompletionError(); return; }
+  await reconcileProgressForUser(ctx.uid).catch(function(err) {
+    console.error('[history.js] réconciliation de la progression impossible', err);
+  });
   const result = await getParcoursCompletionForUser(ctx.uid);
   if (result.error) { renderParcoursCompletionError(); return; }
   renderParcoursCompletionFromData(result.items);

@@ -10,7 +10,9 @@
 // catalog-service.js.
 
 import { db } from "../firebase-config.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import {
+  doc, getDoc, setDoc, collection, query, where, getDocs,
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const RESULT_COLLECTION = 'evaluation_results';
 
@@ -48,5 +50,26 @@ export async function getResultById(resultId) {
   } catch (err) {
     logCatalogError('lecture du résultat ' + resultId, err);
     return null;
+  }
+}
+
+/**
+ * Relit TOUS les résultats bruts (documents complets, competencyResults
+ * inclus) d'un utilisateur - AJOUT pour permettre de rejouer la
+ * progression par question/compétence sur des résultats déjà enregistrés
+ * (voir reconcileProgressForUser(), evaluation-result-service.js). Jamais
+ * utilisée pour l'affichage courant de l'historique (voir history-
+ * service.js, qui normalise dans un format different et plus leger) -
+ * uniquement pour ce cas de reconciliation.
+ * @param {string} userId
+ * @returns {Promise<{items:Array<object>, error:boolean}>}
+ */
+export async function getAllResultsForUser(userId) {
+  try {
+    const snap = await getDocs(query(collection(db, RESULT_COLLECTION), where('userId', '==', userId)));
+    return { items: snap.docs.map(function(d) { return d.data(); }), error: false };
+  } catch (err) {
+    logCatalogError('lecture groupée des résultats de ' + userId, err);
+    return { items: [], error: true };
   }
 }
