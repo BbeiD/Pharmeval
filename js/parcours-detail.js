@@ -95,7 +95,6 @@ function renderHeader(view) {
   html += '<div class="bank-detail-tags-row">';
   if (view.category) html += '<span class="bank-chip">📂 ' + escapeHtml(view.category) + '</span>';
   if (view.level) html += '<span class="bank-chip">🎯 Niveau ' + escapeHtml(LEVEL_LABELS[view.level] || view.level) + '</span>';
-  if (view.stats.estimatedMinutes) html += '<span class="bank-chip">⏱️ ≈ ' + escapeHtml(view.stats.estimatedMinutes) + ' min (estimation)</span>';
   html += '<span class="bank-chip">🧩 ' + view.stats.competencyCount + ' compétence(s)</span>';
   html += '<span class="bank-chip">❓ ' + view.stats.questionCount + ' question(s)</span>';
   if (view.stats.sourceCount) html += '<span class="bank-chip">📚 ' + view.stats.sourceCount + ' source(s)</span>';
@@ -117,8 +116,6 @@ function renderStats(view) {
     { label: 'Compétences', value: s.competencyCount },
     { label: 'Questions', value: s.questionCount },
     { label: 'Sources', value: s.sourceCount },
-    { label: 'Difficulté moyenne', value: s.averageLevel ? (LEVEL_LABELS[s.averageLevel] || s.averageLevel) : '—' },
-    { label: 'Temps estimé', value: s.estimatedMinutes ? '≈ ' + s.estimatedMinutes + ' min' : '—' },
   ];
   el.innerHTML = items.map(function(i) {
     return '<div class="pv-stat-card"><div class="pv-stat-value">' + escapeHtml(i.value) + '</div><div class="pv-stat-label">' + escapeHtml(i.label) + '</div></div>';

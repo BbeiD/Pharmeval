@@ -25,7 +25,10 @@
 // existante.
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
-import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolvePooledQuestionIds } from "./parcours-service.js";
+import {
+  resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay,
+  resolvePooledQuestionIds, resolveDerivedCompetenciesFromPool,
+} from "./parcours-service.js";
 import { COMPETENCY_LEVELS } from "./competency-metadata-service.js";
 
 // Echelle numerique UNIQUEMENT interne a ce fichier (jamais stockee, jamais
@@ -37,17 +40,6 @@ const LEVEL_NUMERIC_VALUE = Object.freeze({
   avance: 3,
 });
 const NUMERIC_VALUE_TO_LEVEL = Object.freeze({ 1: 'essentiel', 2: 'approfondi', 3: 'avance' });
-
-/**
- * Estimation du temps de lecture/reponse par question, en minutes.
- * DECLARE ICI, EXPLICITEMENT COMME UNE ESTIMATION (jamais presentee comme
- * une mesure reelle) - voir affichage "≈ X min (estimation)" dans
- * parcours-detail.js. Aucune donnee de temps reel n'existe encore dans
- * Pharmeval (aucun chronometrage de quiz, voir VISION_PHARMEVAL.md) ; cette
- * constante pourra etre remplacee par une vraie moyenne mesuree des qu'un
- * futur sprint collectera cette donnee.
- */
-const ESTIMATED_MINUTES_PER_QUESTION = 1.5;
 
 /**
  * Calcule la categorie et le niveau "affichables" d'un parcours a partir
@@ -130,22 +122,22 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
     .slice()
     .sort(function(a, b) { return a.order - b.order; });
   const direct = await resolveParcoursDirectContentDisplay(parcours);
+  const pooledQuestionIds = await resolvePooledQuestionIds(parcours);
 
-  // AJOUT : les competences DEDUITES des questions directement liees
-  // (direct.derivedCompetencies, voir resolveParcoursDirectContentDisplay)
+  // AJOUT : les competences DEDUITES de TOUTES les questions jouables du
+  // parcours (source documentaire comprise, voir resolveDerivedCompetenciesFromPool)
   // s'affichent a la suite des competences explicites - purement
   // informatif, jamais actionnable via un bouton "Commencer" dedie
   // (decision validee avec David : seul le bouton global du parcours reste
   // actionnable pour ce contenu).
-  const allCompetenciesForDisplay = resolvedCompetencies.concat(direct.derivedCompetencies || []);
+  const derivedCompetencies = await resolveDerivedCompetenciesFromPool(parcours, pooledQuestionIds);
+  const allCompetenciesForDisplay = resolvedCompetencies.concat(derivedCompetencies);
 
-  const pooledQuestionIds = await resolvePooledQuestionIds(parcours);
   const questionCount = pooledQuestionIds.length;
   const competencyCount = allCompetenciesForDisplay.length;
   const sourceCount = direct.sources.length;
 
-  const { category, level, averageLevelNumeric } = computeCategoryAndLevel(resolvedCompetencies);
-  const estimatedMinutes = questionCount > 0 ? Math.round(questionCount * ESTIMATED_MINUTES_PER_QUESTION) : null;
+  const { category, level } = computeCategoryAndLevel(resolvedCompetencies);
 
   return {
     authorized: true,
@@ -158,9 +150,6 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
         competencyCount: competencyCount,
         questionCount: questionCount,
         sourceCount: sourceCount,
-        averageLevel: level,                 // 'essentiel' | 'approfondi' | 'avance' | null
-        averageLevelNumeric: averageLevelNumeric, // valeur brute (1-3), utile pour un futur affichage graphique
-        estimatedMinutes: estimatedMinutes,  // ESTIMATION (voir ESTIMATED_MINUTES_PER_QUESTION ci-dessus), jamais une mesure reelle
       },
       category: category,   // derive des competences liees, jamais un champ invente sur le parcours
       level: level,

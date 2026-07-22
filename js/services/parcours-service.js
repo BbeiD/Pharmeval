@@ -396,30 +396,52 @@ export async function resolveParcoursDirectContentDisplay(parcours) {
   const sources = sourceIds.map(function(id) { return { id: id, bankData: sourceMap.get(id) || null }; });
   const directQuestions = questionIds.map(function(id) { return { id: id, bankData: questionResult.map.get(id) || null }; });
 
-  // AJOUT : competences DEDUITES des questions directement liees (via le
-  // `competencyId` ecrit sur chaque question par la synchronisation du
-  // catalogue, voir catalog-sync-engine.js) - purement informatif (jamais
-  // un doublon d'une competence deja explicitement liee via
-  // parcours.competencies[], voir explicitCompetencyIds ci-dessous), et
-  // jamais actionnable via un bouton "Commencer" dedie (decision validee
-  // avec David : seul le bouton global du parcours reste actionnable pour
-  // ce contenu).
+  return { sources: sources, directQuestions: directQuestions };
+}
+
+/**
+ * Deduit les competences a partir de l'ENSEMBLE des questions jouables d'un
+ * parcours (resolvePooledQuestionIds() - competences explicites, questions
+ * directement liees ET questions des sources documentaires), via le
+ * `competencyId` deja ecrit sur chaque question par la synchronisation du
+ * catalogue (catalog-sync-engine.js) - jamais un doublon d'une competence
+ * deja explicitement liee via parcours.competencies[], et jamais
+ * actionnable via un bouton "Commencer" dedie (decision validee avec
+ * David : seul le bouton global du parcours reste actionnable pour ce
+ * contenu, purement informatif ici).
+ *
+ * GENERALISE (constat fait sur le parcours "Retours 2", compose
+ * uniquement d'une source documentaire) : une premiere version ne
+ * deduisait qu'a partir des questions DIRECTEMENT liees, ignorant celles
+ * venant d'une source - un parcours 100% "source" affichait donc
+ * toujours "0 competence(s)" a tort.
+ *
+ * @param {object} parcours
+ * @param {Array<string>} pooledQuestionIds - deja resolu (resolvePooledQuestionIds), evite un second calcul de l'union
+ * @returns {Promise<Array<object>>}
+ */
+export async function resolveDerivedCompetenciesFromPool(parcours, pooledQuestionIds) {
+  const ids = pooledQuestionIds || [];
+  if (ids.length === 0) return [];
+
   const explicitCompetencyIds = new Set(
     ((parcours && Array.isArray(parcours.competencies)) ? parcours.competencies : [])
       .map(function(c) { return c.competencyId; })
       .filter(Boolean)
   );
+
+  const questionResult = await getExistingQuestionsByPedagogicalIds(ids);
   const derivedCompetencyIds = Array.from(new Set(
-    directQuestions
-      .map(function(q) { return q.bankData && q.bankData.competencyId; })
+    ids
+      .map(function(id) { const q = questionResult.map.get(id); return q && q.competencyId; })
       .filter(function(id) { return id && !explicitCompetencyIds.has(id); })
   ));
-  const derivedCompetencyMap = derivedCompetencyIds.length ? await getCompetenciesByIds(derivedCompetencyIds) : {};
-  const derivedCompetencies = derivedCompetencyIds.map(function(id) {
+  if (derivedCompetencyIds.length === 0) return [];
+
+  const derivedCompetencyMap = await getCompetenciesByIds(derivedCompetencyIds);
+  return derivedCompetencyIds.map(function(id) {
     return { competencyId: id, bankData: derivedCompetencyMap[id] || null, derived: true };
   });
-
-  return { sources: sources, directQuestions: directQuestions, derivedCompetencies: derivedCompetencies };
 }
 
 /**
