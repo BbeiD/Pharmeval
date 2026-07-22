@@ -23,8 +23,12 @@
     --surface2: #f1efe8;
     --border: rgba(0,0,0,0.09);
     --border2: rgba(0,0,0,0.16);
-    --text: #1a1a18;
-    --text2: #6b6b65;
+    /* CORRECTIF (demande directe de David, 22/07/2026, "bleu marine") :
+       --text passe du noir chaud d'origine (#1a1a18) a un bleu marine -
+       --text2 (texte secondaire/attenue) suit la meme teinte plutot que
+       de rester gris chaud, pour ne pas jurer a cote du texte principal. */
+    --text: #16233F;
+    --text2: #5C6B85;
     --radius: 10px;
     --radius-lg: 14px;
 
@@ -1940,7 +1944,7 @@
      bienvenue reste toujours lisible en priorite. ---- */
   .home-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
   .home-welcome-text { flex: 1; min-width: 0; }
-  .home-welcome-illustration { width: 260px; height: 170px; object-fit: contain; flex-shrink: 0; }
+  .home-welcome-illustration { width: 330px; height: 220px; object-fit: contain; flex-shrink: 0; }
   @media (max-width: 700px) {
     .home-welcome-illustration { display: none; }
   }
