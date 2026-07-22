@@ -1440,6 +1440,24 @@
   .bank-badge-archived { background: rgba(40,40,40,.12); color: #333; }
   .bank-badge-trash { background: rgba(226,75,74,.13); color: #b33332; }
 
+  /* AJOUT (refonte visuelle, phase 1) : onglets de filtrage par statut
+     (ex. "Mes formations" - En cours/À commencer/Terminées). */
+  .bank-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
+  .bank-tab {
+    background: var(--surface); border: 1px solid var(--border2); border-radius: 999px;
+    padding: 6px 16px; font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer;
+    transition: all .15s;
+  }
+  .bank-tab:hover { border-color: var(--green); color: var(--green-dark); }
+  .bank-tab-active { background: var(--green); border-color: var(--green); color: white; font-weight: 600; }
+
+  /* AJOUT : barre de progression reelle sur une carte de parcours/formation
+     (parcours-completion-service.js). */
+  .mesparcours-progress { display: flex; align-items: center; gap: var(--space-2); margin: 2px 0; }
+  .mesparcours-progress-track { flex: 1; height: 6px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+  .mesparcours-progress-fill { height: 100%; background: var(--green); border-radius: 4px; }
+  .mesparcours-progress-label { font-size: 11px; color: var(--text2); font-weight: 600; min-width: 32px; text-align: right; }
+
   /* Colonne droite : fiche produit */
   .bank-detail-placeholder {
     padding: 60px 20px; text-align: center; color: var(--text2); font-size: 13px;
