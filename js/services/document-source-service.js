@@ -119,6 +119,43 @@ export async function setSourceHiddenFromFreeTraining(source, hidden) {
   return success(hidden ? 'Source masquée de l\'entraînement libre.' : 'Source de nouveau visible dans l\'entraînement libre.');
 }
 
+/**
+ * Definit l'icone d'affichage d'une source (tuile entrainement libre) -
+ * CHAMP DEDIE (display.icon), ecriture directe, JAMAIS via
+ * editDocumentSource() : cette derniere revalide l'INTEGRALITE de la
+ * fiche (validateDocumentSource(), y compris shortCode/name) a chaque
+ * appel - une source dont le shortCode existant serait deja invalide
+ * (donnee heritee d'un import ancien) verrait alors N'IMPORTE QUELLE
+ * modification refusee, meme un simple changement d'icone sans rapport.
+ * Cette fonction se limite au champ concerne, sans jamais revalider le
+ * reste de la fiche.
+ * @param {object} source
+ * @param {string|null} icon
+ * @returns {Promise<object>}
+ */
+export async function setSourceDisplayIcon(source, icon) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!source || !source.id) return errorResult('Source cible introuvable.');
+
+  const ctx = getCurrentUserContext();
+  const display = Object.assign({}, source.display, { icon: icon || null });
+  const result = await updateDocumentSourceFields(source.id, {
+    display: display,
+    updatedAt: nowIso(), updatedBy: (ctx && ctx.email) || null,
+  });
+  if (!result.success) return errorResult('La mise à jour a échoué. Veuillez réessayer.');
+
+  logAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    targetUid: null, targetEmail: null,
+    actionType: 'document_source_icon_updated',
+    oldValue: (source.display && source.display.icon) || null, newValue: icon || null,
+  }).catch(function() {});
+
+  return success(icon ? 'Icône enregistrée.' : 'Icône réinitialisée (icône par défaut du type de source).');
+}
+
 /** @param {string} sourceId @returns {Promise<object|null>} */
 export async function getSourceForDisplay(sourceId) {
   return getDocumentSourceById(sourceId);

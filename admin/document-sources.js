@@ -24,7 +24,7 @@ import {
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
-  setSourceHiddenFromFreeTraining, editDocumentSource,
+  setSourceHiddenFromFreeTraining, setSourceDisplayIcon,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
@@ -286,9 +286,11 @@ export async function saveSourceIcon() {
   if (!source) return;
   const value = qs('ds-icon-input').value.trim();
 
-  const result = await editDocumentSource(source, {
-    display: Object.assign({}, source.display, { icon: value || null }),
-  });
+  // CORRECTIF : setSourceDisplayIcon() (dedie, champ unique) plutot que
+  // editDocumentSource() (revalidait toute la fiche - shortCode compris -
+  // et refusait ce simple changement d'icone des qu'une source avait deja
+  // un shortCode invalide/absent en base, sans rapport avec l'icone).
+  const result = await setSourceDisplayIcon(source, value || null);
   showMessage(result.status, result.message);
   if (result.status === 'success') {
     source.display = Object.assign({}, source.display, { icon: value || null });
