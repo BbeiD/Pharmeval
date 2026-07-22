@@ -15,8 +15,8 @@ import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
-import { browseDocumentSources } from "./services/document-source-service.js";
-import { getSectionTree } from "./services/document-section-service.js";
+import { browseActiveDocumentSources } from "./services/document-source-service.js";
+import { getActiveSectionTree } from "./services/document-section-service.js";
 import { listMostUsedTags } from "./services/tag-catalog-service.js";
 import { composeFreeTrainingPool } from "./services/free-training-service.js";
 import { pickRandomSubset } from "./services/free-training-logic.js";
@@ -125,7 +125,7 @@ async function checkActiveSession() {
 
 async function populateSources() {
   const select = qs('etl-source');
-  const result = await browseDocumentSources({ status: 'active' });
+  const result = await browseActiveDocumentSources();
   const items = (result && result.items) || [];
   select.innerHTML = '<option value="">— Choisir —</option>' +
     items.map(function(s) { return '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>'; }).join('');
@@ -153,8 +153,8 @@ async function onSourceChange() {
     return;
   }
 
-  const result = await getSectionTree(sourceId);
-  const items = ((result && result.items) || []).filter(function(s) { return s.status !== 'archived'; });
+  const result = await getActiveSectionTree(sourceId);
+  const items = (result && result.items) || [];
   sectionSelect.innerHTML = '<option value="">— Toute la source —</option>' +
     items.map(function(s) {
       const indent = '— '.repeat(s.level);

@@ -593,6 +593,24 @@
       ]
     },
     {
+      "collectionGroup": "document_sections",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "documentSourceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "displayOrder",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [

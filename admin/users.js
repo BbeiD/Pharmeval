@@ -6,7 +6,7 @@
 
 import { auth } from "../js/firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { ensureUserDocument } from "../js/services/user-service.js";
+import { ensureUserDocument, PROFESSION_OPTIONS, ORGANIZATION_TYPE_OPTIONS } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
@@ -36,6 +36,10 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function valueOf(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function optionLabel(options, value) {
+  const opt = options.find(function(o) { return o.value === value; });
+  return opt ? opt.label : null;
+}
 function showMessage(status, message) {
   const el = document.getElementById('users-message');
   if (!el) return;
@@ -142,14 +146,23 @@ function renderList() {
 function rowHtml(u) {
   const badge = STATUS_BADGES[u.status] || STATUS_BADGES.active;
   const selected = u.uid === state.selectedId ? ' bank-row-selected' : '';
-  const meta = [u.organizationLabel, u.profileLabel].filter(Boolean).join(' · ') || u.email;
+  // CORRECTIF : sans prenom/nom/displayName, formatUserFullName() retombe
+  // deja sur l'e-mail comme "titre" - sans cette garde, la ligne e-mail
+  // juste en dessous (toujours affichee) et la ligne meta (qui retombait
+  // elle aussi sur l'e-mail faute d'organisation/profil) repetaient le
+  // meme e-mail jusqu'a 3 fois de suite pour un utilisateur auto-inscrit
+  // sans fiche completee. La ligne e-mail n'est desormais affichee que
+  // lorsqu'elle apporte une information distincte du titre.
+  const hasRealName = !!((u.firstName || u.lastName || u.displayName || '').toString().trim());
+  const title = hasRealName ? formatUserFullName(u) : (u.email || '(sans nom)');
+  const meta = [u.organizationLabel, u.profileLabel].filter(Boolean).join(' · ') || '—';
   return (
     '<div class="bank-row' + selected + '" onclick="selectUser(\'' + escapeHtml(u.uid) + '\')">' +
       '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + escapeHtml(formatUserFullName(u)) + '</span>' +
+        '<span class="bank-row-id">' + escapeHtml(title) + '</span>' +
         '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
       '</div>' +
-      '<div class="bank-row-question">' + escapeHtml(u.email) + '</div>' +
+      (hasRealName ? '<div class="bank-row-question">' + escapeHtml(u.email) + '</div>' : '') +
       '<div class="bank-row-meta">' + escapeHtml(meta) + '</div>' +
     '</div>'
   );
@@ -212,6 +225,32 @@ function detailHtml(u) {
   html += '<div class="bank-detail-row"><strong>Créé le :</strong> ' + escapeHtml(u.createdAt ? formatDateFr(u.createdAt) : '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Dernière connexion :</strong> ' + escapeHtml(u.lastLogin ? formatDateFr(u.lastLogin) : '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Auteur de création :</strong> ' + escapeHtml(u.createdBy ? u.createdBy : 'Auto-inscription') + '</div>';
+  html += '</div>';
+
+  // AJOUT : la fiche n'affichait jusqu'ici que les champs "metier" geres
+  // par un administrateur (organisation/profil/groupe(s), via
+  // editUserBusinessProfile) - jamais les informations DECLAREES par
+  // l'utilisateur lui-meme lors de l'assistant de premiere connexion
+  // (js/onboarding.js -> saveOnboardingProfile(), stockees sous le
+  // sous-objet Firestore `profile.*`, DISTINCT de organizationId/profileId
+  // ci-dessus). Champs obligatoires cote onboarding (voir onboarding.js) :
+  // absents ici, une fiche jamais completee doit donc etre visible comme
+  // telle, pas seulement silencieusement vide.
+  html += '<div class="bank-detail-section"><h4>Profil déclaré (première connexion)</h4>';
+  if (u.profileCompleted) {
+    const profile = u.profile || {};
+    const professionLabel = profile.profession === 'other'
+      ? (profile.professionOther || 'Autre')
+      : (optionLabel(PROFESSION_OPTIONS, profile.profession) || profile.profession);
+    const organizationTypeLabel = profile.organizationType === 'other'
+      ? (profile.organizationTypeOther || 'Autre')
+      : (optionLabel(ORGANIZATION_TYPE_OPTIONS, profile.organizationType) || profile.organizationType);
+    html += '<div class="bank-detail-row"><strong>Profession :</strong> ' + escapeHtml(professionLabel || '—') + '</div>';
+    html += '<div class="bank-detail-row"><strong>Type d\'organisation :</strong> ' + escapeHtml(organizationTypeLabel || '—') + '</div>';
+    html += '<div class="bank-detail-row"><strong>Nom de l\'organisation (déclaré) :</strong> ' + escapeHtml(profile.organizationName || '—') + '</div>';
+  } else {
+    html += '<div class="bank-detail-row">Cet utilisateur n\'a pas encore complété l\'assistant de première connexion.</div>';
+  }
   html += '</div>';
 
   // Architecture future (Sprint 14, "Préparer l'avenir") : compteurs en

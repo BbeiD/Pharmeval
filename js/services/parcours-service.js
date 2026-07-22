@@ -40,6 +40,7 @@ import {
 import { logParcoursAction, getRecentParcoursAuditLogs } from "./parcours-audit-service.js";
 import {
   searchQuestionsBounded, getExistingQuestionByPedagogicalId, getExistingQuestionsByPedagogicalIds,
+  getPublishedQuestionIdsBySourceIds,
 } from "./question-catalog-service.js";
 import { getCompetencyById, getCompetenciesByIds } from "./competency-catalog-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "./document-source-catalog-service.js";
@@ -395,7 +396,57 @@ export async function resolveParcoursDirectContentDisplay(parcours) {
   const sources = sourceIds.map(function(id) { return { id: id, bankData: sourceMap.get(id) || null }; });
   const directQuestions = questionIds.map(function(id) { return { id: id, bankData: questionResult.map.get(id) || null }; });
 
-  return { sources: sources, directQuestions: directQuestions };
+  // AJOUT : competences DEDUITES des questions directement liees (via le
+  // `competencyId` ecrit sur chaque question par la synchronisation du
+  // catalogue, voir catalog-sync-engine.js) - purement informatif (jamais
+  // un doublon d'une competence deja explicitement liee via
+  // parcours.competencies[], voir explicitCompetencyIds ci-dessous), et
+  // jamais actionnable via un bouton "Commencer" dedie (decision validee
+  // avec David : seul le bouton global du parcours reste actionnable pour
+  // ce contenu).
+  const explicitCompetencyIds = new Set(
+    ((parcours && Array.isArray(parcours.competencies)) ? parcours.competencies : [])
+      .map(function(c) { return c.competencyId; })
+      .filter(Boolean)
+  );
+  const derivedCompetencyIds = Array.from(new Set(
+    directQuestions
+      .map(function(q) { return q.bankData && q.bankData.competencyId; })
+      .filter(function(id) { return id && !explicitCompetencyIds.has(id); })
+  ));
+  const derivedCompetencyMap = derivedCompetencyIds.length ? await getCompetenciesByIds(derivedCompetencyIds) : {};
+  const derivedCompetencies = derivedCompetencyIds.map(function(id) {
+    return { competencyId: id, bankData: derivedCompetencyMap[id] || null, derived: true };
+  });
+
+  return { sources: sources, directQuestions: directQuestions, derivedCompetencies: derivedCompetencies };
+}
+
+/**
+ * Resout l'ensemble DEDUPLIQUE des questions "jouables" d'un parcours -
+ * union des questions nichees sous une competence (competencies[].questionIds),
+ * des questions directement liees (directQuestionIds) et des questions
+ * PUBLIEES des sources documentaires liees (sourceIds, resolues via
+ * getPublishedQuestionIdsBySourceIds()). SEULE source de verite pour ce
+ * calcul - reutilisee a la fois par l'affichage (parcours-view-service.js,
+ * "X question(s)") et par le demarrage reel de l'evaluation
+ * (parcours-evaluation-service.js#prepareParcoursMixedEvaluation) : avant
+ * cette extraction, les deux endroits dupliquaient la meme union et
+ * avaient fini par diverger (l'affichage ignorait les questions de source,
+ * cf. le parcours "Retours" teste par David - le bouton "Commencer"
+ * restait cache alors que l'evaluation aurait fonctionne).
+ * @param {object} parcours
+ * @returns {Promise<Array<string>>}
+ */
+export async function resolvePooledQuestionIds(parcours) {
+  const fromCompetencies = ((parcours && Array.isArray(parcours.competencies)) ? parcours.competencies : []).reduce(function(acc, c) {
+    return acc.concat(Array.isArray(c.questionIds) ? c.questionIds : []);
+  }, []);
+  const fromDirect = (parcours && Array.isArray(parcours.directQuestionIds)) ? parcours.directQuestionIds : [];
+  const sourceIds = (parcours && Array.isArray(parcours.sourceIds)) ? parcours.sourceIds : [];
+  const fromSources = await getPublishedQuestionIdsBySourceIds(sourceIds);
+
+  return Array.from(new Set(fromCompetencies.concat(fromDirect, fromSources)));
 }
 
 /**

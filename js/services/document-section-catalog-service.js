@@ -84,6 +84,34 @@ export async function listSectionsBySource(documentSourceId) {
 }
 
 /**
+ * Liste les sections ACTIVES d'une source (memes criteres que
+ * listSectionsBySource(), filtre en plus a status=='active') - requete
+ * distincte car necessaire a la regle Firestore document_sections
+ * ("lecture ouverte a tout utilisateur authentifie pour le contenu ACTIF",
+ * voir firestore.rules) : une requete sans ce filtre est refusee pour un
+ * utilisateur non-administrateur du catalogue, quel que soit le contenu
+ * reellement present.
+ * @param {string} documentSourceId
+ * @returns {Promise<{items:Array<object>, error:boolean}>}
+ */
+export async function listActiveSectionsBySource(documentSourceId) {
+  try {
+    const snap = await getDocs(query(
+      collection(db, SECTION_COLLECTION),
+      where('documentSourceId', '==', documentSourceId),
+      where('status', '==', 'active'),
+      orderBy('displayOrder', 'asc'),
+      limit(500)
+    ));
+    const items = []; snap.forEach(function(d) { items.push(d.data()); });
+    return { items: items, error: false };
+  } catch (err) {
+    logCatalogError('liste des sections actives de la source ' + documentSourceId, err);
+    return { items: [], error: true };
+  }
+}
+
+/**
  * Liste les enfants DIRECTS d'une section (utile pour une navigation
  * paresseuse plutot que de toujours charger l'arborescence complete d'une
  * grosse source).

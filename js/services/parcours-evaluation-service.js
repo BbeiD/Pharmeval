@@ -15,7 +15,8 @@
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
 import { getCompetencyById } from "./competency-catalog-service.js";
-import { getExistingQuestionsByPedagogicalIds, getPublishedQuestionIdsBySourceIds } from "./question-catalog-service.js";
+import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
+import { resolvePooledQuestionIds } from "./parcours-service.js";
 import { completeQuestionSnapshot } from "./evaluation-session-metadata-service.js";
 
 /**
@@ -205,13 +206,7 @@ export async function prepareParcoursMixedEvaluation(uid, parcoursId) {
   }
   const parcours = entry.parcours;
 
-  const fromCompetencies = (parcours.competencies || []).reduce(function(acc, c) {
-    return acc.concat(Array.isArray(c.questionIds) ? c.questionIds : []);
-  }, []);
-  const fromDirect = Array.isArray(parcours.directQuestionIds) ? parcours.directQuestionIds : [];
-  const fromSources = await getPublishedQuestionIdsBySourceIds(parcours.sourceIds || []);
-
-  const pooledIds = Array.from(new Set(fromCompetencies.concat(fromDirect, fromSources)));
+  const pooledIds = await resolvePooledQuestionIds(parcours);
   if (pooledIds.length === 0) {
     return { authorized: false, reason: 'no_questions', message: NO_QUESTIONS_AVAILABLE_MESSAGE };
   }

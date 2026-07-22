@@ -25,7 +25,7 @@
 // existante.
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
-import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay } from "./parcours-service.js";
+import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolvePooledQuestionIds } from "./parcours-service.js";
 import { COMPETENCY_LEVELS } from "./competency-metadata-service.js";
 
 // Echelle numerique UNIQUEMENT interne a ce fichier (jamais stockee, jamais
@@ -117,32 +117,31 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
   }
 
   const parcours = entry.parcours;
-  // ATTENTION (constat fait en testant le parcours "Retours", voir message
-  // a David) : `resolvedCompetencies` reste ICI volontairement limite aux
-  // competences EXPLICITEMENT liees (parcours.competencies) - c'est la
-  // SEULE liste que prepareEvaluation() (parcours-evaluation-service.js)
-  // sait faire demarrer via le bouton "Commencer" (elle cherche
-  // `parcours.competencies.find(c => c.competencyId === ...)` puis lit
-  // `c.questionIds`). Une competence "deduite" des questions directement
-  // liees n'existerait pas dans ce tableau reel : lui donner une carte
-  // "Commencer" ici l'afficherait comme actionnable alors qu'elle
-  // echouerait au clic - pas encore fait, voir la discussion en cours.
+  // CORRECTIF (constat fait en testant le parcours "Retours", voir message
+  // a David) : le total affiche compte desormais TOUTES les questions
+  // reellement jouables via le bouton "Commencer" (prepareParcoursMixedEvaluation,
+  // parcours-evaluation-service.js), y compris celles des sources
+  // documentaires liees (parcours.sourceIds) - voir resolvePooledQuestionIds()
+  // dans parcours-service.js, SEULE source de verite partagee par
+  // l'affichage ET le demarrage reel, pour ne plus jamais diverger comme
+  // avant ce correctif (l'affichage ignorait les questions de source et
+  // cachait a tort le bouton "Commencer").
   const resolvedCompetencies = (await resolveParcoursCompetenciesDisplay(parcours))
     .slice()
     .sort(function(a, b) { return a.order - b.order; });
   const direct = await resolveParcoursDirectContentDisplay(parcours);
 
-  // AJOUT : les questions DIRECTEMENT liees (directQuestionIds) comptent
-  // desormais aussi dans le total affiche, en plus des questions nichees
-  // sous une competence (competencies[].questionIds) - sans quoi un
-  // parcours compose uniquement de questions directes affichait a tort
-  // "0 question(s)". Ceci est un compteur INFORMATIF uniquement : voir
-  // remarque ci-dessus, ces questions ne sont pas encore jouables via le
-  // bouton "Commencer" tant que la compétence n'est pas explicitement liée.
-  const questionCount = resolvedCompetencies.reduce(function(acc, c) {
-    return acc + (Array.isArray(c.questionIds) ? c.questionIds.length : 0);
-  }, 0) + direct.directQuestions.length;
-  const competencyCount = resolvedCompetencies.length;
+  // AJOUT : les competences DEDUITES des questions directement liees
+  // (direct.derivedCompetencies, voir resolveParcoursDirectContentDisplay)
+  // s'affichent a la suite des competences explicites - purement
+  // informatif, jamais actionnable via un bouton "Commencer" dedie
+  // (decision validee avec David : seul le bouton global du parcours reste
+  // actionnable pour ce contenu).
+  const allCompetenciesForDisplay = resolvedCompetencies.concat(direct.derivedCompetencies || []);
+
+  const pooledQuestionIds = await resolvePooledQuestionIds(parcours);
+  const questionCount = pooledQuestionIds.length;
+  const competencyCount = allCompetenciesForDisplay.length;
   const sourceCount = direct.sources.length;
 
   const { category, level, averageLevelNumeric } = computeCategoryAndLevel(resolvedCompetencies);
@@ -153,7 +152,7 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
     view: {
       parcours: parcours,
       assignment: entry.assignment,
-      competencies: resolvedCompetencies,
+      competencies: allCompetenciesForDisplay,
       sources: direct.sources,
       stats: {
         competencyCount: competencyCount,

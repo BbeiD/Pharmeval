@@ -21,7 +21,7 @@ import {
 } from "./document-section-metadata-service.js";
 import {
   createDocumentSectionDoc, getDocumentSectionById, listSectionsBySource,
-  updateDocumentSectionFields, incrementDocumentSectionCounters,
+  listActiveSectionsBySource, updateDocumentSectionFields, incrementDocumentSectionCounters,
 } from "./document-section-catalog-service.js";
 import { getDocumentSourceById, incrementDocumentSourceCounters } from "./document-source-catalog-service.js";
 
@@ -49,6 +49,25 @@ export async function getSectionTree(documentSourceId) {
   const access = checkAccess();
   if (access.status !== 'authorized') return { authorized: false, message: access.message, items: [] };
   const result = await listSectionsBySource(documentSourceId);
+  if (result.error) return { authorized: true, error: true, message: 'Impossible de charger les sections pour le moment.', items: [] };
+  return { authorized: true, items: result.items };
+}
+
+/**
+ * Liste l'arborescence des sections ACTIVES d'une source, accessible a
+ * tout utilisateur connecte (aucune permission d'administration requise) -
+ * coherent avec la regle Firestore document_sections (lecture ouverte a
+ * tout utilisateur authentifie pour le statut 'active', voir
+ * firestore.rules). Destine aux ecrans UTILISATEUR (entrainement libre,
+ * parcours) pour peupler un selecteur de section, jamais a la gestion du
+ * catalogue (voir getSectionTree() ci-dessus pour l'administration).
+ * @param {string} documentSourceId
+ * @returns {Promise<object>}
+ */
+export async function getActiveSectionTree(documentSourceId) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté.', items: [] };
+  const result = await listActiveSectionsBySource(documentSourceId);
   if (result.error) return { authorized: true, error: true, message: 'Impossible de charger les sections pour le moment.', items: [] };
   return { authorized: true, items: result.items };
 }

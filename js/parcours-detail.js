@@ -146,6 +146,7 @@ function renderCompetencies(view) {
     let tags = '';
     if (bank && bank.category) tags += '<span class="bank-chip">' + escapeHtml(bank.category) + '</span>';
     if (bank && bank.recommendedLevel) tags += '<span class="bank-chip">' + escapeHtml(LEVEL_LABELS[bank.recommendedLevel] || bank.recommendedLevel) + '</span>';
+    if (c.derived) tags += '<span class="bank-chip">🔗 Déduite des questions</span>';
     return (
       '<div class="pv-competency-card">' +
         '<div class="pv-competency-card-stripe" style="' + stripe + '"></div>' +

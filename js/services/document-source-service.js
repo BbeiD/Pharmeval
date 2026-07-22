@@ -60,6 +60,24 @@ export async function browseDocumentSources(options) {
   return { authorized: true, items: result.items };
 }
 
+/**
+ * Liste les sources documentaires ACTIVES, accessible a tout utilisateur
+ * connecte (aucune permission d'administration requise) - coherent avec
+ * la regle Firestore document_sources (lecture ouverte a tout utilisateur
+ * authentifie pour le statut 'active', voir firestore.rules). Destine aux
+ * ecrans UTILISATEUR (entrainement libre, parcours) pour peupler un
+ * selecteur de source, jamais a la gestion du catalogue (voir
+ * browseDocumentSources() ci-dessus pour l'administration).
+ * @returns {Promise<object>}
+ */
+export async function browseActiveDocumentSources() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté.', items: [] };
+  const result = await queryDocumentSources({ status: DOCUMENT_SOURCE_STATUSES.ACTIVE });
+  if (result.error) return { authorized: true, error: true, message: result.message || 'Impossible de charger les sources documentaires pour le moment.', items: [] };
+  return { authorized: true, items: result.items };
+}
+
 /** @param {string} sourceId @returns {Promise<object|null>} */
 export async function getSourceForDisplay(sourceId) {
   return getDocumentSourceById(sourceId);

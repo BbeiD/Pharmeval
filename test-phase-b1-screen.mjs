@@ -38,8 +38,8 @@ check('importe pickRandomSubset (free-training-logic.js, B1)', etlJs.indexOf('pi
 check('importe getActiveFreeTrainingSession (evaluation-session-service.js, B1)', etlJs.indexOf('getActiveFreeTrainingSession') !== -1);
 check('importe startNewFreeTrainingSession', etlJs.indexOf('startNewFreeTrainingSession') !== -1);
 check('importe restartFreeTrainingSession (cas "remplacer un entrainement en cours")', etlJs.indexOf('restartFreeTrainingSession') !== -1);
-check('importe browseDocumentSources (reutilise le meme service que admin/import.js)', etlJs.indexOf('browseDocumentSources') !== -1);
-check('importe getSectionTree (idem)', etlJs.indexOf('getSectionTree') !== -1);
+check('importe browseActiveDocumentSources (variante publique, accessible sans permission d\'administration - correctif acces utilisateur)', etlJs.indexOf('browseActiveDocumentSources') !== -1);
+check('importe getActiveSectionTree (idem)', etlJs.indexOf('getActiveSectionTree') !== -1);
 check('aucune reimplementation locale de la logique de melange (pas de "function shuffle")', etlJs.indexOf('function shuffle') === -1);
 check('redirige vers evaluation.html?sessionType=free_training apres lancement', etlJs.indexOf("evaluation.html?sessionType=free_training") !== -1);
 

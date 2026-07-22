@@ -98,6 +98,19 @@
         <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Commencer un entraînement libre</a>
       </div>
     </div>
+
+    <!-- AJOUT : apercu des parcours attribues a l'utilisateur, directement
+         sur l'accueil (jusqu'ici visible uniquement via "Mes parcours" -
+         meme service que js/mes-parcours.js, getAssignedParcoursForUser(),
+         aucune logique metier ici, voir js/home.js). -->
+    <div style="max-width:960px;margin:0 auto 48px auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <h2 style="margin:24px 0 12px 0;">Vos parcours</h2>
+        <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
+      </div>
+      <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
+      <div id="home-parcours-grid" class="mesparcours-grid"></div>
+    </div>
   </div>
 
   <!-- ADMINISTRATION (Sprint 3 - base minimale, Sprint 8 - Centre
@@ -219,6 +232,7 @@
 <script type="module" src="js/firebase-config.js"></script>
 <script type="module" src="js/auth.js"></script>
 <script type="module" src="js/history.js"></script>
+<script type="module" src="js/home.js"></script>
 
 
 
