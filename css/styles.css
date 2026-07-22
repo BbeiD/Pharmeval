@@ -1929,6 +1929,17 @@
   .defi-done-block p { margin-bottom: 8px; color: var(--text); }
   .defi-done-block .btn-secondary { margin-top: 8px; }
 
+  /* ---- NOUVEAU (habillage visuel, demande directe de David, 22/07/2026) :
+     illustration decorative du bandeau d'accueil (index.html). Masquee sur
+     petit ecran plutot que redimensionnee a l'infini - le texte de
+     bienvenue reste toujours lisible en priorite. ---- */
+  .home-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+  .home-welcome-text { flex: 1; min-width: 0; }
+  .home-welcome-illustration { width: 180px; height: 120px; object-fit: contain; flex-shrink: 0; }
+  @media (max-width: 700px) {
+    .home-welcome-illustration { display: none; }
+  }
+
   /* ---- NOUVEAU (mockup, demande directe de David) : carte "Défi du jour"
      condensée de l'accueil (js/home.js) - meme trophee que defi.html. ---- */
   .home-defi-trophy {

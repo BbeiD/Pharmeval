@@ -67,9 +67,15 @@
   <!-- HOME (Sprint 21.5, Phase B2, refonte visuelle phase 1) : l'ancien
        accueil base sur les themes/pathologies et le moteur de quiz V1 a
        ete definitivement supprime (voir RAPPORT_PHASE_B2.md). -->
-  <div class="card" id="home-welcome-card" style="margin-bottom:var(--space-4);">
-    <h2 id="home-welcome-title" style="margin-bottom:4px;"></h2>
-    <p class="import-intro" style="margin:0;">Prêt à développer vos compétences aujourd'hui ?</p>
+  <div class="card home-welcome-card" id="home-welcome-card" style="margin-bottom:var(--space-4);">
+    <div class="home-welcome-text">
+      <h2 id="home-welcome-title" style="margin-bottom:4px;"></h2>
+      <p class="import-intro" style="margin:0;">Prêt à développer vos compétences aujourd'hui ?</p>
+    </div>
+    <!-- AJOUT (habillage visuel, demande directe de David, 22/07/2026) :
+         illustration decorative deposee par David - purement esthetique,
+         aucune donnee, masquee sur petit ecran (voir CSS). -->
+    <img class="home-welcome-illustration" src="assets/illustrations/accueil.png" alt="" aria-hidden="true">
   </div>
 
   <!-- AJOUT : tuiles de statistiques REELLES (jamais de chiffre invente) -
