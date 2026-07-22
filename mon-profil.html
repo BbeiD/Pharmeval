@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Mon profil</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="mp-loading">Chargement…</div>
+
+<div id="site-header-mount"></div>
+
+<div id="mp-view" class="bank-page" style="display:none;">
+  <div class="bank-header">
+    <h2>👤 Mon profil</h2>
+  </div>
+
+  <!-- AJOUT (refonte visuelle, phase 1) : version VOLONTAIREMENT MINIMALE
+       - affichage en lecture seule des informations reelles deja
+       existantes (fiche utilisateur + profil declare a l'onboarding).
+       Reportes a plus tard (decision prise avec David, pas de la donnee
+       inventee ici pour combler) : photo de profil (aucun chemin d'upload
+       n'existe aujourd'hui), onglets Preferences/Securite, "Vos badges"
+       (aucun systeme de badges n'existe). -->
+  <div class="card" style="max-width:640px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:var(--space-4);">
+      <div id="mp-avatar" class="mp-avatar"></div>
+      <div>
+        <h3 id="mp-name" style="margin:0;"></h3>
+        <p id="mp-email" class="pv-list-empty" style="margin:0;"></p>
+      </div>
+    </div>
+
+    <div class="bank-detail-section">
+      <h4>Informations</h4>
+      <div class="bank-detail-row"><strong>Profession :</strong> <span id="mp-profession"></span></div>
+      <div class="bank-detail-row"><strong>Organisation :</strong> <span id="mp-organization"></span></div>
+      <div class="bank-detail-row"><strong>Membre depuis :</strong> <span id="mp-member-since"></span></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/mon-profil.js"></script>
+
+</body>
+</html>

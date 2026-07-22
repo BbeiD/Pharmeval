@@ -116,6 +116,7 @@ export function renderSiteHeader(activeKey) {
         '<div class="sh-account-menu" id="sh-account-menu" style="display:none;">' +
           '<div class="sh-account-name">' + escapeHtml(displayName || '—') + '</div>' +
           (ctx && ctx.email ? '<div class="sh-account-email">' + escapeHtml(ctx.email) + '</div>' : '') +
+          '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">👤 Mon profil</a>' +
           '<button type="button" class="sh-account-logout" id="sh-account-logout">↩️ Se déconnecter</button>' +
         '</div>' +
       '</div>' +
