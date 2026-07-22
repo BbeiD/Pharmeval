@@ -26,12 +26,13 @@
 //   2. synchronize()  : ecrit reellement (sauf options.dryRun).
 
 import { normalizeForDedup } from "./normalization-utils.js";
+import { IMPORT_TYPE_TO_INTERNAL_TYPE } from "./question-import-validator.js";
 
 const MAX_QUESTIONS_PER_WRITE_CHUNK = 500; // meme limite que question-import-validator.js (MAX_QUESTIONS_PER_IMPORT) - jamais dupliquee en dur ailleurs sans cette meme valeur
 
 const CONTENT_FIELDS = Object.freeze([
   'question', 'answers', 'correctAnswer', 'explanation',
-  'difficulty', 'domain', 'theme', 'subtheme',
+  'difficulty', 'domain', 'theme', 'subtheme', 'questionType',
   'documentSourceId', 'documentSectionId', 'competencyId',
 ]);
 
@@ -191,9 +192,16 @@ export class CatalogSyncEngine {
 
       const tagsResolution = await this._d.resolveTags({ tags: q.tags, dryRun: true, cache: tagCache });
 
+      // CORRECTIF : q.questionType porte le vocabulaire D'IMPORT
+      // ('single-choice', deja valide comme tel par validateImportPayload
+      // plus haut - jamais modifie ici) - question-renderer-service.js
+      // n'affiche que le vocabulaire INTERNE ('qcm'). Sans cette
+      // traduction (existait dans l'ancien question-parser.js, perdue a sa
+      // suppression), aucune question importee ne pouvait etre repondue
+      // dans une evaluation reelle - decouvert en testant un parcours reel.
       const resolved = {
         domain: q.domain, theme: q.theme, subtheme: q.subtheme,
-        difficulty: q.difficulty, questionType: q.questionType,
+        difficulty: q.difficulty, questionType: IMPORT_TYPE_TO_INTERNAL_TYPE[q.questionType] || q.questionType,
         question: q.question, answers: q.answers, correctAnswer: q.correctAnswer, explanation: q.explanation,
         documentSourceId: referential.sourceId, documentSectionId: referential.sectionId,
         competencyId: competency.competencyId,

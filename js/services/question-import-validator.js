@@ -58,6 +58,20 @@ export const MAX_QUESTIONS_PER_IMPORT = 500;
  * question geres par l'import cette version). */
 export const SUPPORTED_IMPORT_QUESTION_TYPES = Object.freeze(['single-choice']);
 
+/**
+ * Correspondance vocabulaire d'import -> vocabulaire interne (Sprint 9,
+ * QUESTION_TYPES). RESTAUREE ICI (identique a l'ancien question-parser.js,
+ * supprime par erreur - voir js/services/tag-catalog-service.js pour un
+ * correctif similaire) : catalog-sync-engine.js ecrivait jusqu'ici
+ * `questionType: 'single-choice'` directement en base, alors que
+ * question-renderer-service.js n'affiche QUE 'qcm' - aucune question
+ * importee via Synchronisation du catalogue ne pouvait donc etre repondue
+ * dans une evaluation reelle. `SUPPORTED_IMPORT_QUESTION_TYPES` ci-dessus
+ * reste le vocabulaire d'IMPORT (valide AVANT traduction) - cette table ne
+ * s'applique qu'au moment de construire le document Firestore final.
+ */
+export const IMPORT_TYPE_TO_INTERNAL_TYPE = Object.freeze({ 'single-choice': 'qcm' });
+
 /** Espaces acceptes, si fournis (optionnel - voir REQUIRED/OPTIONAL_FIELDS). */
 const KNOWN_SPACES = Object.freeze(['student', 'pharmacist', 'both']);
 
