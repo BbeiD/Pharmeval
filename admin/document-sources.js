@@ -173,9 +173,11 @@ function sourceDetailHtml(s, sections) {
   html += '<div class="bank-detail-section"><h4>Icône (entraînement libre)</h4>';
   html += '<p class="admin-users-disclaimer">Un emoji affiché sur la tuile de sélection de l\'entraînement libre. Laissez vide pour revenir à l\'icône par défaut selon le type de source.</p>';
   html += '<div class="btn-row">';
-  html += '<input type="text" id="ds-icon-input" class="bank-select" style="max-width:100px;text-align:center;font-size:20px;" maxlength="4" value="' + escapeHtml((s.display && s.display.icon) || '') + '" placeholder="📕">';
-  html += '<button class="btn-secondary" onclick="saveSourceIcon()">Enregistrer l\'icône</button>';
+  html += '<input type="text" id="ds-icon-input" class="bank-select" style="max-width:100px;text-align:center;font-size:20px;" maxlength="4" value="' + escapeHtml((s.display && s.display.icon) || '') + '" placeholder="📕" readonly onclick="toggleIconPicker()">';
+  html += '<button class="btn-secondary" onclick="toggleIconPicker()">😀 Choisir</button>';
+  html += '<button class="btn-primary" onclick="saveSourceIcon()">Enregistrer l\'icône</button>';
   html += '</div>';
+  html += '<div id="ds-icon-picker" class="emoji-picker" style="display:none;">' + emojiPickerHtml() + '</div>';
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
@@ -245,6 +247,36 @@ export function requestBulkActivateSources() {
   qs('ds-confirm-overlay').style.display = 'flex';
 }
 
+// AJOUT : palette d'emoji curatee (documents/reference, sante/pharmacie,
+// symboles generaux) - pas un picker Unicode exhaustif (aucune bibliotheque
+// externe, coherent avec le reste de l'appli qui utilise deja l'emoji
+// comme systeme d'icone, jamais Tabler/SVG). L'utilisateur choisit en
+// cliquant, plutot que de devoir connaitre un raccourci clavier.
+const EMOJI_PICKER_CHOICES = [
+  '📕', '📗', '📘', '📙', '📖', '📔', '📒', '📚', '📝', '📄', '📋', '🗂️',
+  '🎓', '🏛️', '⚖️', '📜', '🖋️', '✍️', '🔖', '🏷️', '📌', '📊', '📈',
+  '🏥', '💊', '🩺', '🔬', '🧪', '⚗️', '🧬', '🩹', '💉', '🦠', '🧴', '🧫',
+  '⭐', '🌟', '💡', '🔍', '🧠', '✅', '❤️',
+  '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪',
+];
+
+function emojiPickerHtml() {
+  return EMOJI_PICKER_CHOICES.map(function(e) {
+    return '<button type="button" class="emoji-picker-btn" onclick="pickSourceIcon(\'' + e + '\')">' + e + '</button>';
+  }).join('');
+}
+
+export function toggleIconPicker() {
+  const el = qs('ds-icon-picker');
+  if (!el) return;
+  el.style.display = (el.style.display === 'none') ? 'grid' : 'none';
+}
+
+export function pickSourceIcon(emoji) {
+  qs('ds-icon-input').value = emoji;
+  qs('ds-icon-picker').style.display = 'none';
+}
+
 export async function saveSourceIcon() {
   const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
   if (!source) return;
@@ -312,5 +344,7 @@ window.requestDeleteSource = requestDeleteSource;
 window.requestBulkActivateSources = requestBulkActivateSources;
 window.toggleSourceFreeTrainingVisibility = toggleSourceFreeTrainingVisibility;
 window.saveSourceIcon = saveSourceIcon;
+window.toggleIconPicker = toggleIconPicker;
+window.pickSourceIcon = pickSourceIcon;
 window.cancelDsAction = cancelDsAction;
 window.confirmDsAction = confirmDsAction;

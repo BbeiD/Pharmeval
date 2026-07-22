@@ -113,6 +113,19 @@
   .etl-source-icon.etl-source-icon-selected { border-color: var(--green); background: var(--green-light); }
   .etl-source-icon.etl-source-icon-selected .etl-source-icon-name { color: var(--green-dark); font-weight: 600; }
 
+  /* AJOUT : selecteur d'emoji cliquable (admin/document-sources.js) - une
+     palette curatee, jamais un picker Unicode exhaustif. */
+  .emoji-picker {
+    grid-template-columns: repeat(10, 1fr); gap: 4px;
+    max-width: 420px; margin-top: var(--space-2); padding: var(--space-2);
+    border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface2);
+  }
+  .emoji-picker-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 18px; padding: 6px; cursor: pointer; line-height: 1;
+  }
+  .emoji-picker-btn:hover { border-color: var(--green); background: var(--green-light); }
+
   /* HEADER */
   .site-header {
     background: var(--surface);
