@@ -24,18 +24,18 @@
 <div id="refbanks-view" style="display:none;">
   <div class="bank-page">
     <div class="bank-header">
-      <h2 id="refbanks-title">🏷️ Données de référence</h2>
+      <h2 id="refbanks-title"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12V5h7l9 9-7 7-9-9z"/><circle cx="7.5" cy="8.5" r="1"/></svg> Données de référence</h2>
       <div class="btn-row" style="margin:0;">
-        <a href="users.html" class="btn-secondary">👥 Utilisateurs</a>
+        <a href="users.html" class="btn-secondary"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c.8-4 3.2-6 6-6s5.2 2 6 6"/><path d="M14 15c3 0 5 1.5 6 5"/></svg> Utilisateurs</a>
         <a href="../index.html?admin=1" class="btn-secondary">← Retour à l'administration</a>
       </div>
     </div>
 
     <!-- Onglets : une meme interface pour les trois banques (Sprint 14) -->
     <div class="btn-row" style="margin-bottom:14px;">
-      <button class="btn-secondary" id="refbanks-tab-organizations" onclick="switchBank('organizations')">🏢 Organisations</button>
-      <button class="btn-secondary" id="refbanks-tab-profiles" onclick="switchBank('profiles')">🎓 Profils</button>
-      <button class="btn-secondary" id="refbanks-tab-groups" onclick="switchBank('groups')">👥 Groupes</button>
+      <button class="btn-secondary" id="refbanks-tab-organizations" onclick="switchBank('organizations')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 21V8l8-5 8 5v13"/><line x1="8" y1="12" x2="8" y2="16"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="16" y1="12" x2="16" y2="16"/><line x1="3" y1="21" x2="21" y2="21"/></svg> Organisations</button>
+      <button class="btn-secondary" id="refbanks-tab-profiles" onclick="switchBank('profiles')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="5" width="16" height="12" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/><path d="M9 17v4l3-2 3 2v-4"/></svg> Profils</button>
+      <button class="btn-secondary" id="refbanks-tab-groups" onclick="switchBank('groups')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c.8-4 3.2-6 6-6s5.2 2 6 6"/><path d="M14 15c3 0 5 1.5 6 5"/></svg> Groupes</button>
     </div>
 
     <div id="refbanks-message" class="admin-message" style="display:none;"></div>
@@ -55,7 +55,7 @@
         <option value="updatedAt">Date de modification</option>
         <option value="name">Nom</option>
       </select>
-      <button class="btn-secondary bank-sort-dir-btn" id="refbanks-sort-dir-btn" onclick="toggleSortDirection()" title="Inverser l'ordre">⬇️</button>
+      <button class="btn-secondary bank-sort-dir-btn" id="refbanks-sort-dir-btn" onclick="toggleSortDirection()" title="Inverser l'ordre"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="12" y1="4" x2="12" y2="19"/><polyline points="6,13 12,19 18,13"/></svg></button>
       <button class="btn-primary" onclick="openCreateForm()">+ Nouveau</button>
     </div>
 

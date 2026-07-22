@@ -49,11 +49,55 @@ export const DOCUMENT_SOURCE_TYPE_LABELS = Object.freeze({
 // entrainement libre ET admin/document-sources.js) quand aucune icone
 // personnalisee n'a ete choisie (display.icon) - centralise ICI pour
 // eviter deux tables dupliquees en train de diverger.
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : cles de
+// assets/icons/svg (voir js/icons.js), plus des emojis bruts - toute donnee
+// Firestore existante avec un ancien emoji brut dans display.icon ne
+// correspondra plus a une cle connue et retombera silencieusement sur cette
+// icone par defaut au rendu (voir resolveSourceIconKey, admin/document-sources.js).
 export const DOCUMENT_SOURCE_TYPE_DEFAULT_ICON = Object.freeze({
-  REF: '📕',
-  PROC: '📋',
-  ETU: '🎓',
+  REF: 'doc-01-closed-book',
+  PROC: 'doc-04-clipboard',
+  ETU: 'academic-diploma',
 });
+
+// AJOUT (bibliotheque d'icones, remplace les emojis) : choix propose a
+// l'admin pour personnaliser l'icone d'UNE source (admin/document-sources.js
+// #saveSourceIcon) - regroupe par theme dans l'ordre d'affichage du picker.
+// Les 8 dernieres cles sont des pastilles de couleur unie (voir DOT_ICONS,
+// js/icons.js) plutot que des pictogrammes - meme usage libre qu'avant
+// (choisir un simple code couleur plutot qu'un dessin).
+export const SOURCE_ICON_PICKER_CHOICES = Object.freeze([
+  'doc-01-closed-book', 'doc-02-open-book', 'doc-03-notebook', 'doc-04-clipboard',
+  'doc-05-binder', 'doc-06-text-sheet', 'doc-07-stacked-pages', 'doc-08-bookmark-book',
+  'doc-09-journal', 'doc-10-report', 'doc-11-manual', 'doc-12-reference-card',
+  'academic-diploma', 'academic-institution', 'academic-scales-legal', 'academic-scroll-official',
+  'academic-pen-signature', 'academic-bookmark', 'academic-label', 'academic-pin', 'academic-growth-chart',
+  'medical-hospital-cross', 'medical-pill', 'medical-stethoscope', 'medical-microscope',
+  'medical-test-tube', 'medical-flask', 'medical-dna', 'medical-bandage',
+  'medical-syringe', 'medical-bacteria', 'medical-bottle-lotion', 'medical-petri-dish',
+  'highlight-star-filled', 'highlight-star-premium', 'highlight-lightbulb', 'highlight-search',
+  'highlight-brain', 'highlight-check-validated', 'highlight-heart',
+  'dot-red', 'dot-orange', 'dot-yellow', 'dot-green', 'dot-blue', 'dot-violet', 'dot-black', 'dot-white-grey',
+]);
+
+/**
+ * Determine la cle d'icone a afficher pour une source - sa personnalisation
+ * (display.icon) SI elle correspond a une cle reelle du pack, sinon l'icone
+ * par defaut de son type. Centralise ici (utilise par admin/document-sources.js
+ * ET js/entrainement-libre.js) pour ne jamais dupliquer cette regle de repli
+ * - notamment le cas d'une ancienne valeur emoji brute (📕...) enregistree
+ * avant l'introduction du pack d'icones, qui ne doit jamais s'afficher comme
+ * un texte brut ni faire planter le rendu.
+ * @param {{display?: {icon?: string}, sourceType?: string}} source
+ * @param {Set<string>} knownIconKeys - cles valides (ICONS+DOT_ICONS reunis, voir appelant)
+ * @returns {string}
+ */
+export function resolveSourceIconKey(source, knownIconKeys) {
+  const custom = source && source.display && source.display.icon;
+  if (custom && knownIconKeys.has(custom)) return custom;
+  const fallback = DOCUMENT_SOURCE_TYPE_DEFAULT_ICON[source && source.sourceType];
+  return fallback || 'doc-06-text-sheet';
+}
 
 /** Statuts d'une source documentaire (cadrage : "draft | active | archived").
  * CORRECTIF : ajout de "deleted" - masquage non destructif distinct de

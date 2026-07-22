@@ -121,7 +121,10 @@ export async function classifyQuestion(question, destination) {
     }
   }
 
-  const warningSuffix = applyResult.inconsistencies.length > 0 ? ' ⚠️ ' + applyResult.inconsistencies.length + ' incohérence(s) de compteur détectée(s) et corrigée(s) — une réconciliation est recommandée.' : '';
+  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : reste du texte
+  // brut (plus d'emoji) - ce message est affiche via showMessage()/.textContent
+  // par les appelants (voir admin/bank.js), jamais interprete comme du HTML.
+  const warningSuffix = applyResult.inconsistencies.length > 0 ? ' ' + applyResult.inconsistencies.length + ' incohérence(s) de compteur détectée(s) et corrigée(s) — une réconciliation est recommandée.' : '';
   return success('Question rattachée avec succès.' + warningSuffix, { functionalCode: functionalCode, inconsistencies: applyResult.inconsistencies });
 }
 

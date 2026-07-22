@@ -20,7 +20,7 @@ import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/a
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
 import {
-  DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES, DOCUMENT_SOURCE_TYPE_DEFAULT_ICON,
+  DOCUMENT_SOURCE_TYPE_LABELS, DOCUMENT_SOURCE_STATUSES, SOURCE_ICON_PICKER_CHOICES, resolveSourceIconKey,
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
@@ -28,13 +28,19 @@ import {
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 const STATUS_BADGES = {
-  draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
-  active: { emoji: '🟢', label: 'Actif', cls: 'bank-badge-published' },
-  archived: { emoji: '⚫', label: 'Archivé', cls: 'bank-badge-archived' },
-  deleted: { emoji: '🔴', label: 'Supprimé', cls: 'bank-badge-trash' },
+  draft: { iconKey: 'status-draft', label: 'Brouillon', cls: 'bank-badge-draft' },
+  active: { iconKey: 'status-published-active', label: 'Actif', cls: 'bank-badge-published' },
+  archived: { iconKey: 'status-archived', label: 'Archivé', cls: 'bank-badge-archived' },
+  deleted: { iconKey: 'status-trash', label: 'Supprimé', cls: 'bank-badge-trash' },
 };
+function badgeHtml(badge) {
+  return '<span class="bank-badge ' + badge.cls + '">' + icon(badge.iconKey, { size: 14 }) + ' ' + badge.label + '</span>';
+}
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -122,11 +128,11 @@ async function loadSources() {
 function sourceRowHtml(s) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
   const selectedCls = s.id === state.selectedSourceId ? ' source-tile-selected' : '';
-  const icon = (s.display && s.display.icon) || DOCUMENT_SOURCE_TYPE_DEFAULT_ICON[s.sourceType] || '📄';
+  const iconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
   return (
     '<button type="button" class="source-tile' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')" title="' + escapeHtml(badge.label) + '">' +
-      '<span class="source-tile-status-dot" aria-hidden="true">' + badge.emoji + '</span>' +
-      '<span class="source-tile-emoji" aria-hidden="true">' + icon + '</span>' +
+      '<span class="source-tile-status-dot" aria-hidden="true">' + icon(badge.iconKey, { size: 12 }) + '</span>' +
+      '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
       '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
     '</button>'
   );
@@ -151,7 +157,7 @@ export async function selectSource(sourceId) {
 function sourceDetailHtml(s, sections) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
   let html = '<div class="bank-detail-card">';
-  html += '<div class="bank-detail-header"><h3>' + escapeHtml(s.name) + '</h3><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></div>';
+  html += '<div class="bank-detail-header"><h3>' + escapeHtml(s.name) + '</h3>' + badgeHtml(badge) + '</div>';
   html += '<div class="bank-detail-tags-row"><span class="bank-chip">' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + '</span>';
   if (s.version) html += '<span class="bank-chip">Version ' + escapeHtml(s.version) + '</span>';
   if (s.academicYear) html += '<span class="bank-chip">' + escapeHtml(s.academicYear) + '</span>';
@@ -163,7 +169,7 @@ function sourceDetailHtml(s, sections) {
   html += '<div class="bank-detail-row"><strong>Questions rattachées :</strong> ' + s.questionCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Sections :</strong> ' + s.sectionCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Créé le :</strong> ' + escapeHtml(s.createdAt ? formatDateFr(s.createdAt) : '—') + '</div>';
-  html += '<div class="bank-detail-row"><strong>Entraînement libre :</strong> ' + (s.hiddenFromFreeTraining ? '🚫 Masquée (indisponible pour l\'entraînement libre)' : '🟢 Visible') + '</div>';
+  html += '<div class="bank-detail-row"><strong>Entraînement libre :</strong> ' + (s.hiddenFromFreeTraining ? icon('admin-disable', { size: 14 }) + ' Masquée (indisponible pour l\'entraînement libre)' : icon('status-published-active', { size: 14 }) + ' Visible') + '</div>';
   html += '</div>';
 
   // AJOUT (refonte visuelle, phase 1, decision validee avec David) : icone
@@ -171,17 +177,21 @@ function sourceDetailHtml(s, sections) {
   // (js/entrainement-libre.js) - stockee dans le champ deja reserve
   // `display.icon` (document-source-metadata-service.js, jamais exploite
   // jusqu'ici). Repli sur une icone par TYPE de source si non renseignee -
-  // voir SOURCE_TYPE_ICON, entrainement-libre.js. Une vraie image/photo
-  // n'est PAS construite ici (aucun chemin d'upload n'existe aujourd'hui,
-  // meme limitation que "Mon profil") - simple emoji texte pour l'instant.
+  // voir resolveSourceIconKey, document-source-metadata-service.js.
+  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `display.icon`
+  // stocke desormais une CLE du pack (ex. "doc-01-closed-book"), plus un
+  // emoji brut - input cache (valeur reelle) + apercu visuel separe
+  // (rendu SVG, jamais un texte brut).
+  const currentIconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
   html += '<div class="bank-detail-section"><h4>Icône (entraînement libre)</h4>';
-  html += '<p class="admin-users-disclaimer">Un emoji affiché sur la tuile de sélection de l\'entraînement libre. Laissez vide pour revenir à l\'icône par défaut selon le type de source.</p>';
+  html += '<p class="admin-users-disclaimer">Une icône affichée sur la tuile de sélection de l\'entraînement libre. Laissez vide pour revenir à l\'icône par défaut selon le type de source.</p>';
   html += '<div class="btn-row">';
-  html += '<input type="text" id="ds-icon-input" class="bank-select" style="max-width:100px;text-align:center;font-size:20px;" maxlength="4" value="' + escapeHtml((s.display && s.display.icon) || '') + '" placeholder="📕" readonly onclick="toggleIconPicker()">';
-  html += '<button class="btn-secondary" onclick="toggleIconPicker()">😀 Choisir</button>';
+  html += '<input type="hidden" id="ds-icon-input" value="' + escapeHtml((s.display && s.display.icon) || '') + '">';
+  html += '<button type="button" class="ds-icon-preview-btn" onclick="toggleIconPicker()" title="Choisir une icône">' + renderAnyIcon(currentIconKey, { size: 24 }) + '</button>';
+  html += '<button class="btn-secondary" onclick="toggleIconPicker()">Choisir</button>';
   html += '<button class="btn-primary" onclick="saveSourceIcon()">Enregistrer l\'icône</button>';
   html += '</div>';
-  html += '<div id="ds-icon-picker" class="emoji-picker" style="display:none;">' + emojiPickerHtml() + '</div>';
+  html += '<div id="ds-icon-picker" class="emoji-picker" style="display:none;">' + iconPickerHtml() + '</div>';
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Actions</h4><div class="bank-actions-row">';
@@ -194,9 +204,9 @@ function sourceDetailHtml(s, sections) {
     // disponibilite pour les parcours/la banque de questions (voir
     // setSourceHiddenFromFreeTraining, document-source-service.js).
     html += s.hiddenFromFreeTraining
-      ? '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(false)">🟢 Rendre visible dans l\'entraînement libre</button>'
-      : '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(true)">🚫 Masquer de l\'entraînement libre</button>';
-    html += '<button class="btn-secondary bank-delete-btn" onclick="requestDeleteSource()">🗑️ Supprimer le référentiel</button>';
+      ? '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(false)">' + icon('status-published-active', { size: 14 }) + ' Rendre visible dans l\'entraînement libre</button>'
+      : '<button class="btn-secondary" onclick="toggleSourceFreeTrainingVisibility(true)">' + icon('admin-disable', { size: 14 }) + ' Masquer de l\'entraînement libre</button>';
+    html += '<button class="btn-secondary bank-delete-btn" onclick="requestDeleteSource()">' + icon('action-delete', { size: 14 }) + ' Supprimer le référentiel</button>';
   } else {
     html += '<p class="admin-users-disclaimer">Cette source est supprimée : ses questions ont été archivées en cascade. Aucune donnée n\'a été effacée.</p>';
   }
@@ -251,22 +261,14 @@ export function requestBulkActivateSources() {
   qs('ds-confirm-overlay').style.display = 'flex';
 }
 
-// AJOUT : palette d'emoji curatee (documents/reference, sante/pharmacie,
-// symboles generaux) - pas un picker Unicode exhaustif (aucune bibliotheque
-// externe, coherent avec le reste de l'appli qui utilise deja l'emoji
-// comme systeme d'icone, jamais Tabler/SVG). L'utilisateur choisit en
-// cliquant, plutot que de devoir connaitre un raccourci clavier.
-const EMOJI_PICKER_CHOICES = [
-  '📕', '📗', '📘', '📙', '📖', '📔', '📒', '📚', '📝', '📄', '📋', '🗂️',
-  '🎓', '🏛️', '⚖️', '📜', '🖋️', '✍️', '🔖', '🏷️', '📌', '📊', '📈',
-  '🏥', '💊', '🩺', '🔬', '🧪', '⚗️', '🧬', '🩹', '💉', '🦠', '🧴', '🧫',
-  '⭐', '🌟', '💡', '🔍', '🧠', '✅', '❤️',
-  '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪',
-];
-
-function emojiPickerHtml() {
-  return EMOJI_PICKER_CHOICES.map(function(e) {
-    return '<button type="button" class="emoji-picker-btn" onclick="pickSourceIcon(\'' + e + '\')">' + e + '</button>';
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : palette de cles
+// SOURCE_ICON_PICKER_CHOICES (document-source-metadata-service.js, partagee
+// avec toute autre consommatrice future) - plus un tableau d'emoji local a
+// ce fichier. Chaque bouton affiche le rendu SVG reel (icone ou pastille de
+// couleur, voir renderAnyIcon) plutot qu'un caractere.
+function iconPickerHtml() {
+  return SOURCE_ICON_PICKER_CHOICES.map(function(key) {
+    return '<button type="button" class="emoji-picker-btn" onclick="pickSourceIcon(\'' + key + '\')" title="' + key + '">' + renderAnyIcon(key, { size: 20 }) + '</button>';
   }).join('');
 }
 
@@ -276,8 +278,10 @@ export function toggleIconPicker() {
   el.style.display = (el.style.display === 'none') ? 'grid' : 'none';
 }
 
-export function pickSourceIcon(emoji) {
-  qs('ds-icon-input').value = emoji;
+export function pickSourceIcon(iconKey) {
+  qs('ds-icon-input').value = iconKey;
+  const previewBtn = document.querySelector('.ds-icon-preview-btn');
+  if (previewBtn) previewBtn.innerHTML = renderAnyIcon(iconKey, { size: 24 });
   qs('ds-icon-picker').style.display = 'none';
 }
 

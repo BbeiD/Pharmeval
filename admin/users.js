@@ -17,11 +17,15 @@ import {
   createPendingInvite, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon } from "../js/icons.js";
 
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
+// desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
+// sites d'appel (badge.emoji + ' ' + badge.label) restent inchanges.
 const STATUS_BADGES = {
-  active: { emoji: '🟢', label: 'Actif', cls: 'bank-badge-published' },
-  suspended: { emoji: '⚫', label: 'Désactivé', cls: 'bank-badge-archived' },
-  pending: { emoji: '🟡', label: 'En attente', cls: 'bank-badge-draft' },
+  active: { emoji: icon('status-published-active', { size: 14 }), label: 'Actif', cls: 'bank-badge-published' },
+  suspended: { emoji: icon('status-archived', { size: 14 }), label: 'Désactivé', cls: 'bank-badge-archived' },
+  pending: { emoji: icon('status-draft', { size: 14 }), label: 'En attente', cls: 'bank-badge-draft' },
 };
 
 let state = {

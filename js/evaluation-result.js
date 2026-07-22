@@ -13,8 +13,13 @@ import { getResultForCurrentUser, resolveExplanations } from "./services/evaluat
 import { COMPETENCY_STATUS_LABELS } from "./services/correction-policy-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
+import { icon } from "./icons.js";
 
-const QUESTION_STATUS_LABELS = { correct: '✅ Correcte', incorrect: '❌ Incorrecte', unanswered: '➖ Sans réponse' };
+const QUESTION_STATUS_LABELS = {
+  correct: icon('feedback-correct', { size: 13 }) + ' Correcte',
+  incorrect: icon('feedback-incorrect', { size: 13 }) + ' Incorrecte',
+  unanswered: 'Sans réponse',
+};
 const QUESTION_STATUS_CLASS = { correct: 'er-q-correct', incorrect: 'er-q-incorrect', unanswered: 'er-q-unanswered' };
 const COMPETENCY_STATUS_CLASS = { mastered: 'bank-badge-published', to_reinforce: 'bank-badge-draft', not_acquired: 'bank-badge-archived' };
 
@@ -196,7 +201,7 @@ function renderQuestionList(competencyResults, explanations) {
     }
     html += '</div>';
     if (explanation) {
-      html += '<div class="er-question-explanation">💡 ' + escapeHtml(explanation) + '</div>';
+      html += '<div class="er-question-explanation">' + icon('highlight-lightbulb', { size: 14 }) + ' ' + escapeHtml(explanation) + '</div>';
     }
     html += '</div>';
     return html;

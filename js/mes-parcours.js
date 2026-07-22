@@ -21,6 +21,7 @@ import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
 import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
 import { renderSiteHeader } from "./site-header.js";
+import { icon } from "./icons.js";
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -188,7 +189,7 @@ function cardHtml(entry, completion) {
         '<h3>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h3>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' +
-          '<span class="bank-chip bank-badge-published">🟢 Publié</span>' + mandatoryBadge + dueBadge +
+          '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + mandatoryBadge + dueBadge +
         '</div>' +
         progressHtml +
         '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +

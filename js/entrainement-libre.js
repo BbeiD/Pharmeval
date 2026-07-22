@@ -24,7 +24,10 @@ import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
 } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
-import { DOCUMENT_SOURCE_TYPE_DEFAULT_ICON } from "./services/document-source-metadata-service.js";
+import { resolveSourceIconKey } from "./services/document-source-metadata-service.js";
+import { renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 function qs(id) { return document.getElementById(id); }
 function escapeHtml(s) {
@@ -141,11 +144,12 @@ function renderSourceIcons() {
     const selectedCls = state.selectedSourceIds.has(s.id) ? ' source-tile-selected' : '';
     // Icone personnalisee par l'administration (display.icon, voir
     // admin/document-sources.js#saveSourceIcon) si renseignee, sinon repli
-    // sur l'icone par type de source.
-    const icon = (s.display && s.display.icon) || DOCUMENT_SOURCE_TYPE_DEFAULT_ICON[s.sourceType] || '📄';
+    // sur l'icone par type de source - meme regle de resolution que cote
+    // admin (resolveSourceIconKey), jamais dupliquee.
+    const iconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
     return (
       '<button type="button" class="source-tile' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
-        '<span class="source-tile-emoji" aria-hidden="true">' + icon + '</span>' +
+        '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
         '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
       '</button>'
     );

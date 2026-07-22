@@ -13,6 +13,7 @@ import {
   renderParcoursCompletionFromData, renderParcoursCompletionError, renderParcoursCompletionLoading,
 } from "./mes-parcours-completion.js";
 import { renderSiteHeader } from "./site-header.js";
+import { icon } from "./icons.js";
 
 const PAGE_SIZE = 20;
 
@@ -241,7 +242,7 @@ export function openHistoryDetail(evaluationId) {
     if (bonneReponse) {
       html += '<div class="history-question-correct"><strong>Bonne réponse :</strong> ' + escapeHtml(bonneReponse) + '</div>';
     }
-    html += '<div class="history-question-result">' + (entry.correct ? '✓ Correct' : '✗ Incorrect') + '</div>';
+    html += '<div class="history-question-result">' + (entry.correct ? icon('feedback-correct', { size: 14 }) + ' Correct' : icon('feedback-incorrect', { size: 14 }) + ' Incorrect') + '</div>';
     html += '</div>';
   });
   html += '</div>';

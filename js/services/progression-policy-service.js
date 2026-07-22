@@ -18,10 +18,15 @@ export const PROGRESSION_TRENDS = Object.freeze({
   STABLE: 'stable',
   DECLINING: 'declining',
 });
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : libelles texte
+// seuls - ce fichier est une politique metier PURE (aucune dependance DOM,
+// voir en-tete), l'icone associee a chaque tendance est desormais choisie
+// au rendu par l'appelant (voir TREND_ICONS, js/mes-competences.js), jamais
+// codee en dur ici.
 export const PROGRESSION_TREND_LABELS = Object.freeze({
-  improving: '📈 En progression',
-  stable: '➡️ Stable',
-  declining: '📉 En diminution',
+  improving: 'En progression',
+  stable: 'Stable',
+  declining: 'En diminution',
 });
 
 /** Niveaux de maitrise d'une competence dans le temps (SPRINT19, "Niveau actuel"). */

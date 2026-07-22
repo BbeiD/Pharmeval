@@ -8,6 +8,7 @@
 import {
   filterQuestionRows, filterLabelRows, computeDisplayDiff, applyUiState, escapeHtml, truncate,
 } from "./catalog-sync-helpers.js";
+import { icon } from "../js/icons.js";
 
 export function setText(doc, id, value) {
   const el = doc.getElementById(id);
@@ -166,8 +167,16 @@ export function renderAnalysisResult(doc, analysis, currentTab, backend) {
 export function renderSyncReportBody(doc, syncResult, status, meta) {
   const title = doc.getElementById('cs-report-title');
   const body = doc.getElementById('cs-report-body');
-  const STATUS_LABELS = { success: '✅ Synchronisation réussie', partial: '⚠️ Synchronisation partiellement réussie', failure: '❌ Échec de la synchronisation' };
-  if (title) title.textContent = '6. Rapport de synchronisation — ' + STATUS_LABELS[status];
+  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : icon() rend du
+  // HTML (balise <svg>) - title.innerHTML desormais, plus .textContent (qui
+  // aurait affiche le SVG comme du texte brut). STATUS_LABELS reste 100%
+  // interne (jamais alimente par une entree utilisateur), aucun risque XSS.
+  const STATUS_LABELS = {
+    success: icon('action-confirm-validate-publish', { size: 16 }) + ' Synchronisation réussie',
+    partial: icon('action-warning', { size: 16 }) + ' Synchronisation partiellement réussie',
+    failure: icon('action-error', { size: 16 }) + ' Échec de la synchronisation',
+  };
+  if (title) title.innerHTML = '6. Rapport de synchronisation — ' + STATUS_LABELS[status];
 
   if (status === 'failure') {
     body.innerHTML = '<p class="import-report-error">Aucune écriture n\'a pu être confirmée pour ce lot. Le journal des imports conserve la trace de cette tentative' + (meta.logSucceeded ? '' : ' (échec de journalisation également, voir la console)') + '.</p>' +
@@ -209,7 +218,7 @@ export function renderHistory(doc, items) {
   empty.style.display = 'none';
   table.style.display = 'table';
   body.innerHTML = items.map(function(entry) {
-    const statusLabel = entry.errorCount > 0 ? '❌ Échec' : (entry.simulated ? '🧪 Simulation' : '✅ Réussi');
+    const statusLabel = entry.errorCount > 0 ? icon('action-error', { size: 14 }) + ' Échec' : (entry.simulated ? icon('admin-test-simulation', { size: 14 }) + ' Simulation' : icon('action-confirm-validate-publish', { size: 14 }) + ' Réussi');
     return '<tr>' +
       '<td>' + escapeHtml(new Date(entry.date).toLocaleString('fr-BE')) + '</td>' +
       '<td>' + escapeHtml(entry.fileName) + '</td>' +

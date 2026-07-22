@@ -6,15 +6,16 @@
 //   Firestore -> history-service -> statistics-service -> recommendation-service -> recommendation.js -> Interface
 
 import { generateRecommendations } from "./services/recommendation-service.js";
+import { icon } from "./icons.js";
 
 const TYPE_ICONS = {
-  weakness: '🎯',
-  forgotten_theme: '🕒',
-  progression: '📈',
-  regression: '📉',
-  regularity_good: '🔥',
-  regularity_inactive: '👋',
-  exceptional: '🏆',
+  weakness: 'nav-free-training',
+  forgotten_theme: 'feedback-recent-time',
+  progression: 'feedback-trend-up',
+  regression: 'feedback-trend-down',
+  regularity_good: 'feedback-streak-regularity',
+  regularity_inactive: 'feedback-welcome',
+  exceptional: 'feedback-success-achievement',
 };
 
 function escapeHtml(s) {
@@ -39,7 +40,7 @@ export function renderRecommendationsFromData(evaluations) {
   if (result.insufficientData) {
     container.innerHTML =
       '<div class="reco-empty reco-empty-compact">' +
-        '<span class="reco-empty-icon">💡</span>' +
+        '<span class="reco-empty-icon">' + icon('highlight-lightbulb', { size: 28 }) + '</span>' +
         '<p>Continuez vos évaluations.</p>' +
         '<p>Nous construirons bientôt votre profil d\u2019apprentissage.</p>' +
       '</div>';
@@ -74,7 +75,7 @@ function confidenceLabel(confidence) {
 }
 
 function cardHtml(rec) {
-  const icon = TYPE_ICONS[rec.type] || '💡';
+  const iconHtml = icon(TYPE_ICONS[rec.type] || 'highlight-lightbulb', { size: 20 });
   const confPct = Math.round(rec.confidence);
   const actionAttrs = rec.action.enabled
     ? 'onclick="handleRecommendationAction(\'' + escapeHtml(rec.action.actionId) + '\', \'' + escapeHtml(rec.id) + '\')"'
@@ -83,7 +84,7 @@ function cardHtml(rec) {
   return (
     '<div class="reco-card" data-reco-id="' + escapeHtml(rec.id) + '">' +
       '<div class="reco-card-header">' +
-        '<span class="reco-card-icon">' + icon + '</span>' +
+        '<span class="reco-card-icon">' + iconHtml + '</span>' +
         '<span class="reco-card-title">' + escapeHtml(rec.title) + '</span>' +
       '</div>' +
       '<div class="reco-card-description">' + escapeHtml(rec.description) + '</div>' +

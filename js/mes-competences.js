@@ -18,6 +18,18 @@ import {
 import { getCompetencyById } from "./services/competency-catalog-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
+import { icon } from "./icons.js";
+
+// AJOUT (bibliotheque d'icones, remplace les emojis) : associe une icone a
+// chaque tendance de PROGRESSION_TREND_LABELS (progression-policy-service.js,
+// desormais texte seul) - reste ICI, pas dans le service, qui est une
+// politique metier pure sans dependance de rendu.
+const TREND_ICONS = { improving: 'feedback-trend-up', declining: 'feedback-trend-down' };
+function trendLabelHtml(trend) {
+  const label = PROGRESSION_TREND_LABELS[trend] || trend;
+  const iconKey = TREND_ICONS[trend];
+  return (iconKey ? icon(iconKey, { size: 13 }) + ' ' : '') + escapeHtml(label);
+}
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -141,14 +153,13 @@ function buildRadarChart(items) {
 function renderList() {
   qs('mc-list').innerHTML = state.items.map(function(p) {
     const selected = p.competencyId === state.selectedId ? ' bank-row-selected' : '';
-    const trendLabel = PROGRESSION_TREND_LABELS[p.trend] || p.trend;
     return (
       '<div class="bank-row' + selected + '" onclick="selectCompetency(\'' + escapeHtml(p.competencyId) + '\')">' +
         '<div class="bank-row-top">' +
           '<span class="bank-row-id">' + escapeHtml(p.competencyName) + '</span>' +
           '<span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span>' +
         '</div>' +
-        '<div class="bank-row-question">Meilleure : ' + p.bestPercent + ' % · Dernière : ' + p.lastPercent + ' % · ' + escapeHtml(trendLabel) + '</div>' +
+        '<div class="bank-row-question">Meilleure : ' + p.bestPercent + ' % · Dernière : ' + p.lastPercent + ' % · ' + trendLabelHtml(p.trend) + '</div>' +
         '<div class="bank-row-meta">' + p.evaluationCount + ' évaluation(s)</div>' +
       '</div>'
     );
@@ -168,7 +179,6 @@ export function selectCompetency(competencyId) {
 }
 
 function detailHtml(p) {
-  const trendLabel = PROGRESSION_TREND_LABELS[p.trend] || p.trend;
   let html = '<div class="bank-detail-card">';
   html += '<div class="bank-detail-header"><h3>' + escapeHtml(p.competencyName) + '</h3><span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span></div>';
 
@@ -176,7 +186,7 @@ function detailHtml(p) {
   html += '<div class="bank-detail-row"><strong>Meilleure performance :</strong> ' + p.bestPercent + ' %</div>';
   html += '<div class="bank-detail-row"><strong>Dernière performance :</strong> ' + p.lastPercent + ' %</div>';
   html += '<div class="bank-detail-row"><strong>Moyenne :</strong> ' + p.averagePercent + ' %</div>';
-  html += '<div class="bank-detail-row"><strong>Tendance :</strong> ' + escapeHtml(trendLabel) + '</div>';
+  html += '<div class="bank-detail-row"><strong>Tendance :</strong> ' + trendLabelHtml(p.trend) + '</div>';
   html += '<div class="bank-detail-row"><strong>Nombre d\'évaluations :</strong> ' + p.evaluationCount + '</div>';
   html += '<div class="bank-detail-row"><strong>Score de confiance :</strong> ' + p.confidenceScore + ' / 100 <span class="admin-users-disclaimer" style="display:inline;">(reflète le nombre, la régularité et la récence de vos évaluations — pas seulement votre score)</span></div>';
   html += '<div class="bank-detail-row"><strong>Première évaluation :</strong> ' + escapeHtml(p.firstEvaluationAt ? formatDateFr(p.firstEvaluationAt) : '—') + '</div>';

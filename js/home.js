@@ -19,6 +19,7 @@ import { calculateOverview } from "./services/statistics-service.js";
 import { getParcoursCompletionForUser } from "./services/parcours-completion-service.js";
 import { getMyCompetencyProgress, summarizeMasteryStatus } from "./services/competency-progress-service.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
+import { icon } from "./icons.js";
 
 // Nombre maximal de parcours affiches sur l'accueil - au-dela, l'utilisateur
 // est renvoye vers "Mes parcours" (lien deja present dans la section, voir
@@ -69,7 +70,11 @@ function renderWelcomeTitle() {
   // "Prenom" reel si disponible (displayName), jamais invente - a defaut,
   // salutation neutre plutot qu'un nom devine depuis l'e-mail.
   const firstName = ((ctx && ctx.displayName) || '').trim().split(/\s+/)[0];
-  el.textContent = firstName ? ('Bienvenue ' + firstName + ' ! 👋') : 'Bienvenue sur Pharmeval 👋';
+  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : icon() rend du
+  // HTML - .innerHTML desormais, plus .textContent. firstName vient d'une
+  // donnee utilisateur (displayName) : escapeHtml() obligatoire ici, a la
+  // difference de .textContent qui neutralisait deja tout HTML par nature.
+  el.innerHTML = (firstName ? ('Bienvenue ' + escapeHtml(firstName) + ' !') : 'Bienvenue sur Pharmeval') + ' ' + icon('feedback-welcome', { size: 20 });
 }
 
 // ---------------------------------------------------------------------------
@@ -94,15 +99,15 @@ async function loadHomeStats() {
 
   const tiles = [
     {
-      icon: '🎒', iconCls: 'stat-card-icon-blue',
+      icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue',
       value: String(inProgressCount), label: 'Formations en cours',
     },
     {
-      icon: '📊', iconCls: 'stat-card-icon-orange',
+      icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange',
       value: String(overview.count), label: 'Évaluations réalisées',
     },
     {
-      icon: '⭐', iconCls: 'stat-card-icon-green',
+      icon: icon('highlight-star-filled', { size: 20 }), iconCls: 'stat-card-icon-green',
       value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen',
     },
   ];

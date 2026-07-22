@@ -29,12 +29,16 @@ import {
   countCompetencyUsage, getCompetencyTimeline, publishAllDraftCompetencies,
 } from "../js/services/competency-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon } from "../js/icons.js";
 
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
+// desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
+// sites d'appel (badge.emoji + ' ' + badge.label) restent inchanges.
 const STATUS_BADGES = {
-  draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
-  published: { emoji: '🟢', label: 'Publiée', cls: 'bank-badge-published' },
-  archived: { emoji: '⚫', label: 'Archivée', cls: 'bank-badge-archived' },
-  trash: { emoji: '🔴', label: 'Corbeille', cls: 'bank-badge-trash' },
+  draft: { emoji: icon('status-draft', { size: 14 }), label: 'Brouillon', cls: 'bank-badge-draft' },
+  published: { emoji: icon('status-published-active', { size: 14 }), label: 'Publiée', cls: 'bank-badge-published' },
+  archived: { emoji: icon('status-archived', { size: 14 }), label: 'Archivée', cls: 'bank-badge-archived' },
+  trash: { emoji: icon('status-trash', { size: 14 }), label: 'Corbeille', cls: 'bank-badge-trash' },
 };
 
 // CORRECTIF : filters/sortField/sortDirection restent figes aux valeurs
@@ -292,10 +296,10 @@ function detailHtml(c) {
     if (c.status !== 'published') html += '<button class="btn-primary" onclick="requestCompetencyAction(\'publish\')">Publier</button>';
     if (c.status !== 'archived') html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'archive\')">Archiver</button>';
     if (c.status !== 'draft') html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'draft\')">Remettre en brouillon</button>';
-    html += '<button class="btn-secondary bank-delete-btn" onclick="requestCompetencyAction(\'trash\')">🗑️ Supprimer</button>';
+    html += '<button class="btn-secondary bank-delete-btn" onclick="requestCompetencyAction(\'trash\')">' + icon('action-delete', { size: 16 }) + ' Supprimer</button>';
   }
   if (c.status === 'trash') {
-    html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'restore\')">↩️ Restaurer</button>';
+    html += '<button class="btn-secondary" onclick="requestCompetencyAction(\'restore\')">' + icon('action-restore', { size: 16 }) + ' Restaurer</button>';
     if (hasPermission(PERMISSIONS.PURGE_COMPETENCIES)) {
       html += '<button class="btn-secondary bank-delete-btn" onclick="requestCompetencyAction(\'purge\')">Supprimer définitivement</button>';
     }

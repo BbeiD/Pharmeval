@@ -15,12 +15,16 @@ import { organizationsBank, ORGANIZATION_TYPE_OPTIONS } from "../js/services/org
 import { profilesBank, SUGGESTED_PROFILE_NAMES } from "../js/services/profiles-bank-service.js";
 import { groupsBank, SUGGESTED_GROUP_NAMES } from "../js/services/groups-bank-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon } from "../js/icons.js";
 
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
+// desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
+// sites d'appel (badge.emoji + ' ' + badge.label) restent inchanges.
 const STATUS_BADGES = {
-  draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
-  published: { emoji: '🟢', label: 'Publié', cls: 'bank-badge-published' },
-  archived: { emoji: '⚫', label: 'Archivé', cls: 'bank-badge-archived' },
-  trash: { emoji: '🔴', label: 'Corbeille', cls: 'bank-badge-trash' },
+  draft: { emoji: icon('status-draft', { size: 14 }), label: 'Brouillon', cls: 'bank-badge-draft' },
+  published: { emoji: icon('status-published-active', { size: 14 }), label: 'Publié', cls: 'bank-badge-published' },
+  archived: { emoji: icon('status-archived', { size: 14 }), label: 'Archivé', cls: 'bank-badge-archived' },
+  trash: { emoji: icon('status-trash', { size: 14 }), label: 'Corbeille', cls: 'bank-badge-trash' },
 };
 
 const BANKS = {
@@ -112,7 +116,10 @@ function updateTabButtons() {
     const btn = document.getElementById('refbanks-tab-' + key);
     if (btn) btn.classList.toggle('bank-row-selected', key === state.activeBank);
   });
-  document.getElementById('refbanks-title').textContent = '🏷️ ' + BANKS[state.activeBank].label;
+  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : icon() rend du
+  // HTML - .innerHTML desormais (BANKS[...].label est une constante interne,
+  // jamais une saisie utilisateur - aucun risque XSS).
+  document.getElementById('refbanks-title').innerHTML = icon('content-tag-label', { size: 20 }) + ' ' + BANKS[state.activeBank].label;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +213,7 @@ export function onFilterChange() {
 }
 export function toggleSortDirection() {
   state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
-  document.getElementById('refbanks-sort-dir-btn').textContent = state.sortDirection === 'asc' ? '⬆️' : '⬇️';
+  document.getElementById('refbanks-sort-dir-btn').innerHTML = icon(state.sortDirection === 'asc' ? 'action-reorder-up' : 'action-reorder-down', { size: 16 });
   state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
   loadPage();
 }
@@ -312,9 +319,9 @@ function detailHtml(item) {
     if (item.status !== 'archived') html += '<button class="btn-secondary" onclick="requestAction(\'archive\')">Archiver</button>';
     if (item.status !== 'draft') html += '<button class="btn-secondary" onclick="requestAction(\'draft\')">Remettre en brouillon</button>';
   }
-  if (item.status === 'archived') html += '<button class="btn-secondary bank-trash-btn" onclick="requestAction(\'trash\')">🗑️ Mettre à la corbeille</button>';
+  if (item.status === 'archived') html += '<button class="btn-secondary bank-trash-btn" onclick="requestAction(\'trash\')">' + icon('action-delete', { size: 16 }) + ' Mettre à la corbeille</button>';
   if (item.status === 'trash') {
-    html += '<button class="btn-secondary" onclick="requestAction(\'restore\')">↩️ Restaurer</button>';
+    html += '<button class="btn-secondary" onclick="requestAction(\'restore\')">' + icon('action-restore', { size: 16 }) + ' Restaurer</button>';
     if (hasPermission(PERMISSIONS.PURGE_REFERENCE_DATA)) html += '<button class="btn-secondary bank-delete-btn" onclick="requestAction(\'purge\')">Supprimer définitivement</button>';
   }
   html += '</div></div>';

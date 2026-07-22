@@ -26,15 +26,19 @@ import { computeCompleteness, renderCompletenessBar } from "../js/services/quest
 import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
 import { getDocumentSectionById } from "../js/services/document-section-catalog-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon } from "../js/icons.js";
 
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
+// desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
+// sites d'appel (badge.emoji + ' ' + badge.label) restent inchanges.
 const STATUS_BADGES = {
-  draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
-  review: { emoji: '🔵', label: 'En relecture', cls: 'bank-badge-review' },
-  published: { emoji: '🟢', label: 'Publiée', cls: 'bank-badge-published' },
-  archived: { emoji: '⚫', label: 'Archivée', cls: 'bank-badge-archived' },
+  draft: { emoji: icon('status-draft', { size: 14 }), label: 'Brouillon', cls: 'bank-badge-draft' },
+  review: { emoji: icon('status-review', { size: 14 }), label: 'En relecture', cls: 'bank-badge-review' },
+  published: { emoji: icon('status-published-active', { size: 14 }), label: 'Publiée', cls: 'bank-badge-published' },
+  archived: { emoji: icon('status-archived', { size: 14 }), label: 'Archivée', cls: 'bank-badge-archived' },
   // CORRECTIF (suppression securisee) : etape intermediaire avant
   // suppression definitive - voir js/services/question-bank-service.js.
-  trash: { emoji: '🔴', label: 'Corbeille', cls: 'bank-badge-trash' },
+  trash: { emoji: icon('status-trash', { size: 14 }), label: 'Corbeille', cls: 'bank-badge-trash' },
 };
 const DIFFICULTY_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
 
@@ -358,7 +362,7 @@ function detailHtml(q) {
   html += '<div class="bank-completeness-bar">' + bar + ' <span class="bank-completeness-pct">' + completeness.score + ' %</span></div>';
   html += '<ul class="bank-completeness-checklist">';
   completeness.checks.forEach(function(c) {
-    html += '<li>' + (c.passed ? '✔' : '✘') + ' ' + escapeHtml(c.label) + '</li>';
+    html += '<li>' + icon(c.passed ? 'highlight-check-validated' : 'action-close-remove', { size: 14 }) + ' ' + escapeHtml(c.label) + '</li>';
   });
   html += '</ul></div>';
 
@@ -370,10 +374,10 @@ function detailHtml(q) {
     if (q.status !== 'draft') html += '<button class="btn-secondary" onclick="requestBankAction(\'draft\')">Remettre en brouillon</button>';
   }
   if (q.status === 'archived') {
-    html += '<button class="btn-secondary bank-trash-btn" onclick="requestBankAction(\'trash\')">🗑️ Mettre à la corbeille</button>';
+    html += '<button class="btn-secondary bank-trash-btn" onclick="requestBankAction(\'trash\')">' + icon('action-delete', { size: 16 }) + ' Mettre à la corbeille</button>';
   }
   if (q.status === 'trash') {
-    html += '<button class="btn-secondary" onclick="requestBankAction(\'restore\')">↩️ Restaurer</button>';
+    html += '<button class="btn-secondary" onclick="requestBankAction(\'restore\')">' + icon('action-restore', { size: 16 }) + ' Restaurer</button>';
     if (hasPermission(PERMISSIONS.PURGE_QUESTIONS)) {
       html += '<button class="btn-secondary bank-delete-btn" onclick="requestBankAction(\'purge\')">Supprimer définitivement</button>';
     }

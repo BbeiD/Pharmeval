@@ -1,0 +1,19 @@
+:root {
+  --pharmeval-primary: #0F9F74;
+  --pharmeval-primary-dark: #08765A;
+  --pharmeval-primary-soft: #EAF8F3;
+  --pharmeval-navy: #152033;
+  --pharmeval-slate: #64748B;
+  --pharmeval-border: #E5E9EF;
+  --pharmeval-background: #F6F8FA;
+  --pharmeval-violet: #7357E8;
+  --pharmeval-orange: #F59E0B;
+  --pharmeval-danger: #DC4C64;
+  --pharmeval-icon-stroke-width: 1.75;
+}
+.pharmeval-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  color: var(--pharmeval-primary);
+}

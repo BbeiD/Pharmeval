@@ -24,6 +24,7 @@ import { auth } from "./firebase-config.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
+import { icon } from "./icons.js";
 
 // Pages REELLEMENT construites aujourd'hui - a completer au fur et a
 // mesure du deploiement (sources documentaires, Mon profil : pas encore
@@ -36,12 +37,12 @@ import { hasPermission, PERMISSIONS } from "./services/authorization-service.js"
 // meme convention deja utilisee par les liens "Retour a l'administration"
 // des pages admin/*.html (voir js/auth.js#revealApp).
 const NAV_ITEMS = [
-  { key: 'accueil', href: 'index.html', icon: '🏠', label: 'Accueil', viewToggle: 'goHome' },
-  { key: 'mes-parcours', href: 'mes-parcours.html', icon: '🧭', label: 'Mes parcours' },
-  { key: 'mes-competences', href: 'mes-competences.html', icon: '🧠', label: 'Mes compétences' },
-  { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: '🎯', label: 'Entraînement libre' },
-  { key: 'mes-evaluations', href: 'index.html?history=1', icon: '📊', label: 'Mes évaluations', viewToggle: 'openHistoryView' },
-  { key: 'administration', href: 'index.html?admin=1', icon: '🛡️', label: 'Administration', adminOnly: true, viewToggle: 'openAdminZone' },
+  { key: 'accueil', href: 'index.html', icon: 'nav-home', label: 'Accueil', viewToggle: 'goHome' },
+  { key: 'mes-parcours', href: 'mes-parcours.html', icon: 'nav-paths-formations', label: 'Mes parcours' },
+  { key: 'mes-competences', href: 'mes-competences.html', icon: 'nav-skills', label: 'Mes compétences' },
+  { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: 'nav-free-training', label: 'Entraînement libre' },
+  { key: 'mes-evaluations', href: 'index.html?history=1', icon: 'nav-evaluations-stats', label: 'Mes évaluations', viewToggle: 'openHistoryView' },
+  { key: 'administration', href: 'index.html?admin=1', icon: 'nav-administration', label: 'Administration', adminOnly: true, viewToggle: 'openAdminZone' },
 ];
 
 function escapeHtml(str) {
@@ -92,7 +93,7 @@ export function renderSiteHeader(activeKey) {
       const activeCls = item.key === activeKey ? ' sh-nav-active' : '';
       const toggleAttr = item.viewToggle ? ' data-view-toggle="' + item.viewToggle + '"' : '';
       return '<a class="sh-nav-link' + activeCls + '" href="' + escapeHtml(base + item.href) + '"' + toggleAttr + '>' +
-        '<span class="sh-nav-icon">' + item.icon + '</span>' +
+        '<span class="sh-nav-icon">' + icon(item.icon, { size: 20 }) + '</span>' +
         '<span class="sh-nav-label">' + escapeHtml(item.label) + '</span>' +
       '</a>';
     }).join('');
@@ -115,8 +116,8 @@ export function renderSiteHeader(activeKey) {
         '<div class="sh-account-menu" id="sh-account-menu" style="display:none;">' +
           '<div class="sh-account-name">' + escapeHtml(displayName || '—') + '</div>' +
           (ctx && ctx.email ? '<div class="sh-account-email">' + escapeHtml(ctx.email) + '</div>' : '') +
-          '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">👤 Mon profil</a>' +
-          '<button type="button" class="sh-account-logout" id="sh-account-logout">↩️ Se déconnecter</button>' +
+          '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">' + icon('nav-profile', { size: 16 }) + ' Mon profil</a>' +
+          '<button type="button" class="sh-account-logout" id="sh-account-logout">' + icon('action-restore', { size: 16 }) + ' Se déconnecter</button>' +
         '</div>' +
       '</div>' +
     '</div>';

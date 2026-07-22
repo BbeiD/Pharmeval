@@ -15,6 +15,7 @@ import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext }
 import { getParcoursDetailForUser } from "./services/parcours-view-service.js";
 import { formatDateFr } from "./services/date-utils.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { icon } from "./icons.js";
 
 const LEVEL_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
 
@@ -91,10 +92,10 @@ function renderHeader(view) {
   html += '<p class="pv-header-description">' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>';
 
   html += '<div class="bank-detail-tags-row">';
-  if (view.category) html += '<span class="bank-chip">📂 ' + escapeHtml(view.category) + '</span>';
-  if (view.level) html += '<span class="bank-chip">🎯 Niveau ' + escapeHtml(LEVEL_LABELS[view.level] || view.level) + '</span>';
-  html += '<span class="bank-chip">❓ ' + view.stats.questionCount + ' question(s)</span>';
-  if (view.stats.sourceCount) html += '<span class="bank-chip">📚 ' + view.stats.sourceCount + ' source(s)</span>';
+  if (view.category) html += '<span class="bank-chip">' + icon('content-category-folder', { size: 13 }) + ' ' + escapeHtml(view.category) + '</span>';
+  if (view.level) html += '<span class="bank-chip">' + icon('nav-free-training', { size: 13 }) + ' Niveau ' + escapeHtml(LEVEL_LABELS[view.level] || view.level) + '</span>';
+  html += '<span class="bank-chip">' + icon('content-question', { size: 13 }) + ' ' + view.stats.questionCount + ' question(s)</span>';
+  if (view.stats.sourceCount) html += '<span class="bank-chip">' + icon('content-sources-catalog', { size: 13 }) + ' ' + view.stats.sourceCount + ' source(s)</span>';
   html += '</div>';
 
   html += '<div class="pv-header-meta">';

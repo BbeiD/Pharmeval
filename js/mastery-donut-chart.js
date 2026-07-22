@@ -7,6 +7,7 @@
 // aucun appel Firestore ici.
 
 import { COMPETENCY_STATUS_LABELS } from "./services/correction-policy-service.js";
+import { icon } from "./icons.js";
 
 const STATUS_ORDER = ['mastered', 'to_reinforce', 'not_acquired'];
 const STATUS_COLOR = {
@@ -31,7 +32,7 @@ export function renderMasteryDonutHtml(summary) {
   if (!summary || summary.total === 0) {
     return (
       '<div class="mastery-donut-empty">' +
-        '<div class="mastery-donut-empty-icon">🌟</div>' +
+        '<div class="mastery-donut-empty-icon">' + icon('highlight-star-premium', { size: 32 }) + '</div>' +
         '<p class="mastery-donut-empty-title">Aucune compétence évaluée pour le moment</p>' +
         '<p class="pv-list-empty">Vos compétences apparaîtront ici dès votre première évaluation terminée.</p>' +
       '</div>'

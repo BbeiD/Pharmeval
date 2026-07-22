@@ -39,13 +39,17 @@ import {
   listParcoursAssignments, createAssignment, removeAssignment, searchAssignmentTargets,
 } from "../js/services/assignment-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
+import { icon } from "../js/icons.js";
 
+// CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
+// desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
+// sites d'appel (badge.emoji + ' ' + badge.label) restent inchanges.
 const STATUS_BADGES = {
-  draft: { emoji: '🟡', label: 'Brouillon', cls: 'bank-badge-draft' },
-  review: { emoji: '🔵', label: 'En relecture', cls: 'bank-badge-review' },
-  published: { emoji: '🟢', label: 'Publié', cls: 'bank-badge-published' },
-  archived: { emoji: '⚫', label: 'Archivé', cls: 'bank-badge-archived' },
-  trash: { emoji: '🔴', label: 'Corbeille', cls: 'bank-badge-trash' },
+  draft: { emoji: icon('status-draft', { size: 14 }), label: 'Brouillon', cls: 'bank-badge-draft' },
+  review: { emoji: icon('status-review', { size: 14 }), label: 'En relecture', cls: 'bank-badge-review' },
+  published: { emoji: icon('status-published-active', { size: 14 }), label: 'Publié', cls: 'bank-badge-published' },
+  archived: { emoji: icon('status-archived', { size: 14 }), label: 'Archivé', cls: 'bank-badge-archived' },
+  trash: { emoji: icon('status-trash', { size: 14 }), label: 'Corbeille', cls: 'bank-badge-trash' },
 };
 
 let state = {
@@ -225,7 +229,7 @@ export function onParcoursFilterChange() {
 export function toggleParcoursSortDirection() {
   state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
   const btn = document.getElementById('parcours-sort-dir-btn');
-  if (btn) btn.textContent = state.sortDirection === 'desc' ? '⬇️' : '⬆️';
+  if (btn) btn.innerHTML = icon(state.sortDirection === 'desc' ? 'action-reorder-down' : 'action-reorder-up', { size: 16 });
   resetPagination();
   return loadPage();
 }
@@ -247,7 +251,7 @@ function colorSwatchesHtml(inputId, selectedColor) {
   }).join('');
   const noneSelected = !selectedColor || !PARCOURS_COLOR_HEX[selectedColor];
   const noneBtn = '<button type="button" class="parcours-color-swatch parcours-color-none' + (noneSelected ? ' parcours-color-selected' : '') +
-    '" onclick="pickParcoursColor(\'' + inputId + '\',\'\')" title="Aucune couleur">✕</button>';
+    '" onclick="pickParcoursColor(\'' + inputId + '\',\'\')" title="Aucune couleur">' + icon('action-close-remove', { size: 14 }) + '</button>';
   return swatches + noneBtn;
 }
 
@@ -384,22 +388,22 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect) {
       }
       if (bank && bank.category) html += '<span class="bank-chip">' + escapeHtml(bank.category) + '</span>';
       html += '<div class="parcours-competency-actions">';
-      html += '<button class="btn-secondary" onclick="moveCompetencyUp(\'' + escapeHtml(c.id) + '\')"' + (i === 0 ? ' disabled' : '') + '>↑</button>';
-      html += '<button class="btn-secondary" onclick="moveCompetencyDown(\'' + escapeHtml(c.id) + '\')"' + (i === competencies.length - 1 ? ' disabled' : '') + '>↓</button>';
+      html += '<button class="btn-secondary" onclick="moveCompetencyUp(\'' + escapeHtml(c.id) + '\')"' + (i === 0 ? ' disabled' : '') + '>' + icon('action-reorder-up', { size: 14 }) + '</button>';
+      html += '<button class="btn-secondary" onclick="moveCompetencyDown(\'' + escapeHtml(c.id) + '\')"' + (i === competencies.length - 1 ? ' disabled' : '') + '>' + icon('action-reorder-down', { size: 14 }) + '</button>';
       html += '<button class="btn-secondary bank-delete-btn" onclick="requestRemoveCompetency(\'' + escapeHtml(c.id) + '\')">Supprimer</button>';
       html += '</div></div>';
       if (displayDescription) html += '<p class="parcours-competency-description">' + escapeHtml(displayDescription) + '</p>';
       if (notYetMigrated) {
-        html += '<p class="parcours-bulk-duplicates">⚠️ Compétence non reliée à la banque (ancienne compétence texte) — utilisez « Migrer » depuis la <a href="competencies.html" target="_blank">Banque des compétences</a>.</p>';
+        html += '<p class="parcours-bulk-duplicates">' + icon('action-warning', { size: 14 }) + ' Compétence non reliée à la banque (ancienne compétence texte) — utilisez « Migrer » depuis la <a href="competencies.html" target="_blank">Banque des compétences</a>.</p>';
       } else if (brokenLink) {
-        html += '<p class="parcours-bulk-duplicates">⚠️ Fiche introuvable dans la banque (peut-être supprimée définitivement).</p>';
+        html += '<p class="parcours-bulk-duplicates">' + icon('action-warning', { size: 14 }) + ' Fiche introuvable dans la banque (peut-être supprimée définitivement).</p>';
       }
       html += '<div class="parcours-competency-questions">';
       if (c.questionIds.length === 0) {
         html += '<span class="bank-chip">Aucune question liée</span>';
       } else {
         c.questionIds.forEach(function(qid) {
-          html += '<span class="bank-chip">' + escapeHtml(qid) + ' <a href="#" onclick="unlinkQuestion(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(qid) + '\');return false;" title="Retirer">✕</a></span>';
+          html += '<span class="bank-chip">' + escapeHtml(qid) + ' <a href="#" onclick="unlinkQuestion(\'' + escapeHtml(c.id) + '\',\'' + escapeHtml(qid) + '\');return false;" title="Retirer">' + icon('action-close-remove', { size: 12 }) + '</a></span>';
         });
       }
       html += ' <button class="btn-secondary" onclick="openLinkQuestionPanel(\'' + escapeHtml(c.id) + '\')">+ Lier une question</button>';
@@ -471,10 +475,10 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect) {
     if (p.status !== 'draft') html += '<button class="btn-secondary" onclick="requestParcoursAction(\'draft\')">Remettre en brouillon</button>';
   }
   if (p.status === 'archived') {
-    html += '<button class="btn-secondary bank-trash-btn" onclick="requestParcoursAction(\'trash\')">🗑️ Mettre à la corbeille</button>';
+    html += '<button class="btn-secondary bank-trash-btn" onclick="requestParcoursAction(\'trash\')">' + icon('action-delete', { size: 16 }) + ' Mettre à la corbeille</button>';
   }
   if (p.status === 'trash') {
-    html += '<button class="btn-secondary" onclick="requestParcoursAction(\'restore\')">↩️ Restaurer</button>';
+    html += '<button class="btn-secondary" onclick="requestParcoursAction(\'restore\')">' + icon('action-restore', { size: 16 }) + ' Restaurer</button>';
     if (hasPermission(PERMISSIONS.PURGE_PARCOURS)) {
       html += '<button class="btn-secondary bank-delete-btn" onclick="requestParcoursAction(\'purge\')">Supprimer définitivement</button>';
     }

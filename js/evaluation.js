@@ -27,6 +27,7 @@ import { isQuestionAnswered } from "./services/evaluation-session-metadata-servi
 import { renderQuestionOptions, readAnswerFromDom } from "./services/question-renderer-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
+import { icon } from "./icons.js";
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -354,7 +355,7 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
   // une justification absente pour cette question ne doit jamais faire
   // disparaitre completement ce retour.
   const explanationEl = qs('ev-explanation');
-  const verdict = '<strong>' + (correction.isCorrect ? '✓ Bonne réponse' : '✗ Incorrect') + '</strong>';
+  const verdict = '<strong>' + (correction.isCorrect ? icon('feedback-correct', { size: 15 }) + ' Bonne réponse' : icon('feedback-incorrect', { size: 15 }) + ' Incorrect') + '</strong>';
   const explanationClass = 'explanation show' + (correction.isCorrect ? '' : ' explanation-incorrect');
   explanationEl.innerHTML = verdict;
   explanationEl.className = explanationClass;

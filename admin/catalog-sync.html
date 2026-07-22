@@ -31,7 +31,7 @@
 <div id="cs-view" style="display:none;">
   <div class="import-page cs-page">
     <div class="import-header">
-      <h2>🔄 Synchronisation du catalogue éditorial</h2>
+      <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.5 7.5A7 7 0 0 1 18 8"/><path d="M17.5 16.5A7 7 0 0 1 6 16"/></svg> Synchronisation du catalogue éditorial</h2>
       <a href="../index.html?admin=1" class="btn-secondary">← Retour à l'administration</a>
     </div>
     <p class="import-intro">
@@ -42,7 +42,7 @@
     </p>
 
     <div class="admin-message admin-message-denied" id="cs-demo-banner" style="display:none;">
-      ⚠️ <strong>Mode démonstration :</strong> cette page utilise pour l'instant un backend Firestore <strong>simulé</strong> (même moteur, mêmes règles de dédoublonnage, mais aucune écriture réelle dans Pharmeval).
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,3 22,20 2,20"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.7"/></svg> <strong>Mode démonstration :</strong> cette page utilise pour l'instant un backend Firestore <strong>simulé</strong> (même moteur, mêmes règles de dédoublonnage, mais aucune écriture réelle dans Pharmeval).
     </div>
 
     <!-- SOURCE DU CATALOGUE -->
@@ -78,14 +78,14 @@
 
     <!-- ERREURS BLOQUANTES -->
     <div id="cs-errors-card" class="import-card import-errors-card" style="display:none;">
-      <h3>❌ La synchronisation ne peut pas continuer</h3>
+      <h3><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.7"/></svg> La synchronisation ne peut pas continuer</h3>
       <p class="import-errors-intro">Ces points bloquants doivent être corrigés dans le fichier avant de réessayer :</p>
       <ul id="cs-errors-list" class="import-errors-list"></ul>
     </div>
 
     <!-- AVERTISSEMENTS (non bloquants) -->
     <div id="cs-warnings-card" class="import-card" style="display:none;">
-      <h3>⚠️ Avertissements (n'empêchent pas la synchronisation)</h3>
+      <h3><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,3 22,20 2,20"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.7"/></svg> Avertissements (n'empêchent pas la synchronisation)</h3>
       <p class="import-errors-intro">Ces lignes ont été ignorées, le reste du catalogue a pu être analysé :</p>
       <ul id="cs-warnings-list" class="import-errors-list cs-warnings-list"></ul>
     </div>

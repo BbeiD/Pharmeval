@@ -1,4 +1,11 @@
 
+  /* AJOUT (bibliotheque d'icones, remplace les emojis) : alignement generique
+     de TOUTE icone inline venant de js/icons.js (icon()/dotIcon()/renderAnyIcon())
+     - reconnue par ses attributs communs (aria-hidden+focusable), jamais par
+     une classe a ajouter partout ou elle est utilisee (souvent au milieu d'un
+     texte construit par concatenation de chaines, ex. badge.emoji + ' ' + badge.label). */
+  svg[aria-hidden="true"][focusable="false"] { vertical-align: -3px; flex-shrink: 0; }
+
   :root {
     --green: #1D9E75;
     --green-dark: #0F6E56;
@@ -73,10 +80,10 @@
     font-size: 18px;
     margin-bottom: var(--space-1);
   }
-  .stat-card-icon-green { background: var(--green-light); }
-  .stat-card-icon-blue { background: var(--accent-blue-light); }
-  .stat-card-icon-orange { background: var(--accent-orange-light); }
-  .stat-card-icon-purple { background: var(--accent-purple-light); }
+  .stat-card-icon-green { background: var(--green-light); color: var(--green-dark); }
+  .stat-card-icon-blue { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .stat-card-icon-orange { background: var(--accent-orange-light); color: var(--accent-orange); }
+  .stat-card-icon-purple { background: var(--accent-purple-light); color: var(--accent-purple); }
   .stat-card-value { font-size: 24px; font-weight: 700; color: var(--text); }
   .stat-card-label { font-size: 12px; color: var(--text2); }
   .stat-card-sub { font-size: 11px; color: var(--green-dark); margin-top: 2px; }
@@ -169,7 +176,8 @@
   }
   .sh-nav-link:hover { background: var(--surface2); color: var(--text); }
   .sh-nav-link.sh-nav-active { background: var(--green-light); color: var(--green-dark); font-weight: 600; }
-  .sh-nav-icon { font-size: 17px; }
+  .sh-nav-icon { display: flex; }
+  .sh-nav-icon svg { display: block; }
   .sh-account { margin-left: auto; position: relative; }
   .sh-avatar-btn {
     width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border2);
@@ -187,12 +195,14 @@
   .sh-account-name { font-size: 14px; font-weight: 600; }
   .sh-account-email { font-size: 12px; color: var(--text2); margin-bottom: var(--space-2); }
   .sh-account-profile-link {
-    display: block; padding: 8px 0; font-size: 13px; color: var(--text); text-decoration: none;
+    display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; color: var(--text); text-decoration: none;
     border-top: 1px solid var(--border);
   }
+  .sh-account-profile-link svg, .sh-account-logout svg { flex-shrink: 0; }
   .sh-account-profile-link:hover { color: var(--green-dark); }
   .sh-account-logout {
     width: 100%; text-align: left; background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
     padding: 8px 0 0 0; font-size: 13px; color: var(--red); border-top: 1px solid var(--border); margin-top: 4px;
   }
   .sh-account-logout:hover { color: var(--green-dark); }
@@ -1378,6 +1388,7 @@
   .admin-modal-close {
     position: absolute; top: 14px; right: 14px; background: var(--surface2); border: none;
     border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; color: var(--text2);
   }
   .admin-detail-row { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   .admin-detail-row strong { margin-right: 4px; }
@@ -1478,8 +1489,9 @@
 
   /* Badges de statut - SEULE source de couleur volontaire de cet ecran */
   .bank-badge {
-    display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap;
   }
+  .bank-badge svg { flex-shrink: 0; }
   .bank-badge-draft { background: rgba(212,160,23,.15); color: #8a6d0a; }
   .bank-badge-review { background: rgba(37,110,214,.13); color: #1d5bb0; }
   .bank-badge-published { background: rgba(29,158,117,.15); color: var(--green-dark); }
