@@ -41,6 +41,7 @@ const NAV_ITEMS = [
   { key: 'mes-parcours', href: 'mes-parcours.html', icon: 'nav-paths-formations', label: 'Mes parcours' },
   { key: 'mes-competences', href: 'mes-competences.html', icon: 'nav-skills', label: 'Mes compétences' },
   { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: 'nav-free-training', label: 'Entraînement libre' },
+  { key: 'defi', href: 'defi.html', icon: 'feedback-success-achievement', label: 'Défi' },
   { key: 'mes-evaluations', href: 'index.html?history=1', icon: 'nav-evaluations-stats', label: 'Mes évaluations', viewToggle: 'openHistoryView' },
   { key: 'administration', href: 'index.html?admin=1', icon: 'nav-administration', label: 'Administration', adminOnly: true, viewToggle: 'openAdminZone' },
 ];

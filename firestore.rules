@@ -1121,5 +1121,34 @@ service cloud.firestore {
       allow write: if isRequesterCatalogAdmin();
     }
 
+    // =========================================================================
+    // AJOUT (22/07/2026) : série du "Défi du jour"
+    // =========================================================================
+    // Un seul document par utilisateur (identifiant de document = uid
+    // DIRECTEMENT - contrairement a question_progress/competency_progress,
+    // il n'y a ici qu'UNE seule progression par utilisateur, jamais une par
+    // question/competence). Memes garanties que competency_progress/
+    // question_progress (Sprints 19 et 21.5, Phase B0) : ecrite ET calculee
+    // PAR LE CLIENT (aucune fonction serveur dans Pharmeval, meme limite
+    // deja documentee ailleurs) - ces regles empechent d'ecrire dans la
+    // serie de quelqu'un d'autre ou avec un identifiant incoherent, mais ne
+    // verifient pas l'exactitude arithmetique de la serie elle-meme (voir
+    // js/services/daily-challenge-logic.js#computeDailyChallengeStreak).
+    match /daily_challenge_progress/{uid} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && request.auth.uid == uid);
+
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.userId == uid;
+
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && resource.data.userId == uid
+                    && request.resource.data.userId == uid;
+
+      allow delete: if false;
+    }
+
   }
 }

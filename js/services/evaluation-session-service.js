@@ -41,7 +41,7 @@ import {
 } from "./evaluation-session-metadata-service.js";
 import {
   createSessionDocument, getSessionById, findActiveSession, countPreviousAttempts, updateSessionFields,
-  findActiveFreeTrainingSession, countPreviousFreeTrainingAttempts,
+  findActiveFreeTrainingSession, countPreviousFreeTrainingAttempts, findActiveDailyChallengeSession,
 } from "./evaluation-session-catalog-service.js";
 
 function denied(message, reason) { return { status: 'denied', message: message, reason: reason }; }
@@ -81,6 +81,20 @@ export async function getActiveFreeTrainingSession() {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return null;
   return findActiveFreeTrainingSession(ctx.uid);
+}
+
+/**
+ * AJOUT (Défi du jour) : équivalent de getActiveFreeTrainingSession()
+ * ci-dessus, scope à LA DATE precise du defi (voir findActiveDailyChallengeSession()) -
+ * jamais confondue avec une session d'entrainement libre ordinaire, ni
+ * avec le defi d'un jour different.
+ * @param {string} dateStr - 'AAAA-MM-JJ'
+ * @returns {Promise<object|null>}
+ */
+export async function getActiveDailyChallengeSession(dateStr) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return null;
+  return findActiveDailyChallengeSession(ctx.uid, dateStr);
 }
 
 /**
@@ -137,6 +151,64 @@ export async function startNewFreeTrainingSession(pedagogicalIds) {
   if (!result.success) return errorResult('Le démarrage de l\'entraînement a échoué. Veuillez réessayer.');
 
   return success('Entraînement démarré.', { session: session });
+}
+
+/**
+ * AJOUT (Défi du jour) : meme moteur que startNewFreeTrainingSession()
+ * ci-dessus (session 'free_training', questionIds DEJA determines par
+ * l'appelant - daily-challenge-service.js#startTodaysChallenge(), qui a
+ * deja applique le filtre "non masque de l'entrainement libre" ET la
+ * selection deterministe du jour AVANT d'arriver ici) - seule difference :
+ * `dailyChallengeDate` est renseigne, ce qui permettra a
+ * finalizeEvaluation() (evaluation-result-service.js) de mettre a jour la
+ * serie au bon moment. AUCUNE verification "deja releve aujourd'hui" ici -
+ * deja faite par l'ecran appelant (js/defi.js), qui ne propose meme pas le
+ * bouton "Commencer" si c'est le cas.
+ * @param {Array<string>} pedagogicalIds - deja selectionnes pour aujourd'hui
+ * @param {string} dailyChallengeDate - 'AAAA-MM-JJ'
+ * @returns {Promise<object>}
+ */
+export async function startDailyChallengeSession(pedagogicalIds, dailyChallengeDate) {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour relever le défi du jour.', 'not_authenticated');
+
+  const snapshots = await buildOrderedQuestionSnapshots(pedagogicalIds);
+  if (snapshots.error) return errorResult('Impossible de charger les questions pour le moment. Réessayez plus tard.');
+  if (snapshots.orderedQuestionIds.length === 0) return denied('Aucune question disponible pour le défi du jour.', 'no_questions');
+
+  const [user, previousAttempts] = await Promise.all([
+    getUserByUid(ctx.uid),
+    countPreviousFreeTrainingAttempts(ctx.uid),
+  ]);
+
+  const now = nowIso();
+  const session = completeSessionMetadata({
+    userId: ctx.uid,
+    organizationId: (user && user.organizationId) || null,
+    sessionType: 'free_training',
+    parcoursId: null,
+    competencyId: null,
+    assignmentId: null,
+    dailyChallengeDate: dailyChallengeDate,
+    status: SESSION_STATUSES.IN_PROGRESS,
+    startedAt: now,
+    updatedAt: now,
+    questionIds: snapshots.orderedQuestionIds,
+    currentQuestionIndex: 0,
+    answers: {},
+    questionSnapshot: snapshots.questionSnapshots,
+    createdBy: ctx.uid,
+    attemptNumber: previousAttempts + 1,
+  });
+  session.events = [{ type: 'evaluation_started', at: now }];
+
+  const validation = validateSessionMetadata(session);
+  if (!validation.valid) return errorResult(validation.errors.join(' '));
+
+  const result = await createSessionDocument(session);
+  if (!result.success) return errorResult('Le démarrage du défi du jour a échoué. Veuillez réessayer.');
+
+  return success('Défi du jour démarré.', { session: session });
 }
 
 /**

@@ -169,6 +169,16 @@ export function completeSessionMetadata(partial) {
     maxAttempts: (typeof p.maxAttempts === 'number') ? p.maxAttempts : null,
     attemptType: p.attemptType || 'standard',
 
+    // AJOUT (Défi du jour) : marque une session de type 'free_training'
+    // comme etant LE defi du jour ('AAAA-MM-JJ', voir date-utils.js#todayDateStr)
+    // - jamais un nouveau sessionType (validateSessionMetadata() ci-dessous
+    // continuerait de considerer 'free_training' comme dispense de
+    // parcours/competence, exactement comme le fait deja une session
+    // d'entrainement libre classique ou un parcours mixte, voir
+    // parcoursId - meme principe applique ici). `null` pour toute session
+    // qui n'est pas un defi.
+    dailyChallengeDate: p.dailyChallengeDate || null,
+
     version: p.version || 1,
   };
 }

@@ -260,6 +260,7 @@ export function correctEvaluationSession(session) {
     userId: session.userId,
     organizationId: session.organizationId || null,
     parcoursId: session.parcoursId,
+    dailyChallengeDate: session.dailyChallengeDate || null, // AJOUT (Défi du jour) - voir evaluation-result-service.js#finalizeEvaluation()
     competencyId: session.competencyId, // reference rapide (evite de devoir parcourir competencyResults pour un filtrage simple)
     createdAt: now,
     score: score,

@@ -24,6 +24,7 @@ import { createResultDocument, getResultById, getAllResultsForUser } from "./eva
 import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
 import { updateProgressionFromResult } from "./competency-progress-service.js";
 import { updateQuestionProgressFromResult } from "./question-progress-service.js";
+import { applyDailyChallengeResultIfNew } from "./daily-challenge-service.js";
 
 function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
 
@@ -103,6 +104,17 @@ export async function finalizeEvaluation(session) {
   progressionWrites.push(updateQuestionProgressFromResult(evaluationResult).catch(function(err) {
     console.error('[evaluation-result-service] mise à jour de la progression par question impossible', err);
   }));
+
+  // AJOUT (Défi du jour) : meme point de declenchement, meme philosophie
+  // "best effort" + attendue (voir le correctif ci-dessus) - ne concerne
+  // que les resultats portant `dailyChallengeDate` (voir evaluation-
+  // correction-service.js), jamais une evaluation classique/entrainement
+  // libre ordinaire.
+  if (evaluationResult.dailyChallengeDate) {
+    progressionWrites.push(applyDailyChallengeResultIfNew(evaluationResult).catch(function(err) {
+      console.error('[evaluation-result-service] mise à jour de la série du défi du jour impossible', err);
+    }));
+  }
 
   await Promise.all(progressionWrites);
 

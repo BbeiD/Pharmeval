@@ -140,6 +140,10 @@
   .source-tile.source-tile-selected { border-color: var(--green); background: var(--green-light); }
   .source-tile.source-tile-selected .source-tile-name { color: var(--green-dark); font-weight: 600; }
   .source-tile-status-dot { position: absolute; top: 4px; right: 6px; font-size: 10px; }
+  /* AJOUT (demande directe de David, 22/07/2026) : pastille "masquée de
+     l'entraînement libre" - coin OPPOSE du badge de statut ci-dessus,
+     jamais le meme coin (risque de superposition). */
+  .source-tile-hidden-dot { position: absolute; top: 4px; left: 6px; color: var(--text2); }
 
   /* AJOUT : selecteur d'emoji cliquable (admin/document-sources.js) - une
      palette curatee, jamais un picker Unicode exhaustif. */
@@ -1871,3 +1875,21 @@
     outline: 2px solid var(--green);
     outline-offset: 2px;
   }
+
+  /* ---- NOUVEAU : Défi du jour (js/defi.js) ---- */
+  .defi-streak-row { display: flex; gap: var(--space-3); text-align: center; margin-bottom: var(--space-4); }
+  .defi-streak-block {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: var(--space-3) var(--space-2); border-radius: var(--radius); background: var(--surface2);
+  }
+  .defi-streak-flame { color: var(--accent-orange); margin-bottom: 2px; }
+  .defi-streak-value { font-size: 26px; font-weight: 700; color: var(--text); }
+  .defi-streak-label { font-size: 11px; color: var(--text2); }
+
+  .defi-start-block { text-align: center; padding: var(--space-3) 0; }
+  .defi-start-block p { margin-bottom: var(--space-3); color: var(--text2); }
+
+  .defi-done-block { text-align: center; padding: var(--space-3) 0; color: var(--green-dark); }
+  .defi-done-block svg { margin-bottom: 8px; }
+  .defi-done-block p { margin-bottom: 8px; color: var(--text); }
+  .defi-done-block .btn-secondary { margin-top: 8px; }

@@ -73,3 +73,34 @@ export function toMillis(value) {
   const d = toComparableDate(value);
   return d ? d.getTime() : 0;
 }
+
+/**
+ * AJOUT (Défi du jour) : date du jour, au format 'AAAA-MM-JJ', dans le
+ * fuseau LOCAL du navigateur (pas UTC - "aujourd'hui" doit correspondre à
+ * la date que voit réellement l'utilisateur). Sert d'identifiant du "défi
+ * du jour" en cours (voir daily-challenge-logic.js) - jamais un Timestamp
+ * Firestore, une simple chaîne comparable et triable directement.
+ * @returns {string}
+ */
+export function todayDateStr() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+
+/**
+ * Décale une date 'AAAA-MM-JJ' d'un nombre de jours (positif ou négatif) -
+ * arithmétique pure sur la chaîne, sans dépendre du fuseau horaire courant
+ * (interprétée en UTC pour ce seul calcul, la chaîne résultat reste un
+ * simple 'AAAA-MM-JJ' comparable à todayDateStr() ci-dessus).
+ * @param {string} dateStr
+ * @param {number} deltaDays
+ * @returns {string}
+ */
+export function shiftDateStr(dateStr, deltaDays) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}

@@ -129,9 +129,19 @@ function sourceRowHtml(s) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
   const selectedCls = s.id === state.selectedSourceId ? ' source-tile-selected' : '';
   const iconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
+  // AJOUT (demande directe de David, 22/07/2026) : la tuile ne laissait
+  // jusqu'ici deviner "masquee de l'entrainement libre" qu'en ouvrant le
+  // panneau de detail (voir sourceDetailHtml ci-dessous) - une seconde
+  // pastille, en surimpression du coin OPPOSE au badge de statut, le
+  // rend visible directement dans le catalogue.
+  const hiddenBadge = s.hiddenFromFreeTraining
+    ? '<span class="source-tile-hidden-dot" aria-hidden="true">' + icon('admin-disable', { size: 12 }) + '</span>'
+    : '';
+  const title = badge.label + (s.hiddenFromFreeTraining ? ' · Masquée de l\'entraînement libre' : '');
   return (
-    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')" title="' + escapeHtml(badge.label) + '">' +
+    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')" title="' + escapeHtml(title) + '">' +
       '<span class="source-tile-status-dot" aria-hidden="true">' + icon(badge.iconKey, { size: 12 }) + '</span>' +
+      hiddenBadge +
       '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
       '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
     '</button>'

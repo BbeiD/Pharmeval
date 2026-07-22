@@ -111,6 +111,17 @@ export async function countPreviousAttempts(userId, parcoursId, competencyId) {
  * parcours/compétence (qui n'existent pas dans ce mode). Nécessite
  * l'index composite (userId, sessionType, status) - voir
  * firestore.indexes.json.
+ *
+ * CORRECTIF (Défi du jour, 22/07/2026) : le défi du jour réutilise EXACTEMENT
+ * le même triplet (sessionType='free_training', parcoursId=null,
+ * competencyId=null) que l'entraînement libre - seul `dailyChallengeDate`
+ * les distingue (voir evaluation-session-metadata-service.js). Sans ce
+ * correctif, cette fonction pouvait retourner une session de DÉFI en cours
+ * quand l'utilisateur ouvrait l'entraînement libre (ou l'inverse) - filtre
+ * désormais explicitement `dailyChallengeDate == null` CÔTÉ CLIENT (jamais
+ * dans la requête elle-même : éviter un nouvel index composite à déployer
+ * pour une liste de toute façon minuscule - au plus une poignée de
+ * sessions in_progress par utilisateur).
  * @param {string} userId
  * @returns {Promise<object|null>}
  */
@@ -121,11 +132,39 @@ export async function findActiveFreeTrainingSession(userId) {
       where('userId', '==', userId),
       where('sessionType', '==', 'free_training'),
       where('status', '==', 'in_progress'),
-      limit(1)
+      limit(5)
     ));
-    return snap.empty ? null : snap.docs[0].data();
+    const match = snap.docs.map(function(d) { return d.data(); }).find(function(s) { return !s.dailyChallengeDate; });
+    return match || null;
   } catch (err) {
     logCatalogError('recherche d\'une session d\'entraînement libre active', err);
+    return null;
+  }
+}
+
+/**
+ * AJOUT (Défi du jour) : équivalent EXACT de findActiveFreeTrainingSession()
+ * ci-dessus, mais pour LE défi du jour d'UNE date precise - meme requete
+ * Firestore (meme index reutilise, voir le correctif ci-dessus), filtre
+ * `dailyChallengeDate === dateStr` cote client. Une session de défi d'un
+ * jour PASSE ne sera donc jamais confondue avec celle d'aujourd'hui.
+ * @param {string} userId
+ * @param {string} dateStr - 'AAAA-MM-JJ'
+ * @returns {Promise<object|null>}
+ */
+export async function findActiveDailyChallengeSession(userId, dateStr) {
+  try {
+    const snap = await getDocs(query(
+      collection(db, SESSION_COLLECTION),
+      where('userId', '==', userId),
+      where('sessionType', '==', 'free_training'),
+      where('status', '==', 'in_progress'),
+      limit(5)
+    ));
+    const match = snap.docs.map(function(d) { return d.data(); }).find(function(s) { return s.dailyChallengeDate === dateStr; });
+    return match || null;
+  } catch (err) {
+    logCatalogError('recherche du défi du jour actif', err);
     return null;
   }
 }

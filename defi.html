@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Défi du jour</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="defi-loading">Chargement…</div>
+
+<div id="site-header-mount"></div>
+
+<div id="defi-view" class="bank-page" style="display:none;max-width:640px;">
+  <div class="bank-header">
+    <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M9 20h6"/><path d="M8 4H5v3c0 2 1.5 3 3 3"/><path d="M16 4h3v3c0 2-1.5 3-3 3"/><path d="M10 16v4M14 16v4"/></svg> Défi du jour</h2>
+  </div>
+
+  <p class="admin-users-disclaimer">Le même défi pour tout le monde, chaque jour — quelques questions parmi le catalogue disponible en entraînement libre. Revenez chaque jour pour construire votre série.</p>
+
+  <div id="defi-message" class="admin-message" style="display:none;"></div>
+
+  <div id="defi-card" class="card"></div>
+</div>
+
+<script type="module" src="js/defi.js"></script>
+
+</body>
+</html>

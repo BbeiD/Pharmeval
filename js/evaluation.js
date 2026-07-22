@@ -20,8 +20,10 @@ import {
   saveAnswer, saveCurrentQuestionIndex,
   getActiveFreeTrainingSession,
   startParcoursMixedSession, restartParcoursMixedSession,
+  getActiveDailyChallengeSession,
 } from "./services/evaluation-session-service.js";
 import { finalizeEvaluation, resolveExplanations } from "./services/evaluation-result-service.js";
+import { todayDateStr } from "./services/date-utils.js";
 import { checkAnswerCorrectness } from "./services/evaluation-correction-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
 import { renderQuestionOptions, readAnswerFromDom } from "./services/question-renderer-service.js";
@@ -82,6 +84,18 @@ async function init() {
   // contente de la reprendre, jamais d'en creer ou d'en recommencer une
   // elle-meme pour ce type de session. Comportement "parcours"
   // historique ci-dessous entierement inchange.
+  // AJOUT (Défi du jour) : valeur d'URL DISTINCTE de 'free_training' -
+  // techniquement la meme session ('sessionType':'free_training' en base,
+  // voir evaluation-session-metadata-service.js), mais la recherche de
+  // session active doit imperativement rester scopee a AUJOURD'HUI (voir
+  // getActiveDailyChallengeSession()), jamais la recherche generique
+  // ci-dessous (qui pourrait retomber sur une session d'entrainement
+  // libre ordinaire, ou sur le defi d'un jour precedent).
+  if (params.get('sessionType') === 'daily_challenge') {
+    await initDailyChallenge();
+    return;
+  }
+
   if (params.get('sessionType') === 'free_training') {
     await initFreeTraining();
     return;
@@ -128,6 +142,29 @@ async function initFreeTraining() {
   const result = await resumeSession(active.id);
   if (result.status !== 'success') {
     showDenied('Entraînement indisponible', result.message || 'Cet entraînement n\'est pas accessible pour le moment.', 'entrainement-libre.html');
+    return;
+  }
+  state.session = result.session;
+  renderTaking();
+}
+
+// AJOUT (Défi du jour) : la session est DEJA creee par js/defi.js
+// (startTodaysChallenge()) avant la redirection ici - cette page se
+// contente de la reprendre, exactement comme initFreeTraining() ci-dessus,
+// mais scopee a la date du jour (voir getActiveDailyChallengeSession()).
+async function initDailyChallenge() {
+  state.sessionType = 'free_training'; // rendu generique (voir renderTaking()) - dailyChallengeDate en distingue l'affichage
+  showOnly('ev-loading');
+
+  const active = await getActiveDailyChallengeSession(todayDateStr());
+  if (!active) {
+    showDenied('Aucun défi en cours', 'Revenez à l\'écran "Défi" pour le démarrer.', 'defi.html');
+    return;
+  }
+
+  const result = await resumeSession(active.id);
+  if (result.status !== 'success') {
+    showDenied('Défi indisponible', result.message || 'Ce défi n\'est pas accessible pour le moment.', 'defi.html');
     return;
   }
   state.session = result.session;
@@ -252,13 +289,18 @@ function renderTaking() {
     // SPRINT 21.5, PHASE B1 : masquage du bloc parcours/competence (aucun
     // des deux n'existe pour une session d'entrainement libre) - fil
     // d'Ariane reduit a un seul maillon, jamais un texte "null"/vide trompeur.
-    qs('ev-breadcrumb-root').textContent = 'Entraînement libre';
-    qs('ev-breadcrumb-root').href = 'entrainement-libre.html';
+    //
+    // AJOUT (Défi du jour) : meme session 'free_training' techniquement -
+    // seul `dailyChallengeDate` distingue les deux a l'affichage (voir
+    // evaluation-session-metadata-service.js).
+    const isDailyChallenge = !!state.session.dailyChallengeDate;
+    qs('ev-breadcrumb-root').textContent = isDailyChallenge ? 'Défi du jour' : 'Entraînement libre';
+    qs('ev-breadcrumb-root').href = isDailyChallenge ? 'defi.html' : 'entrainement-libre.html';
     qs('ev-breadcrumb-sep1').style.display = 'none';
     qs('ev-breadcrumb-parcours').style.display = 'none';
     qs('ev-breadcrumb-sep2').style.display = 'none';
     qs('ev-breadcrumb-competency').textContent = '';
-    qs('ev-competency-name').textContent = 'Entraînement libre';
+    qs('ev-competency-name').textContent = isDailyChallenge ? 'Défi du jour' : 'Entraînement libre';
     qs('ev-parcours-name').textContent = state.session.questionIds.length + ' question(s)';
   } else if (state.sessionType === 'parcours_mixed') {
     // AJOUT : parcours mixte - meme fil d'Ariane que le mode classique
