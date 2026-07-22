@@ -7,18 +7,9 @@
 
 import { getCurrentRole, ROLE_LABELS, PERMISSIONS, hasPermission } from "./services/authorization-service.js";
 import { getCurrentUserContext } from "./services/app-context.js";
+import { renderSiteHeader } from "./site-header.js";
 
 const APP_VERSION = 'Pharmeval v2.12.0';
-
-/**
- * A appeler apres chaque connexion (voir js/auth.js -> revealApp()) pour
- * afficher ou masquer le bouton d'acces a l'administration selon le role
- * courant. Un utilisateur sans permission MANAGE_USERS ne voit jamais ce bouton.
- */
-export function updateAdminUI() {
-  var btn = document.getElementById('btn-admin-zone');
-  if (btn) btn.style.display = hasPermission(PERMISSIONS.MANAGE_USERS) ? '' : 'none';
-}
 
 /**
  * Ouvre la zone d'administration. Double controle d'acces : le bouton est
@@ -40,6 +31,7 @@ export function openAdminZone() {
   });
   var adminEl = document.getElementById('admin-view');
   if (adminEl) adminEl.style.display = 'block';
+  renderSiteHeader('administration');
 
   var versionEl = document.getElementById('admin-version');
   var userEl = document.getElementById('admin-current-user');
@@ -57,6 +49,7 @@ export function closeAdminZone() {
   if (adminEl) adminEl.style.display = 'none';
   var homeEl = document.getElementById('home-view');
   if (homeEl) homeEl.style.display = 'block';
+  renderSiteHeader('accueil');
 }
 
 window.openAdminZone = openAdminZone;

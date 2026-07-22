@@ -20,7 +20,7 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { syncPendingEvaluations } from "./services/evaluation-service.js";
 import { startOnboarding } from "./onboarding.js";
-import { updateAdminUI, openAdminZone } from "./admin.js";
+import { openAdminZone } from "./admin.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
 
 let authMode = 'signin'; // 'signin' | 'signup'
@@ -154,12 +154,6 @@ function revealApp(user) {
   if (authEl) authEl.style.display = 'none';
   if (onboardingEl) onboardingEl.style.display = 'none';
   if (appEl) appEl.style.display = 'block';
-  var emailEl = document.getElementById('user-email-display');
-  if (emailEl) emailEl.textContent = (user && user.email) || '';
-  // Sprint 3 : le bouton d'acces a la zone d'administration n'est revele
-  // que si le contexte (deja peuple par setCurrentUserContext ci-dessous)
-  // indique un role administrateur.
-  updateAdminUI();
 
   // CORRECTIF (post-Sprint 15, ajuste Sprint 21.5 Phase A) : "Retour à
   // l'administration" depuis un ecran d'administration secondaire

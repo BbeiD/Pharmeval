@@ -12,6 +12,7 @@ import { getParcoursCompletionForUser } from "./services/parcours-completion-ser
 import {
   renderParcoursCompletionFromData, renderParcoursCompletionError, renderParcoursCompletionLoading,
 } from "./mes-parcours-completion.js";
+import { renderSiteHeader } from "./site-header.js";
 
 const PAGE_SIZE = 20;
 
@@ -34,6 +35,7 @@ export function openHistoryView() {
   });
   var historyEl = document.getElementById('history-view');
   if (historyEl) historyEl.style.display = 'block';
+  renderSiteHeader('mes-evaluations');
 
   showHistoryList();
   loadFirstPage();
@@ -72,6 +74,7 @@ export function closeHistoryView() {
   if (historyEl) historyEl.style.display = 'none';
   var homeEl = document.getElementById('home-view');
   if (homeEl) homeEl.style.display = 'block';
+  renderSiteHeader('accueil');
 }
 
 export function startEvaluationFromHistory() {
