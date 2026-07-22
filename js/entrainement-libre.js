@@ -23,6 +23,7 @@ import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
 } from "./services/evaluation-session-service.js";
+import { renderSiteHeader } from "./site-header.js";
 
 function qs(id) { return document.getElementById(id); }
 function escapeHtml(s) {
@@ -84,6 +85,7 @@ onAuthStateChanged(auth, async function(user) {
   if (loadingEl) loadingEl.style.display = 'none';
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
+  renderSiteHeader('entrainement-libre');
 
   if (initDone) return;
   initDone = true;
