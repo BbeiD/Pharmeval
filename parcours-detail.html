@@ -40,12 +40,15 @@
     <!-- STATISTIQUES DESCRIPTIVES (aucun resultat utilisateur) -->
     <div class="pv-stats-grid" id="pv-stats"></div>
 
-    <!-- COMPETENCES (cartes) -->
-    <section class="pv-section">
-      <h2>Compétences</h2>
-      <div id="pv-competencies-empty" class="bank-list-empty" style="display:none;">Aucune compétence n'est encore associée à ce parcours.</div>
-      <div class="pv-competency-grid" id="pv-competencies"></div>
-    </section>
+    <!-- COMPETENCES : volontairement MASQUEE pour l'instant (decision
+         validee avec David, 22/07/2026) - la deduction des competences a
+         partir des questions reste calculee cote service
+         (resolveDerivedCompetenciesFromPool, parcours-service.js) pour un
+         futur usage sur des documents imprimes, mais n'a plus vocation a
+         s'afficher ici tant que ce futur usage n'est pas construit :
+         jugee trop bruyante/peu utile en l'etat (ex. un parcours "Retours
+         2" base sur une source affichait 84 "competences", une par
+         question). -->
 
     <!-- EVALUATIONS (SPRINT16 : boutons "Commencer" en attente du Sprint 17) -->
     <section class="pv-section">

@@ -15,7 +15,6 @@ import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext }
 import { getParcoursDetailForUser } from "./services/parcours-view-service.js";
 import { formatDateFr } from "./services/date-utils.js";
 import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
-import { resolveCompetencyColorHex } from "./services/competency-metadata-service.js";
 
 const LEVEL_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
 
@@ -78,7 +77,6 @@ function render(view) {
 
   renderHeader(view);
   renderStats(view);
-  renderCompetencies(view);
   renderEvaluations(view);
 }
 
@@ -95,7 +93,6 @@ function renderHeader(view) {
   html += '<div class="bank-detail-tags-row">';
   if (view.category) html += '<span class="bank-chip">📂 ' + escapeHtml(view.category) + '</span>';
   if (view.level) html += '<span class="bank-chip">🎯 Niveau ' + escapeHtml(LEVEL_LABELS[view.level] || view.level) + '</span>';
-  html += '<span class="bank-chip">🧩 ' + view.stats.competencyCount + ' compétence(s)</span>';
   html += '<span class="bank-chip">❓ ' + view.stats.questionCount + ' question(s)</span>';
   if (view.stats.sourceCount) html += '<span class="bank-chip">📚 ' + view.stats.sourceCount + ' source(s)</span>';
   html += '</div>';
@@ -113,47 +110,11 @@ function renderStats(view) {
   const el = document.getElementById('pv-stats');
   const s = view.stats;
   const items = [
-    { label: 'Compétences', value: s.competencyCount },
     { label: 'Questions', value: s.questionCount },
     { label: 'Sources', value: s.sourceCount },
   ];
   el.innerHTML = items.map(function(i) {
     return '<div class="pv-stat-card"><div class="pv-stat-value">' + escapeHtml(i.value) + '</div><div class="pv-stat-label">' + escapeHtml(i.label) + '</div></div>';
-  }).join('');
-}
-
-function renderCompetencies(view) {
-  const gridEl = document.getElementById('pv-competencies');
-  const emptyEl = document.getElementById('pv-competencies-empty');
-  const competencies = view.competencies;
-
-  if (competencies.length === 0) {
-    gridEl.innerHTML = '';
-    emptyEl.style.display = 'block';
-    return;
-  }
-  emptyEl.style.display = 'none';
-
-  gridEl.innerHTML = competencies.map(function(c) {
-    const bank = c.bankData;
-    const name = bank ? bank.name : c.name;
-    const description = bank ? bank.description : c.description;
-    const hex = bank && bank.color ? resolveCompetencyColorHex(bank.color) : null;
-    const stripe = hex ? 'background:' + escapeHtml(hex) + ';' : '';
-    let tags = '';
-    if (bank && bank.category) tags += '<span class="bank-chip">' + escapeHtml(bank.category) + '</span>';
-    if (bank && bank.recommendedLevel) tags += '<span class="bank-chip">' + escapeHtml(LEVEL_LABELS[bank.recommendedLevel] || bank.recommendedLevel) + '</span>';
-    if (c.derived) tags += '<span class="bank-chip">🔗 Déduite des questions</span>';
-    return (
-      '<div class="pv-competency-card">' +
-        '<div class="pv-competency-card-stripe" style="' + stripe + '"></div>' +
-        '<div class="pv-competency-card-body">' +
-          '<h3>' + escapeHtml(name || 'Compétence sans nom') + '</h3>' +
-          '<p>' + escapeHtml(description || 'Aucune description disponible.') + '</p>' +
-          '<div class="bank-detail-tags-row">' + tags + '</div>' +
-        '</div>' +
-      '</div>'
-    );
   }).join('');
 }
 

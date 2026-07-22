@@ -26,8 +26,7 @@
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
 import {
-  resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay,
-  resolvePooledQuestionIds, resolveDerivedCompetenciesFromPool,
+  resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolvePooledQuestionIds,
 } from "./parcours-service.js";
 import { COMPETENCY_LEVELS } from "./competency-metadata-service.js";
 
@@ -124,17 +123,17 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
   const direct = await resolveParcoursDirectContentDisplay(parcours);
   const pooledQuestionIds = await resolvePooledQuestionIds(parcours);
 
-  // AJOUT : les competences DEDUITES de TOUTES les questions jouables du
-  // parcours (source documentaire comprise, voir resolveDerivedCompetenciesFromPool)
-  // s'affichent a la suite des competences explicites - purement
-  // informatif, jamais actionnable via un bouton "Commencer" dedie
-  // (decision validee avec David : seul le bouton global du parcours reste
-  // actionnable pour ce contenu).
-  const derivedCompetencies = await resolveDerivedCompetenciesFromPool(parcours, pooledQuestionIds);
-  const allCompetenciesForDisplay = resolvedCompetencies.concat(derivedCompetencies);
-
+  // CORRECTIF (decision validee avec David, 22/07/2026) : les competences
+  // DEDUITES de l'ensemble des questions (resolveDerivedCompetenciesFromPool,
+  // parcours-service.js) ne sont PLUS affichees ici - un parcours base sur
+  // une source volumineuse (ex. "Retours 2", 84 questions) en deduisait
+  // autant de "competences" que de questions, jugee bruyant/peu utile sur
+  // cet ecran. La fonction reste disponible pour un futur usage sur des
+  // documents imprimes, simplement non appelee ici pour l'instant (evite
+  // aussi de payer le cout de lecture de toutes les questions pour un
+  // affichage qui n'existe plus).
   const questionCount = pooledQuestionIds.length;
-  const competencyCount = allCompetenciesForDisplay.length;
+  const competencyCount = resolvedCompetencies.length;
   const sourceCount = direct.sources.length;
 
   const { category, level } = computeCategoryAndLevel(resolvedCompetencies);
@@ -144,7 +143,7 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
     view: {
       parcours: parcours,
       assignment: entry.assignment,
-      competencies: allCompetenciesForDisplay,
+      competencies: resolvedCompetencies,
       sources: direct.sources,
       stats: {
         competencyCount: competencyCount,
