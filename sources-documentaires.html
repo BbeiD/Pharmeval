@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Sources documentaires</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="src-loading">Chargement…</div>
+
+<div id="site-header-mount"></div>
+
+<div id="src-view" class="bank-page" style="display:none;">
+  <div class="bank-header">
+    <h2>📚 Sources documentaires</h2>
+  </div>
+
+  <p class="admin-users-disclaimer">Les références documentaires (référentiels, procédures internes, supports d'enseignement) qui alimentent les questions de Pharmeval. Consultation en lecture seule.</p>
+
+  <div id="src-message" class="admin-message" style="display:none;"></div>
+
+  <div id="src-empty" class="bank-list-empty" style="display:none;">Aucune source documentaire active pour le moment.</div>
+
+  <div class="bank-columns" id="src-columns" style="display:none;">
+    <div class="bank-list-column">
+      <div id="src-list" class="bank-list"></div>
+    </div>
+    <div class="bank-detail-column">
+      <div id="src-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour voir son sommaire.</div>
+      <div id="src-detail" class="bank-detail" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/sources-documentaires.js"></script>
+
+</body>
+</html>
