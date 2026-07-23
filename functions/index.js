@@ -520,4 +520,26 @@ app.get("/api/competencies", requireAuth, async (req, res) => {
   }
 });
 
+const PARCOURS_COLLECTION_FOR_GETBYID = "parcours";
+
+// Reprend getParcoursById() de js/services/parcours-catalog-service.js
+// (evaluation.js/evaluation-result.js, resolution d'affichage lors d'une
+// evaluation liee a un parcours ; createAssignment() cote admin). Meme
+// regle que firestore.rules (match /parcours/{id}) : publie = tout
+// utilisateur authentifie, sinon admin uniquement.
+app.get("/api/parcours/:id", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection(PARCOURS_COLLECTION_FOR_GETBYID).doc(req.params.id).get();
+    if (!snap.exists) return res.json({ data: null, error: false });
+    const data = snap.data();
+    if (data.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ data: null, error: false });
+    }
+    res.json({ data, error: false });
+  } catch (err) {
+    console.error("[parcours/:id]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
 exports.api = onRequest(app);

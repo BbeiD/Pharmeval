@@ -14,10 +14,9 @@
 // lui donne deja construit et valide. Miroir exact de la responsabilite de
 // question-catalog-service.js, applique a un type de contenu different.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc,
-  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -29,6 +28,7 @@ import {
   startAfter,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const PARCOURS_COLLECTION = 'parcours';
 
@@ -80,9 +80,17 @@ export async function createParcoursDocument(parcoursDocument) {
  */
 export async function getParcoursById(parcoursId) {
   try {
-    const ref = doc(db, PARCOURS_COLLECTION, parcoursId);
-    const snap = await getDoc(ref);
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/parcours/${parcoursId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture du parcours ' + parcoursId + ' (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logCatalogError('lecture du parcours ' + parcoursId, err);
     return null;
