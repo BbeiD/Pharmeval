@@ -10,6 +10,7 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { formatDateFr } from "./services/date-utils.js";
 import { getResultForCurrentUser, resolveExplanations, resolveJustificationResourceRefs } from "./services/evaluation-result-service.js";
+import { questionReportWidgetHtml } from "./question-report-widget.js";
 
 // PROTOTYPE PHASE 1 (test David, 23/07/2026 - "images dans les justifications",
 // voir GUIDE_GENERATION_QUESTIONS_PDF.md) : images committees en dur dans
@@ -224,6 +225,7 @@ function renderQuestionList(competencyResults, explanations, resourceRefs) {
     refs.forEach(function(filename) {
       html += '<img class="er-question-explanation-image" src="' + escapeHtml(JUSTIFICATION_IMAGE_BASE_PATH + filename) + '" alt="Illustration de la justification" loading="lazy">';
     });
+    html += questionReportWidgetHtml(q.pedagogicalId);
     html += '</div>';
     return html;
   }).join('');

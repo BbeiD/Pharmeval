@@ -1072,6 +1072,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+    // question") : file de signalements utilisateur (reponse fausse,
+    // incoherence, doublon...) - voir question-report-service.js. Ne
+    // modifie JAMAIS la question elle-meme (le fichier Excel reste
+    // l'unique source authentique du contenu editorial, voir aussi le
+    // retrait de l'edition ponctuelle dans /questions ci-dessus) : cette
+    // collection n'est qu'une file de suivi pour l'administrateur.
+    match /question_reports/{reportId} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'open'
+                    && request.resource.data.pedagogicalId is string
+                    && request.resource.data.reason is string;
+
+      // Seul un administrateur peut faire evoluer un signalement (le
+      // marquer resolu) - jamais son auteur, et jamais un changement des
+      // champs d'origine (pedagogicalId/userId/reason/comment figes).
+      allow update: if isRequesterAdmin()
+                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.reason == resource.data.reason
+                    && request.resource.data.comment == resource.data.comment;
+
+      allow delete: if false;
+    }
+
     // Marqueur d'idempotence : un document par EvaluationResult traite, pour
     // garantir qu'un meme resultat ne soit jamais compte deux fois dans
     // question_progress. L'identifiant est l'identifiant du resultat

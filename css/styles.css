@@ -1824,6 +1824,22 @@
   .er-question-explanation { font-size: 13px; color: var(--text2); background: rgba(29,158,117,.08); border-radius: 6px; padding: 10px 12px; }
   .er-question-explanation-image { display: block; max-width: 100%; height: auto; margin-top: var(--space-2); border: 1px solid var(--border2); border-radius: var(--radius); }
 
+  /* AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+     question") : voir js/question-report-widget.js, reutilise a
+     l'identique sur evaluation.js ET evaluation-result.js. */
+  .question-report { margin-top: var(--space-2); }
+  .question-report-trigger {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-size: 12px; color: var(--text2); text-decoration: underline;
+  }
+  .question-report-trigger:hover { color: var(--red); }
+  .question-report-form {
+    margin-top: var(--space-2); padding: var(--space-2); border: 1px solid var(--border2);
+    border-radius: var(--radius); background: var(--surface2); max-width: 360px;
+  }
+  .question-report-error { font-size: 12px; color: var(--red); margin-top: 4px; }
+  .question-report-confirmation { font-size: 12px; color: var(--green-dark); margin-top: var(--space-2); }
+
   @media (max-width: 600px) {
     .er-score-card { flex-direction: column; text-align: center; }
   }

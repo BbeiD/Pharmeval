@@ -25,6 +25,9 @@ import {
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
 import { getDocumentSectionById } from "../js/services/document-section-catalog-service.js";
+import {
+  getReportsForQuestion, getOpenReportCounts, markReportResolved, REPORT_REASON_LABELS,
+} from "../js/services/question-report-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon } from "../js/icons.js";
 
@@ -151,6 +154,14 @@ async function loadPage() {
   const sourceIds = state.items.map(function(q) { return q.documentSourceId; }).filter(Boolean);
   state.sourceNameMap = sourceIds.length > 0 ? await getDocumentSourcesByIds(sourceIds) : new Map();
 
+  // AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+  // question") : comptage des signalements OUVERTS, par lot pour toute la
+  // page (jamais un appel par ligne) - meme principe que sourceNameMap
+  // ci-dessus.
+  const pedagogicalIds = state.items.map(function(q) { return q.pedagogicalId; });
+  const reportCountsResult = await getOpenReportCounts(pedagogicalIds);
+  state.reportCountsMap = reportCountsResult.counts;
+
   renderList(state.items);
   renderPagination();
 }
@@ -169,7 +180,7 @@ function renderList(items) {
 
   listEl.innerHTML =
     '<table class="bank-table">' +
-      '<thead><tr><th>Identifiant</th><th>Question</th><th>Référentiel</th><th>Difficulté</th><th>Statut</th></tr></thead>' +
+      '<thead><tr><th>Identifiant</th><th>Question</th><th>Référentiel</th><th>Difficulté</th><th>Statut</th><th></th></tr></thead>' +
       '<tbody>' + items.map(rowHtml).join('') + '</tbody>' +
     '</table>';
 }
@@ -180,6 +191,10 @@ function rowHtml(q) {
   const selected = q.pedagogicalId === state.selectedId ? ' bank-row-selected' : '';
   const source = q.documentSourceId ? state.sourceNameMap.get(q.documentSourceId) : null;
   const referentielLabel = q.documentSourceId ? (source ? source.name : 'Introuvable') : 'Non classée';
+  const reportCount = (state.reportCountsMap && state.reportCountsMap.get(q.pedagogicalId)) || 0;
+  const reportBadge = reportCount > 0
+    ? '<span class="bank-badge bank-badge-archived" title="Signalement(s) en attente">' + icon('action-warning', { size: 12 }) + ' ' + reportCount + '</span>'
+    : '';
   return (
     '<tr class="bank-row' + selected + '" onclick="selectBankQuestion(\'' + escapeHtml(q.pedagogicalId) + '\')">' +
       '<td class="bank-row-id">' + escapeHtml(q.pedagogicalId) + '</td>' +
@@ -187,6 +202,7 @@ function rowHtml(q) {
       '<td>' + escapeHtml(referentielLabel) + '</td>' +
       '<td>' + escapeHtml(DIFFICULTY_LABELS[q.difficulty] || q.difficulty) + '</td>' +
       '<td><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></td>' +
+      '<td>' + reportBadge + '</td>' +
     '</tr>'
   );
 }
@@ -254,6 +270,50 @@ export async function selectBankQuestion(pedagogicalId) {
 
   await renderTimeline(q);
   await renderClassification(q);
+  await renderReports(q);
+}
+
+/**
+ * AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+ * question") : affiche les signalements de la question selectionnee, avec
+ * un bouton "Marquer comme résolu" par signalement ouvert. Lecture seule
+ * sur la question elle-meme - resoudre un signalement ne modifie JAMAIS
+ * le contenu (voir question-report-service.js, en-tete).
+ */
+async function renderReports(q) {
+  const container = document.getElementById('bank-reports-container');
+  if (!container) return;
+  const result = await getReportsForQuestion(q.pedagogicalId);
+  if (!result.authorized) { container.textContent = 'Accès refusé.'; return; }
+  if (result.error) { container.textContent = 'Impossible de charger les signalements pour le moment.'; return; }
+  if (result.items.length === 0) { container.innerHTML = '<p class="bank-list-empty">Aucun signalement pour cette question.</p>'; return; }
+
+  container.innerHTML = result.items.map(function(r) {
+    const isOpen = r.status !== 'resolved';
+    const reasonLabel = REPORT_REASON_LABELS[r.reason] || r.reason;
+    let html = '<div class="bank-timeline-item">';
+    html += '<div class="bank-timeline-label">' + (isOpen ? icon('action-warning', { size: 13 }) + ' ' : icon('feedback-correct', { size: 13 }) + ' ') + escapeHtml(reasonLabel) + '</div>';
+    if (r.comment) html += '<p style="margin:4px 0;">' + escapeHtml(r.comment) + '</p>';
+    html += '<div class="bank-timeline-date">' + escapeHtml(r.userEmail || 'Utilisateur inconnu') + ' · ' + escapeHtml(r.createdAt ? formatDateFr(r.createdAt) : '—') + '</div>';
+    if (isOpen) {
+      html += '<div class="btn-row" style="margin-top:6px;"><button class="btn-secondary" onclick="resolveReport(\'' + escapeHtml(r.id) + '\')">Marquer comme résolu</button></div>';
+    } else {
+      html += '<div class="bank-timeline-date">Résolu le ' + escapeHtml(r.resolvedAt ? formatDateFr(r.resolvedAt) : '—') + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }).join('');
+}
+
+export async function resolveReport(reportId) {
+  const result = await markReportResolved(reportId);
+  if (!result.success) { showBankMessage('error', 'Impossible de marquer ce signalement comme résolu. Réessayez plus tard.'); return; }
+  const q = state.items.find(function(item) { return item.pedagogicalId === state.selectedId; });
+  if (q) await renderReports(q);
+  // Rafraichit la pastille de la liste (le compte de signalements ouverts a change).
+  const reportCountsResult = await getOpenReportCounts(state.items.map(function(item) { return item.pedagogicalId; }));
+  state.reportCountsMap = reportCountsResult.counts;
+  renderList(state.items);
 }
 
 /**
@@ -384,6 +444,13 @@ function detailHtml(q) {
   }
   html += '</div></div>';
 
+  // AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+  // question") : signalements utilisateur (reponse fausse, incoherence,
+  // doublon...) - voir js/services/question-report-service.js. Rempli de
+  // facon asynchrone par renderReports(), meme principe que la
+  // classification/l'historique ci-dessous.
+  html += '<div class="bank-detail-section"><h4>Signalements</h4><div id="bank-reports-container">Chargement…</div></div>';
+
   // CORRECTIF : historique visuel (timeline), consultable sans quitter l'ecran
   html += '<div class="bank-detail-section"><h4>Historique</h4><div id="bank-timeline-container" class="bank-timeline">Chargement…</div></div>';
 
@@ -497,6 +564,7 @@ window.onBankSearchInput = onBankSearchInput;
 window.requestBulkPublish = requestBulkPublish;
 window.goToBankPage = goToBankPage;
 window.selectBankQuestion = selectBankQuestion;
+window.resolveReport = resolveReport;
 window.requestBankAction = requestBankAction;
 window.cancelBankAction = cancelBankAction;
 window.confirmBankAction = confirmBankAction;

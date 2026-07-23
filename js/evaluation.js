@@ -30,6 +30,7 @@ import { renderQuestionOptions, readAnswerFromDom } from "./services/question-re
 import { getParcoursById } from "./services/parcours-catalog-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
 import { icon } from "./icons.js";
+import { questionReportWidgetHtml } from "./question-report-widget.js";
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -436,6 +437,7 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
   refs.forEach(function(filename) {
     html += '<img class="er-question-explanation-image" src="' + escapeHtml(JUSTIFICATION_IMAGE_BASE_PATH + filename) + '" alt="Illustration de la justification" loading="lazy">';
   });
+  html += questionReportWidgetHtml(pedagogicalId);
   explanationEl.innerHTML = html;
 }
 
