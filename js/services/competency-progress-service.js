@@ -23,6 +23,9 @@ import {
   getProgressionPolicy, computeTrend, computeLevel, computeConfidenceScore,
 } from "./progression-policy-service.js";
 import { computeCompetencyStatus, COMPETENCY_STATUS } from "./correction-policy-service.js";
+import { getAllQuestionProgressForUser } from "./question-progress-catalog-service.js";
+import { summarizeQuestionMastery } from "./question-progress-logic.js";
+import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
 
 function nowIso() { return new Date().toISOString(); }
 
@@ -134,6 +137,92 @@ export async function getMyCompetencyProgress() {
   const result = await listProgressionsByUser(ctx.uid);
   if (result.error) return { authorized: true, error: true, message: 'Impossible de charger vos compétences pour le moment. Réessayez plus tard.', items: [] };
   return { authorized: true, items: result.items };
+}
+
+/**
+ * CORRECTIF (demande directe de David, 23/07/2026) : remplace
+ * getMyCompetencyProgress() ci-dessus pour "Mes compétences" - cette
+ * derniere lit `competency_progress`, qui ne se remplit plus jamais
+ * depuis qu'aucun flux d'evaluation ne renseigne `competencyId` sur une
+ * session (parcours mixte, entrainement libre, "Test me", defi du jour -
+ * voir home.js, meme correctif applique au donut de l'accueil le
+ * 22/07/2026). Reconstruit une vue par competence en regroupant la
+ * progression PAR QUESTION (question-progress-service.js, reellement
+ * alimentee) selon le `competencyId` propre a chaque question (ecrit par
+ * le connecteur de synchronisation Excel, voir GUIDE_GENERATION_
+ * QUESTIONS_PDF.md et canonical-question-factory.js).
+ *
+ * LIMITE HONNETE (assumee, jamais cachee) : contrairement a l'ancien
+ * systeme, il n'existe plus d'historique de scores dans le temps par
+ * competence - une session ne porte plus qu'un decoupage par question,
+ * jamais par competence. Cette fonction retourne donc un ETAT PRESENT
+ * (repartition maitrisee/en cours/a travailler sur les questions deja
+ * rencontrees de cette competence), jamais une serie temporelle
+ * fabriquee a partir d'une donnee qui n'existe pas. Une question deja
+ * repondue mais dont la competence n'a pas encore ete assignee (import
+ * anterieur a ce correctif) est silencieusement ignoree ici - jamais
+ * rattachee a une competence inventee.
+ *
+ * @returns {Promise<{authorized:boolean, error?:boolean, message?:string, items:Array<object>}>}
+ */
+export async function getMyCompetencyProgressFromQuestions() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter vos compétences.', items: [] };
+
+  const progressResult = await getAllQuestionProgressForUser(ctx.uid);
+  if (progressResult.error) {
+    return { authorized: true, error: true, message: 'Impossible de charger vos compétences pour le moment. Réessayez plus tard.', items: [] };
+  }
+  if (progressResult.items.length === 0) return { authorized: true, items: [] };
+
+  const pedagogicalIds = progressResult.items.map(function(p) { return p.pedagogicalId; });
+  const questionsResult = await getExistingQuestionsByPedagogicalIds(pedagogicalIds);
+  if (questionsResult.error) {
+    return { authorized: true, error: true, message: 'Impossible de charger vos compétences pour le moment. Réessayez plus tard.', items: [] };
+  }
+
+  const byCompetency = new Map();
+  progressResult.items.forEach(function(p) {
+    const q = questionsResult.map.get(p.pedagogicalId);
+    if (!q || !q.competencyId) return;
+    if (!byCompetency.has(q.competencyId)) byCompetency.set(q.competencyId, []);
+    byCompetency.get(q.competencyId).push(p);
+  });
+
+  const policy = getProgressionPolicy();
+  const items = [];
+  byCompetency.forEach(function(group, competencyId) {
+    const summary = summarizeQuestionMastery(group);
+    const masteredPercent = summary.percentages.mastered;
+    const evaluationCount = summary.total;
+    const lastEvaluationAt = group.reduce(function(max, p) {
+      return (!max || (p.lastSeenAt && p.lastSeenAt > max)) ? p.lastSeenAt : max;
+    }, null);
+
+    items.push({
+      competencyId: competencyId,
+      evaluationCount: evaluationCount,
+      masteredCount: summary.counts.mastered,
+      inProgressCount: summary.counts.in_progress,
+      toWorkCount: summary.counts.to_work,
+      masteredPercent: masteredPercent,
+      currentLevel: computeLevel(masteredPercent, evaluationCount, policy),
+      masteryStatus: computeCompetencyStatus(masteredPercent),
+      confidenceScore: computeConfidenceScore({
+        evaluationCount: evaluationCount,
+        history: group.map(function(p) { return { date: p.lastSeenAt }; }),
+        lastEvaluationAt: lastEvaluationAt,
+      }, policy),
+      lastEvaluationAt: lastEvaluationAt,
+      // Detail par question - jamais un historique de pourcentage (voir
+      // limite honnete ci-dessus), juste l'etat present de chaque
+      // question deja rencontree dans cette competence.
+      questions: group.slice().sort(function(a, b) { return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || ''); }),
+    });
+  });
+
+  items.sort(function(a, b) { return b.evaluationCount - a.evaluationCount; });
+  return { authorized: true, items: items };
 }
 
 /**

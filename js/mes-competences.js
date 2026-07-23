@@ -10,25 +10,28 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { formatDateFr } from "./services/date-utils.js";
-import { getMyCompetencyProgress, summarizeMasteryStatus } from "./services/competency-progress-service.js";
-import {
-  COMPETENCY_LEVEL_LABELS, COMPETENCY_LEVEL_NUMERIC_VALUE,
-  PROGRESSION_TREND_LABELS,
-} from "./services/progression-policy-service.js";
+import { getMyCompetencyProgressFromQuestions, summarizeMasteryStatus } from "./services/competency-progress-service.js";
+import { COMPETENCY_LEVEL_LABELS, COMPETENCY_LEVEL_NUMERIC_VALUE } from "./services/progression-policy-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
+import { getExistingQuestionsByPedagogicalIds } from "./services/question-catalog-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon } from "./icons.js";
 
-// AJOUT (bibliotheque d'icones, remplace les emojis) : associe une icone a
-// chaque tendance de PROGRESSION_TREND_LABELS (progression-policy-service.js,
-// desormais texte seul) - reste ICI, pas dans le service, qui est une
-// politique metier pure sans dependance de rendu.
-const TREND_ICONS = { improving: 'feedback-trend-up', declining: 'feedback-trend-down' };
-function trendLabelHtml(trend) {
-  const label = PROGRESSION_TREND_LABELS[trend] || trend;
-  const iconKey = TREND_ICONS[trend];
-  return (iconKey ? icon(iconKey, { size: 13 }) + ' ' : '') + escapeHtml(label);
+// CORRECTIF (demande directe de David, 23/07/2026) : plus de "tendance"
+// (voir getMyCompetencyProgressFromQuestions(), competency-progress-
+// service.js - aucun historique de score dans le temps n'existe plus par
+// competence). Statut par QUESTION (mastered/in_progress/to_work, meme
+// echelle que question-progress-logic.js#summarizeQuestionMastery) a la
+// place - badge et libelle associes.
+const QUESTION_STATUS_BADGE = {
+  mastered: { cls: 'bank-badge-published', label: 'Maîtrisée', icon: 'feedback-correct' },
+  in_progress: { cls: 'bank-badge-draft', label: 'En cours', icon: 'feedback-incorrect' },
+  to_work: { cls: 'bank-badge-archived', label: 'À travailler', icon: 'action-warning' },
+};
+function questionStatusOf(q) {
+  if ((q.timesCorrect || 0) === 0) return 'to_work';
+  return q.lastStatus === 'correct' ? 'mastered' : 'in_progress';
 }
 
 function escapeHtml(str) {
@@ -38,7 +41,7 @@ function escapeHtml(str) {
 }
 function qs(id) { return document.getElementById(id); }
 
-let state = { items: [], selectedId: null };
+let state = { items: [], selectedId: null, questionTextCache: new Map() };
 
 onAuthStateChanged(auth, async function(user) {
   if (!user) { clearCurrentUserContext(); window.location.href = 'index.html'; return; }
@@ -52,7 +55,7 @@ onAuthStateChanged(auth, async function(user) {
 });
 
 async function init() {
-  const result = await getMyCompetencyProgress();
+  const result = await getMyCompetencyProgressFromQuestions();
   qs('mc-loading').style.display = 'none';
   qs('mc-view').style.display = 'block';
   renderSiteHeader('mes-competences');
@@ -159,14 +162,14 @@ function renderList() {
           '<span class="bank-row-id">' + escapeHtml(p.competencyName) + '</span>' +
           '<span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span>' +
         '</div>' +
-        '<div class="bank-row-question">Meilleure : ' + p.bestPercent + ' % · Dernière : ' + p.lastPercent + ' % · ' + trendLabelHtml(p.trend) + '</div>' +
-        '<div class="bank-row-meta">' + p.evaluationCount + ' évaluation(s)</div>' +
+        '<div class="bank-row-question">' + p.masteredPercent + ' % maîtrisé (' + p.masteredCount + '/' + p.evaluationCount + ' questions)</div>' +
+        '<div class="bank-row-meta">' + p.evaluationCount + ' question(s) rencontrée(s)</div>' +
       '</div>'
     );
   }).join('');
 }
 
-export function selectCompetency(competencyId) {
+export async function selectCompetency(competencyId) {
   state.selectedId = competencyId;
   renderList();
   const p = state.items.find(function(i) { return i.competencyId === competencyId; });
@@ -175,6 +178,24 @@ export function selectCompetency(competencyId) {
   qs('mc-detail-placeholder').style.display = 'none';
   const detailEl = qs('mc-detail');
   detailEl.style.display = 'block';
+  detailEl.innerHTML = '<p class="bank-list-loading">Chargement…</p>';
+
+  // Resolution du texte des questions de CETTE competence uniquement, a la
+  // demande (jamais pour toutes les competences a l'ouverture de la page) -
+  // mise en cache pour eviter une relecture si l'utilisateur revient sur
+  // la meme competence.
+  const missingIds = p.questions.map(function(q) { return q.pedagogicalId; })
+    .filter(function(id) { return !state.questionTextCache.has(id); });
+  if (missingIds.length > 0) {
+    const result = await getExistingQuestionsByPedagogicalIds(missingIds);
+    if (!result.error) {
+      result.map.forEach(function(q, id) { state.questionTextCache.set(id, q); });
+    }
+  }
+
+  // L'utilisateur a pu selectionner une autre competence pendant la
+  // lecture reseau - jamais afficher le detail de la mauvaise competence.
+  if (state.selectedId !== competencyId) return;
   detailEl.innerHTML = detailHtml(p);
 }
 
@@ -183,55 +204,32 @@ function detailHtml(p) {
   html += '<div class="bank-detail-header"><h3>' + escapeHtml(p.competencyName) + '</h3><span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span></div>';
 
   html += '<div class="bank-detail-section"><h4>Chiffres clés</h4>';
-  html += '<div class="bank-detail-row"><strong>Meilleure performance :</strong> ' + p.bestPercent + ' %</div>';
-  html += '<div class="bank-detail-row"><strong>Dernière performance :</strong> ' + p.lastPercent + ' %</div>';
-  html += '<div class="bank-detail-row"><strong>Moyenne :</strong> ' + p.averagePercent + ' %</div>';
-  html += '<div class="bank-detail-row"><strong>Tendance :</strong> ' + trendLabelHtml(p.trend) + '</div>';
-  html += '<div class="bank-detail-row"><strong>Nombre d\'évaluations :</strong> ' + p.evaluationCount + '</div>';
-  html += '<div class="bank-detail-row"><strong>Score de confiance :</strong> ' + p.confidenceScore + ' / 100 <span class="admin-users-disclaimer" style="display:inline;">(reflète le nombre, la régularité et la récence de vos évaluations — pas seulement votre score)</span></div>';
-  html += '<div class="bank-detail-row"><strong>Première évaluation :</strong> ' + escapeHtml(p.firstEvaluationAt ? formatDateFr(p.firstEvaluationAt) : '—') + '</div>';
-  html += '<div class="bank-detail-row"><strong>Dernière évaluation :</strong> ' + escapeHtml(p.lastEvaluationAt ? formatDateFr(p.lastEvaluationAt) : '—') + '</div>';
+  html += '<div class="bank-detail-row"><strong>Maîtrisées :</strong> ' + p.masteredCount + ' / ' + p.evaluationCount + ' (' + p.masteredPercent + ' %)</div>';
+  html += '<div class="bank-detail-row"><strong>En cours :</strong> ' + p.inProgressCount + '</div>';
+  html += '<div class="bank-detail-row"><strong>À travailler :</strong> ' + p.toWorkCount + '</div>';
+  html += '<div class="bank-detail-row"><strong>Score de confiance :</strong> ' + p.confidenceScore + ' / 100 <span class="admin-users-disclaimer" style="display:inline;">(reflète le nombre, la régularité et la récence de vos réponses — pas seulement votre score)</span></div>';
+  html += '<div class="bank-detail-row"><strong>Dernière activité :</strong> ' + escapeHtml(p.lastEvaluationAt ? formatDateFr(p.lastEvaluationAt) : '—') + '</div>';
   html += '</div>';
 
-  html += '<div class="bank-detail-section"><h4>Évolution</h4>' + buildEvolutionChart(p.history) + '</div>';
-
-  html += '<div class="bank-detail-section"><h4>Historique</h4><ul class="bank-timeline-list">' + p.history.slice().reverse().map(function(h) {
-    return '<li class="bank-timeline-item"><div class="bank-timeline-date">' + escapeHtml(formatDateFr(h.date)) + '</div><div class="bank-timeline-label">' + h.percent + ' %</div></li>';
+  // CORRECTIF (demande directe de David, 23/07/2026) : plus de graphique
+  // d'evolution ni d'historique de pourcentage - cette donnee n'existe
+  // plus par competence (voir getMyCompetencyProgressFromQuestions()).
+  // Remplace par le detail REELLEMENT disponible : l'etat present de
+  // chaque question deja rencontree dans cette competence.
+  html += '<div class="bank-detail-section"><h4>Détail par question (' + p.questions.length + ')</h4>';
+  html += '<ul class="bank-timeline-list">' + p.questions.map(function(q) {
+    const status = questionStatusOf(q);
+    const badge = QUESTION_STATUS_BADGE[status];
+    const questionDoc = state.questionTextCache.get(q.pedagogicalId);
+    const label = (questionDoc && questionDoc.question) ? questionDoc.question : q.pedagogicalId;
+    return '<li class="bank-timeline-item">' +
+      '<div class="bank-timeline-label">' + icon(badge.icon, { size: 13 }) + ' ' + escapeHtml(label) + '</div>' +
+      '<div class="bank-timeline-date"><span class="bank-badge ' + badge.cls + '">' + escapeHtml(badge.label) + '</span> · vue ' + q.timesSeen + ' fois · dernière tentative le ' + escapeHtml(q.lastSeenAt ? formatDateFr(q.lastSeenAt) : '—') + '</div>' +
+    '</li>';
   }).join('') + '</ul></div>';
 
   html += '</div>';
   return html;
-}
-
-/**
- * Graphique d'évolution simple (SPRINT19, "graphique simple d'évolution") :
- * une ligne brisée SVG reliant les pourcentages successifs, dans l'ordre
- * chronologique - jamais un recalcul, uniquement l'historique déjà
- * enregistré.
- * @param {Array<{date:string, percent:number}>} history
- * @returns {string} SVG
- */
-function buildEvolutionChart(history) {
-  if (history.length < 2) {
-    return '<p class="bank-list-empty">L\'évolution apparaîtra dès la deuxième évaluation.</p>';
-  }
-  const width = 320, height = 120, padding = 20;
-  const points = history.map(function(h, i) {
-    const x = padding + (i / (history.length - 1)) * (width - 2 * padding);
-    const y = height - padding - (h.percent / 100) * (height - 2 * padding);
-    return { x: x, y: y, percent: h.percent };
-  });
-  const polyline = points.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
-  const dots = points.map(function(p) {
-    return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3.5" fill="#1D9E75"><title>' + p.percent + ' %</title></circle>';
-  }).join('');
-  return (
-    '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="120" role="img" aria-label="Évolution des performances dans le temps" preserveAspectRatio="xMidYMid meet">' +
-      '<line x1="' + padding + '" y1="' + (height - padding) + '" x2="' + (width - padding) + '" y2="' + (height - padding) + '" stroke="var(--border)"></line>' +
-      '<polyline points="' + polyline + '" fill="none" stroke="#1D9E75" stroke-width="2"></polyline>' +
-      dots +
-    '</svg>'
-  );
 }
 
 window.selectCompetency = selectCompetency;
