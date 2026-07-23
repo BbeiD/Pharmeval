@@ -13,10 +13,9 @@
 // ce fichier ne fait que lire/ecrire ce qui lui est deja fourni construit
 // et valide.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc,
-  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -29,6 +28,7 @@ import {
   startAfter,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const COMPETENCY_COLLECTION = 'competencies';
 
@@ -78,9 +78,8 @@ export async function createCompetencyDocument(competencyDocument) {
  */
 export async function getCompetencyById(competencyId) {
   try {
-    const ref = doc(db, COMPETENCY_COLLECTION, competencyId);
-    const snap = await getDoc(ref);
-    return snap.exists() ? snap.data() : null;
+    const map = await getCompetenciesByIds([competencyId]);
+    return map[competencyId] || null;
   } catch (err) {
     logCatalogError('lecture de la compétence ' + competencyId, err);
     return null;
@@ -98,10 +97,22 @@ export async function getCompetencyById(competencyId) {
 export async function getCompetenciesByIds(competencyIds) {
   const ids = Array.isArray(competencyIds) ? competencyIds.filter(Boolean) : [];
   const uniqueIds = Array.from(new Set(ids));
-  const results = await Promise.all(uniqueIds.map(function(id) { return getCompetencyById(id); }));
-  const map = {};
-  uniqueIds.forEach(function(id, i) { if (results[i]) map[id] = results[i]; });
-  return map;
+  if (uniqueIds.length === 0) return {};
+  try {
+    if (!auth.currentUser) return {};
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/competencies?ids=${uniqueIds.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture groupée des compétences (API ' + res.status + ')', null);
+      return {};
+    }
+    return await res.json();
+  } catch (err) {
+    logCatalogError('lecture groupée des compétences', err);
+    return {};
+  }
 }
 
 function buildFilterClauses(filters) {

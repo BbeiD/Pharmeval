@@ -478,4 +478,46 @@ app.get("/api/document-sections", requireAuth, async (req, res) => {
   }
 });
 
+const COMPETENCIES_COLLECTION = "competencies";
+
+async function getVisibleCompetency(competencyId, requesterUid, requesterIsAdminCache) {
+  const snap = await admin.firestore().collection(COMPETENCIES_COLLECTION).doc(competencyId).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (data.status === "published") return data;
+  if (requesterIsAdminCache.value === null) {
+    requesterIsAdminCache.value = await isRequesterAdmin(requesterUid);
+  }
+  return requesterIsAdminCache.value ? data : null;
+}
+
+// Reprend getCompetencyById()/getCompetenciesByIds() de
+// js/services/competency-catalog-service.js (fiches liees a un parcours,
+// resolution d'affichage dans evaluation.js/evaluation-result.js/Mes
+// competences). Meme regle que firestore.rules (match /competencies/{id}) :
+// publiee = tout utilisateur authentifie, sinon admin uniquement -
+// verifiee document par document (un lot peut melanger publie/brouillon).
+app.get("/api/competencies", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  try {
+    const adminCache = { value: null };
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(
+      uniqueIds.map((id) => getVisibleCompetency(id, req.user.uid, adminCache))
+    );
+    const map = {};
+    uniqueIds.forEach((id, i) => {
+      if (results[i]) map[id] = results[i];
+    });
+    res.json(map);
+  } catch (err) {
+    console.error("[competencies]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
 exports.api = onRequest(app);
