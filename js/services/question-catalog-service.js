@@ -22,7 +22,7 @@
 // js/services/question-bank-service.js, seul appelant legitime de ces
 // nouvelles fonctions.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc,
   getDoc,
@@ -39,6 +39,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
 import { buildFilterDescriptors } from "./question-filter-utils.js";
+import { API_BASE_URL } from "../config.js";
 
 const QUESTIONS_COLLECTION = 'questions';
 
@@ -301,16 +302,22 @@ export async function searchQuestionsBounded(options) {
   const opts = options || {};
   const scanLimit = (typeof opts.maxScan === 'number' && opts.maxScan > 0) ? opts.maxScan : defaultSearchScanLimit;
   try {
-    const colRef = collection(db, QUESTIONS_COLLECTION);
-    const clauses = buildFilterClauses(opts.filters);
-    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-    clauses.push(limit(scanLimit + 1));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const all = [];
-    snap.forEach(function(d) { all.push(d.data()); });
-    const truncated = all.length > scanLimit;
-    return { items: all.slice(0, scanLimit), truncated: truncated, error: false, scanLimit: scanLimit };
+    if (!auth.currentUser) return { items: [], truncated: false, error: false, scanLimit: scanLimit };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({
+      maxScan: String(scanLimit),
+      sortField: opts.sortField || 'createdAt',
+      sortDirection: opts.sortDirection || 'desc',
+    });
+    if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+    const res = await fetch(`${API_BASE_URL}/api/questions/search-bounded?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('balayage de recherche (API ' + res.status + ')', null);
+      return { items: [], truncated: false, error: true, scanLimit: scanLimit };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('balayage de recherche', err);
     return { items: [], truncated: false, error: true, scanLimit: scanLimit, message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : null };

@@ -334,4 +334,69 @@ app.get("/api/assigned-parcours", requireAuth, async (req, res) => {
   }
 });
 
+const QUESTIONS_COLLECTION = "questions";
+const DEFAULT_SEARCH_SCAN_LIMIT = 500; // meme defaut que question-catalog-service.js (front)
+
+// Reprend buildFilterDescriptors() de js/services/question-filter-utils.js
+// - logique pure dupliquee ici a l'identique (le fichier d'origine ne peut
+// pas etre importe tel quel, ESM navigateur vs CommonJS Cloud Functions).
+function buildQuestionFilterDescriptors(filters) {
+  const descriptors = [];
+  const f = filters || {};
+  if (f.status) descriptors.push({ field: "status", op: "==", value: f.status });
+  if (f.theme) descriptors.push({ field: "theme", op: "==", value: f.theme });
+  if (f.difficulty) descriptors.push({ field: "difficulty", op: "==", value: f.difficulty });
+  if (f.questionType) descriptors.push({ field: "questionType", op: "==", value: f.questionType });
+  if (f.author) descriptors.push({ field: "author", op: "==", value: f.author });
+  if (f.documentSourceId) descriptors.push({ field: "documentSourceId", op: "==", value: f.documentSourceId });
+  if (f.documentSectionId) descriptors.push({ field: "documentSectionId", op: "==", value: f.documentSectionId });
+  if (f.tag) descriptors.push({ field: "tags", op: "array-contains", value: f.tag });
+  return descriptors;
+}
+
+function parseFiltersParam(raw) {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+
+// Reprend searchQuestionsBounded() de js/services/question-catalog-service.js
+// (composition du pool "Entrainement libre", question-search-provider.js).
+// Meme regle que firestore.rules (match /questions/{pedagogicalId}) : tout
+// utilisateur authentifie peut lire une question publiee.
+app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : DEFAULT_SEARCH_SCAN_LIMIT;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    let q = admin.firestore().collection(QUESTIONS_COLLECTION);
+    buildQuestionFilterDescriptors(filters).forEach((d) => {
+      q = q.where(d.field, d.op, d.value);
+    });
+    q = q.orderBy(sortField, sortDirection).limit(scanLimit + 1);
+
+    const snap = await q.get();
+    const all = snap.docs.map((d) => d.data());
+    const truncated = all.length > scanLimit;
+
+    res.json({ items: all.slice(0, scanLimit), truncated, error: false, scanLimit });
+  } catch (err) {
+    console.error("[questions/search-bounded]", err && err.code, err);
+    const isIndexMissing = /index/i.test((err && err.message) || "");
+    res.status(500).json({
+      items: [],
+      truncated: false,
+      error: true,
+      scanLimit,
+      message: isIndexMissing
+        ? "Cette fonctionnalité nécessite un index Firestore qui n'est pas encore déployé."
+        : null,
+    });
+  }
+});
+
 exports.api = onRequest(app);
