@@ -448,4 +448,34 @@ app.get("/api/document-sources", requireAuth, async (req, res) => {
   }
 });
 
+const DOCUMENT_SECTIONS_COLLECTION = "document_sections";
+
+// Reprend listSectionsBySource()/listActiveSectionsBySource() de
+// js/services/document-section-catalog-service.js. Meme distinction que
+// /api/document-sources : status=active ouvert a tout utilisateur
+// authentifie, toute autre requete (admin, arborescence complete) exige
+// isRequesterCatalogAdmin() - meme regle que firestore.rules.
+app.get("/api/document-sections", requireAuth, async (req, res) => {
+  const { documentSourceId, status } = req.query;
+  if (!documentSourceId) return res.status(400).json({ items: [], error: "documentSourceId requis" });
+  try {
+    if (status !== "active" && !(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    let q = admin
+      .firestore()
+      .collection(DOCUMENT_SECTIONS_COLLECTION)
+      .where("documentSourceId", "==", documentSourceId);
+    if (status) q = q.where("status", "==", status);
+    q = q.orderBy("displayOrder", "asc").limit(500);
+
+    const snap = await q.get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[document-sections]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 exports.api = onRequest(app);

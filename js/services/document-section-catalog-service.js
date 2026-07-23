@@ -3,11 +3,24 @@
 // collection GLOBALE `document_sections`. Aucune regle de validation ici
 // (voir document-section-metadata-service.js).
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, increment,
   collection, query, where, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
+
+async function fetchDocumentSections(documentSourceId, status) {
+  if (!auth.currentUser) return { items: [], error: false };
+  const token = await auth.currentUser.getIdToken();
+  const params = new URLSearchParams({ documentSourceId });
+  if (status) params.set('status', status);
+  const res = await fetch(`${API_BASE_URL}/api/document-sections?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { items: [], error: true };
+  return await res.json();
+}
 
 const SECTION_COLLECTION = 'document_sections';
 
@@ -69,14 +82,7 @@ export async function getDocumentSectionsByIds(sectionIds) {
  */
 export async function listSectionsBySource(documentSourceId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SECTION_COLLECTION),
-      where('documentSourceId', '==', documentSourceId),
-      orderBy('displayOrder', 'asc'),
-      limit(500)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    return await fetchDocumentSections(documentSourceId, null);
   } catch (err) {
     logCatalogError('liste des sections de la source ' + documentSourceId, err);
     return { items: [], error: true };
@@ -96,15 +102,7 @@ export async function listSectionsBySource(documentSourceId) {
  */
 export async function listActiveSectionsBySource(documentSourceId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SECTION_COLLECTION),
-      where('documentSourceId', '==', documentSourceId),
-      where('status', '==', 'active'),
-      orderBy('displayOrder', 'asc'),
-      limit(500)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    return await fetchDocumentSections(documentSourceId, 'active');
   } catch (err) {
     logCatalogError('liste des sections actives de la source ' + documentSourceId, err);
     return { items: [], error: true };
