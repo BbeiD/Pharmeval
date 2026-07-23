@@ -11,7 +11,7 @@
 //   competencyId           → selection.theme   (proxy pour les stats par competence)
 //   competencyResults[].questionResults[]  → questions[]
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import {
   collection,
@@ -19,9 +19,9 @@ import {
   where,
   orderBy,
   limit,
-  startAfter,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const STATISTICS_FETCH_LIMIT = 100;
@@ -91,28 +91,18 @@ export async function getEvaluationsPage(options) {
     return { items: [], nextCursor: null, hasMore: false, error: false };
   }
   try {
-    const colRef = collection(db, 'evaluation_results');
-    const clauses = [
-      where('userId', '==', ctx.uid),
-      orderBy('createdAt', 'desc'),
-    ];
-    if (opts.cursor) clauses.push(startAfter(opts.cursor));
-    clauses.push(limit(pageSize + 1));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const rawAll = [];
-    snap.forEach(function(d) {
-      const data = d.data();
-      if (!data.id) data.id = d.id;
-      rawAll.push(data);
+    if (!auth.currentUser) return { items: [], nextCursor: null, hasMore: false, error: false };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({ pageSize: String(pageSize) });
+    if (opts.cursor) params.set('cursor', JSON.stringify(opts.cursor));
+    const res = await fetch(`${API_BASE_URL}/api/evaluations?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-
-    const hasMore = rawAll.length > pageSize;
-    const rawPage = rawAll.slice(0, pageSize);
-    const nextCursor = rawPage.length ? rawPage[rawPage.length - 1].createdAt : (opts.cursor || null);
-    const items = rawPage.map(normalizeResult);
-
-    return { items: items, nextCursor: nextCursor, hasMore: hasMore, error: false };
+    if (!res.ok) {
+      logHistoryError('chargement d\'une page d\'historique (API ' + res.status + ')', null);
+      return { items: [], nextCursor: null, hasMore: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logHistoryError('chargement d\'une page d\'historique', err);
     return { items: [], nextCursor: null, hasMore: false, error: true };

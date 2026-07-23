@@ -3,6 +3,7 @@ const { onRequest } = require("firebase-functions/https");
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const { Timestamp } = require("firebase-admin/firestore");
 
 admin.initializeApp();
 setGlobalOptions({ maxInstances: 10 });
@@ -126,6 +127,103 @@ app.get("/api/competency-progress/:uid", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[competency-progress]", err && err.code, err);
     res.status(500).json({ items: [], error: true });
+  }
+});
+
+const EVALUATION_RESULTS_COLLECTION = "evaluation_results";
+const DEFAULT_EVALUATIONS_PAGE_SIZE = 20;
+
+// Reprend normalizeResult() de js/services/history-service.js — meme
+// mapping V2 -> forme interne attendue par history.js/statistics-service.js.
+function normalizeEvaluationResult(raw) {
+  const score = raw.score || {};
+  const allQuestions = [];
+  (raw.competencyResults || []).forEach((cr) => {
+    (cr.questionResults || []).forEach((qr) => {
+      const options = qr.options || [];
+      const userIdx = typeof qr.userAnswer === "number" ? qr.userAnswer : null;
+      const correctIdx = typeof qr.correctAnswer === "number" ? qr.correctAnswer : null;
+      let answerGivenText = "—";
+      if (userIdx !== null && options[userIdx] !== undefined) {
+        answerGivenText = String(options[userIdx]);
+      } else if (typeof qr.userAnswer === "string" && qr.userAnswer !== "") {
+        answerGivenText = qr.userAnswer;
+      }
+      allQuestions.push({
+        questionId: qr.pedagogicalId,
+        question: qr.question || "",
+        options,
+        userAnswer: userIdx,
+        correctAnswer: correctIdx,
+        answerGiven: answerGivenText,
+        correct: qr.status === "correct",
+      });
+    });
+  });
+
+  return {
+    id: raw.id,
+    completedAt: raw.createdAt,
+    score: {
+      percentage: score.percent,
+      correctAnswers: score.correctCount,
+      totalQuestions: score.totalCount,
+    },
+    selection: { theme: raw.competencyId || null },
+    competencyId: raw.competencyId,
+    parcoursId: raw.parcoursId,
+    questions: allQuestions,
+  };
+}
+
+// Reprend getEvaluationsPage() de js/services/history-service.js ("Mes
+// evaluations"). Toujours les evaluations du requerant lui-meme (jamais un
+// uid en parametre) - meme regle que firestore.rules (userId ==
+// request.auth.uid), pas de bypass admin ici (l'admin passe par une autre
+// route/fiche, getRecentEvaluationsForUid, non migree).
+// createdAt est un Timestamp Firestore (serverTimestamp() a l'ecriture,
+// voir evaluation-service.js) : se serialise en JSON en
+// {_seconds,_nanoseconds}, jamais un type reutilisable tel quel dans une
+// URL. Le curseur echange avec le front est donc explicitement encode/
+// decode en JSON plutot que suppose etre une simple chaine.
+function parseCursorParam(raw) {
+  if (!raw) return null;
+  try {
+    const { _seconds, _nanoseconds } = JSON.parse(raw);
+    return new Timestamp(_seconds, _nanoseconds || 0);
+  } catch {
+    return null;
+  }
+}
+
+app.get("/api/evaluations", requireAuth, async (req, res) => {
+  const pageSize = Number(req.query.pageSize) || DEFAULT_EVALUATIONS_PAGE_SIZE;
+  const cursorTimestamp = parseCursorParam(req.query.cursor);
+  try {
+    let q = admin
+      .firestore()
+      .collection(EVALUATION_RESULTS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .orderBy("createdAt", "desc");
+    if (cursorTimestamp) q = q.startAfter(cursorTimestamp);
+    q = q.limit(pageSize + 1);
+
+    const snap = await q.get();
+    const rawAll = snap.docs.map((d) => {
+      const data = d.data();
+      if (!data.id) data.id = d.id;
+      return data;
+    });
+
+    const hasMore = rawAll.length > pageSize;
+    const rawPage = rawAll.slice(0, pageSize);
+    const nextCursor = rawPage.length ? rawPage[rawPage.length - 1].createdAt : cursorTimestamp || null;
+    const items = rawPage.map(normalizeEvaluationResult);
+
+    res.json({ items, nextCursor, hasMore, error: false });
+  } catch (err) {
+    console.error("[evaluations]", err && err.code, err);
+    res.status(500).json({ items: [], nextCursor: null, hasMore: false, error: true });
   }
 });
 
