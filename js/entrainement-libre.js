@@ -17,7 +17,6 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { browseActiveDocumentSources } from "./services/document-source-service.js";
 import { getActiveSectionTree } from "./services/document-section-service.js";
-import { listMostUsedTags } from "./services/tag-catalog-service.js";
 import { composeFreeTrainingPool, launchTestMe } from "./services/free-training-service.js";
 import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
@@ -100,7 +99,7 @@ onAuthStateChanged(auth, async function(user) {
 });
 
 async function init() {
-  await Promise.all([checkActiveSession(), populateSources(), populateTags()]);
+  await Promise.all([checkActiveSession(), populateSources()]);
   wireEvents();
 }
 
@@ -164,14 +163,6 @@ export function toggleEtlSource(sourceId) {
 }
 window.toggleEtlSource = toggleEtlSource;
 
-async function populateTags() {
-  const select = qs('etl-tag');
-  const result = await listMostUsedTags({ pageSize: 50 });
-  const items = (result && result.items) || [];
-  select.innerHTML = '<option value="">Tous</option>' +
-    items.map(function(t) { return '<option value="' + escapeHtml(t.label) + '">' + escapeHtml(t.label) + '</option>'; }).join('');
-}
-
 async function onSourceSelectionChange() {
   resetDownstream();
   const sectionWrap = qs('etl-section-wrap');
@@ -229,10 +220,6 @@ async function onComposeClick() {
   const filters = {
     documentSourceIds: Array.from(state.selectedSourceIds),
     documentSectionId: qs('etl-section').value || undefined,
-    difficulty: qs('etl-difficulty').value || undefined,
-    tag: qs('etl-tag').value || undefined,
-    neverSeen: qs('etl-never-seen').checked,
-    neverSucceeded: qs('etl-never-succeeded').checked,
   };
 
   const result = await composeFreeTrainingPool(filters);

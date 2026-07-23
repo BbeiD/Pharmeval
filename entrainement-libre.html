@@ -32,8 +32,8 @@
       <div class="home-welcome-text">
         <h2 style="margin-bottom:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/><line x1="18" y1="6" x2="21" y2="3"/><line x1="18" y1="6" x2="18" y2="3"/><line x1="18" y1="6" x2="21" y2="6"/></svg> Entraînement libre</h2>
         <p class="import-intro" style="margin:0;">
-          Choisissez une source documentaire (et, si vous le souhaitez, une section, une difficulté,
-          un tag) pour composer librement une séance d'entraînement, indépendamment de tout parcours.
+          Choisissez une source documentaire (et, si vous le souhaitez, une section) pour composer
+          librement une séance d'entraînement, indépendamment de tout parcours.
         </p>
       </div>
       <img class="home-welcome-illustration" src="assets/illustrations/entrainement-libre.png" alt="" aria-hidden="true">
@@ -66,7 +66,7 @@
     <div id="etl-form-card">
 
       <div class="import-card">
-        <h3>1. Source(s) documentaire(s)</h3>
+        <h3>Source(s) documentaire(s)</h3>
         <p class="pv-list-empty" style="margin-bottom:10px;">Sélectionnez une ou plusieurs sources (choix multiple).</p>
         <div id="etl-source-icons" class="source-tile-grid"></div>
         <div id="etl-section-wrap" style="margin-top:14px;display:none;max-width:320px;">
@@ -76,33 +76,7 @@
       </div>
 
       <div class="import-card">
-        <h3>2. Filtres complémentaires (facultatifs)</h3>
-        <div class="import-preview-grid" style="grid-template-columns:1fr 1fr;">
-          <div>
-            <label class="bank-edit-label">Difficulté</label>
-            <select id="etl-difficulty" class="bank-select">
-              <option value="">Toutes</option>
-              <option value="essentiel">⭐ Essentiel</option>
-              <option value="approfondi">🔬 Approfondi</option>
-            </select>
-          </div>
-          <div>
-            <label class="bank-edit-label">Tag</label>
-            <select id="etl-tag" class="bank-select"><option value="">Tous</option></select>
-          </div>
-        </div>
-        <div class="btn-row" style="margin-top:10px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" id="etl-never-seen"> Jamais vue
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" id="etl-never-succeeded"> Jamais réussie
-          </label>
-        </div>
-      </div>
-
-      <div class="import-card">
-        <h3>3. Nombre de questions souhaité</h3>
+        <h3>Nombre de questions souhaité</h3>
         <input type="number" id="etl-count" class="bank-select" style="max-width:120px;" value="10" min="1" step="1">
         <div class="btn-row">
           <button class="btn-primary" id="etl-compose-btn" disabled>Composer le pool</button>
@@ -116,7 +90,7 @@
 
       <!-- APERCU DU POOL COMPOSE -->
       <div id="etl-preview-card" class="import-card" style="display:none;">
-        <h3>4. Aperçu avant lancement</h3>
+        <h3>Aperçu avant lancement</h3>
         <p id="etl-preview-text"></p>
         <div class="btn-row">
           <button class="btn-primary" id="etl-launch-btn">Lancer l'entraînement</button>
