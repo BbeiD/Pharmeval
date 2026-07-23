@@ -243,3 +243,29 @@ export async function resolveExplanations(pedagogicalIds) {
   });
   return map;
 }
+
+/**
+ * PROTOTYPE (test David, 23/07/2026 - "images dans les justifications") :
+ * lit `pendingResourceRefs` (deja rempli par excel-catalog-connector.js,
+ * voir GUIDE_GENERATION_QUESTIONS_PDF.md) sur les memes documents que
+ * resolveExplanations() ci-dessus, sans modifier son contrat existant
+ * (3 appelants ailleurs dans le projet). N'effectue aucune resolution
+ * reelle de fichier - retourne les noms de fichiers TELS QUELS, a
+ * resoudre par l'appelant vers une URL d'image reelle (voir
+ * JUSTIFICATION_IMAGE_BASE_PATH, evaluation-result.js) une fois le
+ * stockage reel decide (Phase 2, hors perimetre de ce prototype).
+ *
+ * @param {Array<string>} pedagogicalIds
+ * @returns {Promise<Map<string,Array<string>>>} identifiant -> noms de fichiers (vide si aucun)
+ */
+export async function resolveJustificationResourceRefs(pedagogicalIds) {
+  const map = new Map();
+  const result = await getExistingQuestionsByPedagogicalIds(pedagogicalIds);
+  if (result.error) return map;
+  result.map.forEach(function(q, id) {
+    if (q && Array.isArray(q.pendingResourceRefs) && q.pendingResourceRefs.length > 0) {
+      map.set(id, q.pendingResourceRefs);
+    }
+  });
+  return map;
+}

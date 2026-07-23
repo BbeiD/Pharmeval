@@ -1822,6 +1822,7 @@
   .er-question-statement { font-weight: 600; margin: 0 0 10px 0; }
   .er-question-answers { font-size: 13px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
   .er-question-explanation { font-size: 13px; color: var(--text2); background: rgba(29,158,117,.08); border-radius: 6px; padding: 10px 12px; }
+  .er-question-explanation-image { display: block; max-width: 100%; height: auto; margin-top: var(--space-2); border: 1px solid var(--border2); border-radius: var(--radius); }
 
   @media (max-width: 600px) {
     .er-score-card { flex-direction: column; text-align: center; }

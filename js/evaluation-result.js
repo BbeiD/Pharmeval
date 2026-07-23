@@ -9,7 +9,15 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { formatDateFr } from "./services/date-utils.js";
-import { getResultForCurrentUser, resolveExplanations } from "./services/evaluation-result-service.js";
+import { getResultForCurrentUser, resolveExplanations, resolveJustificationResourceRefs } from "./services/evaluation-result-service.js";
+
+// PROTOTYPE (test David, 23/07/2026 - "images dans les justifications",
+// voir GUIDE_GENERATION_QUESTIONS_PDF.md) : chemin LOCAL de test uniquement,
+// pointant vers le dossier de travail hors Git ou vivent les images du
+// premier lot pilote. Ne fonctionnera PAS une fois pousse en production -
+// Phase 2 (vrai stockage, cf. discussion IT) doit fixer un emplacement
+// reel avant toute mise en service. A retirer/remplacer a ce moment-la.
+const JUSTIFICATION_IMAGE_BASE_PATH = 'data/catalogue-review/_test_justification_images/';
 import { COMPETENCY_STATUS_LABELS } from "./services/correction-policy-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
@@ -80,8 +88,11 @@ async function render(result) {
     const allPedagogicalIds = result.competencyResults.reduce(function(acc, c) {
       return acc.concat(c.questionResults.map(function(q) { return q.pedagogicalId; }));
     }, []);
-    const explanations = await resolveExplanations(allPedagogicalIds);
-    renderQuestionList(result.competencyResults, explanations);
+    const [explanations, resourceRefs] = await Promise.all([
+      resolveExplanations(allPedagogicalIds),
+      resolveJustificationResourceRefs(allPedagogicalIds),
+    ]);
+    renderQuestionList(result.competencyResults, explanations, resourceRefs);
     return;
   }
 
@@ -105,8 +116,11 @@ async function render(result) {
   const allPedagogicalIds = result.competencyResults.reduce(function(acc, c) {
     return acc.concat(c.questionResults.map(function(q) { return q.pedagogicalId; }));
   }, []);
-  const explanations = await resolveExplanations(allPedagogicalIds);
-  renderQuestionList(result.competencyResults, explanations);
+  const [explanations, resourceRefs] = await Promise.all([
+    resolveExplanations(allPedagogicalIds),
+    resolveJustificationResourceRefs(allPedagogicalIds),
+  ]);
+  renderQuestionList(result.competencyResults, explanations, resourceRefs);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,12 +198,13 @@ function renderCompetencyResults(competencyResults, fallbackName) {
 // Détail des questions (SPRINT18, section 8)
 // ---------------------------------------------------------------------------
 
-function renderQuestionList(competencyResults, explanations) {
+function renderQuestionList(competencyResults, explanations, resourceRefs) {
   const questionResults = competencyResults.reduce(function(acc, c) { return acc.concat(c.questionResults); }, []);
   qs('er-question-list').innerHTML = questionResults.map(function(q, i) {
     const userAnswerText = (typeof q.userAnswer === 'number' && Array.isArray(q.options)) ? q.options[q.userAnswer] : null;
     const correctAnswerText = (typeof q.correctAnswer === 'number' && Array.isArray(q.options)) ? q.options[q.correctAnswer] : null;
     const explanation = explanations.get(q.pedagogicalId);
+    const refs = (resourceRefs && resourceRefs.get(q.pedagogicalId)) || [];
 
     let html = '<div class="er-question-card ' + (QUESTION_STATUS_CLASS[q.status] || '') + '">';
     html += '<div class="er-question-header"><strong>Question ' + (i + 1) + '</strong><span class="bank-chip">' + (QUESTION_STATUS_LABELS[q.status] || q.status) + '</span></div>';
@@ -203,6 +218,11 @@ function renderQuestionList(competencyResults, explanations) {
     if (explanation) {
       html += '<div class="er-question-explanation">' + icon('highlight-lightbulb', { size: 14 }) + ' ' + escapeHtml(explanation) + '</div>';
     }
+    // PROTOTYPE (test David, 23/07/2026) : affichage local des images de
+    // justification - voir JUSTIFICATION_IMAGE_BASE_PATH en tete de fichier.
+    refs.forEach(function(filename) {
+      html += '<img class="er-question-explanation-image" src="' + escapeHtml(JUSTIFICATION_IMAGE_BASE_PATH + filename) + '" alt="Illustration de la justification" loading="lazy">';
+    });
     html += '</div>';
     return html;
   }).join('');
