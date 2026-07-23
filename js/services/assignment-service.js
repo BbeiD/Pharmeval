@@ -18,13 +18,15 @@
 
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
+import { auth } from "../firebase-config.js";
+import { API_BASE_URL } from "../config.js";
 import {
   ASSIGNMENT_TARGET_TYPES, ASSIGNMENT_TARGET_TYPE_LABELS, ASSIGNMENT_STATUSES,
   completeAssignmentMetadata, validateAssignmentMetadata,
 } from "./assignment-metadata-service.js";
 import {
   createAssignmentDocument, deleteAssignmentDocument,
-  listAssignmentsByParcours, listAssignmentsByTarget, listAssignmentsByTargetIn,
+  listAssignmentsByParcours,
   assignmentExists,
 } from "./assignment-catalog-service.js";
 import { getParcoursById } from "./parcours-catalog-service.js";
@@ -245,45 +247,15 @@ export async function removeAssignment(assignment) {
  */
 export async function getAssignedParcoursForUser(uid) {
   if (!uid) return { items: [], error: false };
-
-  const user = await getUserByUid(uid);
-  if (!user) return { items: [], error: true };
-
-  const [directResult, profileResult, groupResult] = await Promise.all([
-    listAssignmentsByTarget(ASSIGNMENT_TARGET_TYPES.USER, uid),
-    user.profileId ? listAssignmentsByTarget(ASSIGNMENT_TARGET_TYPES.PROFILE, user.profileId) : { items: [], error: false },
-    (Array.isArray(user.groupIds) && user.groupIds.length > 0) ? listAssignmentsByTargetIn(ASSIGNMENT_TARGET_TYPES.GROUP, user.groupIds) : { items: [], error: false },
-  ]);
-  if (directResult.error || profileResult.error || groupResult.error) {
+  try {
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/assigned-parcours`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { items: [], error: true };
+    return await res.json();
+  } catch {
     return { items: [], error: true };
   }
-
-  const allAssignments = directResult.items.concat(profileResult.items, groupResult.items)
-    .filter(function(a) { return a.status === ASSIGNMENT_STATUSES.ACTIVE; });
-
-  // DEDUPLICATION par parcoursId : conserve la PREMIERE attribution
-  // rencontrée pour un même parcours (l'ordre direct > profil > groupe
-  // n'a ici qu'une valeur de repli d'affichage - aucune fusion de champs
-  // "prepares pour le futur" n'est effectuee, ces champs restant non
-  // exploites ce sprint).
-  const byParcoursId = new Map();
-  allAssignments.forEach(function(a) {
-    if (!byParcoursId.has(a.parcoursId)) byParcoursId.set(a.parcoursId, a);
-  });
-
-  const parcoursIds = Array.from(byParcoursId.keys());
-  const parcoursDocs = await Promise.all(parcoursIds.map(getParcoursById));
-
-  const items = [];
-  parcoursIds.forEach(function(pid, i) {
-    const parcours = parcoursDocs[i];
-    // Un parcours peut avoir ete supprime/depublie apres son attribution -
-    // filtre silencieusement (jamais une carte cassee affichee a
-    // l'utilisateur), sans jamais modifier ni supprimer l'attribution
-    // elle-meme (qui redeviendra visible si le parcours est republie).
-    if (!parcours || parcours.status !== 'published') return;
-    items.push({ parcours: parcours, assignment: byParcoursId.get(pid) });
-  });
-
-  return { items: items, error: false };
 }

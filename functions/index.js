@@ -257,4 +257,81 @@ app.get("/api/evaluations/for-statistics", requireAuth, async (req, res) => {
   }
 });
 
+const ASSIGNMENTS_COLLECTION = "assignments";
+const PARCOURS_COLLECTION = "parcours";
+
+async function listAssignmentsByTarget(type, targetId) {
+  if (!targetId) return [];
+  const snap = await admin
+    .firestore()
+    .collection(ASSIGNMENTS_COLLECTION)
+    .where("type", "==", type)
+    .where("targetId", "==", targetId)
+    .limit(200)
+    .get();
+  return snap.docs.map((d) => d.data());
+}
+
+async function listAssignmentsByTargetIn(type, targetIds) {
+  const ids = (targetIds || []).filter(Boolean).slice(0, 30);
+  if (ids.length === 0) return [];
+  const snap = await admin
+    .firestore()
+    .collection(ASSIGNMENTS_COLLECTION)
+    .where("type", "==", type)
+    .where("targetId", "in", ids)
+    .limit(200)
+    .get();
+  return snap.docs.map((d) => d.data());
+}
+
+// Reprend getAssignedParcoursForUser() de js/services/assignment-service.js
+// ("Mes parcours"). Toujours le requerant lui-meme (jamais un uid en
+// parametre) - aucun des appelants reels (mes-parcours.js, home.js,
+// parcours-completion/evaluation/view-service.js) ne demande les parcours
+// d'un tiers ; pas de bypass admin necessaire ici.
+app.get("/api/assigned-parcours", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const userSnap = await admin.firestore().collection("users").doc(uid).get();
+    if (!userSnap.exists) return res.json({ items: [], error: true });
+    const user = userSnap.data();
+
+    const [directItems, profileItems, groupItems] = await Promise.all([
+      listAssignmentsByTarget("user", uid),
+      user.profileId ? listAssignmentsByTarget("profile", user.profileId) : [],
+      Array.isArray(user.groupIds) && user.groupIds.length > 0
+        ? listAssignmentsByTargetIn("group", user.groupIds)
+        : [],
+    ]);
+
+    const allAssignments = [...directItems, ...profileItems, ...groupItems].filter(
+      (a) => a.status === "active"
+    );
+
+    const byParcoursId = new Map();
+    allAssignments.forEach((a) => {
+      if (!byParcoursId.has(a.parcoursId)) byParcoursId.set(a.parcoursId, a);
+    });
+
+    const parcoursIds = Array.from(byParcoursId.keys());
+    const parcoursDocs = await Promise.all(
+      parcoursIds.map((pid) => admin.firestore().collection(PARCOURS_COLLECTION).doc(pid).get())
+    );
+
+    const items = [];
+    parcoursIds.forEach((pid, i) => {
+      const parcoursSnap = parcoursDocs[i];
+      const parcours = parcoursSnap.exists ? parcoursSnap.data() : null;
+      if (!parcours || parcours.status !== "published") return;
+      items.push({ parcours, assignment: byParcoursId.get(pid) });
+    });
+
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[assigned-parcours]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 exports.api = onRequest(app);
