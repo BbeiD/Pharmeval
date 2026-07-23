@@ -313,6 +313,10 @@ async function renderTimeline(u) {
 }
 function describeAuditEntry(entry) {
   if (entry.actionType === 'account_created') return 'Compte créé';
+  if (entry.actionType === 'evaluation_completed') {
+    const pct = (typeof entry.percent === 'number') ? entry.percent + ' %' : '—';
+    return 'Évaluation terminée — ' + pct + ' (' + entry.correct + '/' + entry.total + ')';
+  }
   if (entry.actionType === 'role_change') return 'Changement de rôle (' + entry.oldValue + ' → ' + entry.newValue + ')';
   if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
   if (entry.actionType && entry.actionType.indexOf('business_profile_edit_') === 0) return 'Modification (' + entry.actionType.replace('business_profile_edit_', '') + ')';

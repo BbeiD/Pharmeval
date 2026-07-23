@@ -17,6 +17,7 @@ import { getCurrentUserContext } from "./app-context.js";
 import { fetchAllUsersBounded, getUserByUid } from "./user-management-service.js";
 import { changeUserStatus, updateUserBusinessProfile } from "./admin-service.js";
 import { getRecentAuditEntries } from "./audit-service.js";
+import { getRecentEvaluationsForUid } from "./history-service.js";
 import { formatUserFullName } from "./user-profile-metadata-service.js";
 import { toComparableDate } from "./date-utils.js";
 import { organizationsBank } from "./organizations-bank-service.js";
@@ -177,13 +178,22 @@ export function editUserBusinessProfile(targetUser, fields) {
  * fusionnee avec le vrai journal d'audit et triee par date reelle - ainsi
  * TOUT compte a au moins une entree, meme sans jamais avoir ete touche par
  * un administrateur.
+ *
+ * AJOUT (demande directe de David, 23/07/2026, en vue de rapports
+ * partenaires futurs) : les evaluations recentes (getRecentEvaluationsForUid,
+ * history-service.js - meme collection evaluation_results que "Mes
+ * évaluations", lecture admin deja autorisee par firestore.rules) sont
+ * fusionnees dans le meme flux, best-effort comme le reste de cette
+ * fonction : une erreur de lecture des evaluations n'empeche jamais
+ * d'afficher le reste de l'historique.
  * @param {string} uid
  * @returns {Promise<{items:Array<object>, error:boolean}>}
  */
 export async function getUserTimeline(uid) {
-  const [auditResult, user] = await Promise.all([
+  const [auditResult, user, evaluationsResult] = await Promise.all([
     getRecentAuditEntries({ targetUid: uid, limit: 100 }),
     getUserByUid(uid),
+    getRecentEvaluationsForUid(uid, { limit: 20 }),
   ]);
   if (auditResult.error) return auditResult;
 
@@ -191,6 +201,15 @@ export async function getUserTimeline(uid) {
   if (user && user.createdAt) {
     items.push({ date: user.createdAt, actionType: 'account_created' });
   }
+  (evaluationsResult.items || []).forEach(function(ev) {
+    items.push({
+      date: ev.completedAt,
+      actionType: 'evaluation_completed',
+      percent: (ev.score && typeof ev.score.percentage === 'number') ? ev.score.percentage : null,
+      correct: ev.score ? (ev.score.correctAnswers || 0) : 0,
+      total: ev.score ? (ev.score.totalQuestions || 0) : 0,
+    });
+  });
   items.sort(function(a, b) {
     const da = toComparableDate(a.date);
     const db = toComparableDate(b.date);

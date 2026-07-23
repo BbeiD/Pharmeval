@@ -120,6 +120,38 @@ export async function getEvaluationsPage(options) {
 }
 
 /**
+ * Charge les evaluations recentes d'un utilisateur PRECIS, quel qu'il soit
+ * (contrairement aux deux fonctions ci-dessus, qui ne lisent QUE
+ * l'utilisateur courant via getCurrentUserContext()). Reservee a un usage
+ * administrateur (fiche detaillee, admin/users.js) - les regles Firestore
+ * autorisent deja isRequesterAdmin() a lire n'importe quel document de
+ * evaluation_results, aucun changement de regles necessaire.
+ *
+ * @param {string} uid
+ * @param {{limit?:number}} [options]
+ * @returns {Promise<{items:Array<object>, error:boolean}>}
+ */
+export async function getRecentEvaluationsForUid(uid, options) {
+  const max = (options && options.limit) || 20;
+  if (!uid) return { items: [], error: false };
+  try {
+    const colRef = collection(db, 'evaluation_results');
+    const q = query(colRef, where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(max));
+    const snap = await getDocs(q);
+    const rawAll = [];
+    snap.forEach(function(d) {
+      const data = d.data();
+      if (!data.id) data.id = d.id;
+      rawAll.push(data);
+    });
+    return { items: rawAll.map(normalizeResult), error: false };
+  } catch (err) {
+    logHistoryError('chargement des évaluations d\'un utilisateur (fiche admin)', err);
+    return { items: [], error: true };
+  }
+}
+
+/**
  * Charge jusqu'a STATISTICS_FETCH_LIMIT (100) evaluations recentes pour
  * alimenter l'Analyse de progression et le moteur de recommandations.
  * Independant de la pagination de la liste.
