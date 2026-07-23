@@ -11,13 +11,14 @@ import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-c
 import { formatDateFr } from "./services/date-utils.js";
 import { getResultForCurrentUser, resolveExplanations, resolveJustificationResourceRefs } from "./services/evaluation-result-service.js";
 
-// PROTOTYPE (test David, 23/07/2026 - "images dans les justifications",
-// voir GUIDE_GENERATION_QUESTIONS_PDF.md) : chemin LOCAL de test uniquement,
-// pointant vers le dossier de travail hors Git ou vivent les images du
-// premier lot pilote. Ne fonctionnera PAS une fois pousse en production -
-// Phase 2 (vrai stockage, cf. discussion IT) doit fixer un emplacement
-// reel avant toute mise en service. A retirer/remplacer a ce moment-la.
-const JUSTIFICATION_IMAGE_BASE_PATH = 'data/catalogue-review/_test_justification_images/';
+// PROTOTYPE PHASE 1 (test David, 23/07/2026 - "images dans les justifications",
+// voir GUIDE_GENERATION_QUESTIONS_PDF.md) : images committees en dur dans
+// assets/justifications/ (choix explicite de David - accepte que ce soit
+// publiquement accessible via GitHub Pages, voir echange sur le droit
+// d'auteur du cours source). Solution temporaire : David reflechit a une
+// vraie architecture frontend/backend (Phase 2) pour un stockage reel et
+// restreint - ce chemin sera remplace a ce moment-la.
+const JUSTIFICATION_IMAGE_BASE_PATH = 'assets/justifications/';
 import { COMPETENCY_STATUS_LABELS } from "./services/correction-policy-service.js";
 import { getParcoursById } from "./services/parcours-catalog-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
