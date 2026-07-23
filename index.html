@@ -129,15 +129,18 @@
      defaut, ne s'affiche que via openAdminZone(), qui revalide elle-meme
      le role administrateur cote logique metier avant tout affichage. -->
 <div id="admin-view" class="bank-page" style="display:none;">
-  <div class="card" style="margin-bottom:var(--space-4);">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <h2 style="margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3z"/><path d="m9 12 2 2 4-5"/></svg> Administration</h2>
-      <button class="btn-secondary" onclick="closeAdminZone()">← Retour à l'accueil</button>
+  <div class="card home-welcome-card" style="margin-bottom:var(--space-4);">
+    <div class="home-welcome-text">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3 20 6v5c0 5-3.4 8.1-8 10-4.6-1.9-8-5-8-10V6l8-3z"/><path d="m9 12 2 2 4-5"/></svg> Administration</h2>
+        <button class="btn-secondary" style="white-space:nowrap;" onclick="closeAdminZone()">← Retour à l'accueil</button>
+      </div>
+      <p class="import-intro" style="margin:8px 0 0 0;">Bienvenue dans l'espace d'administration de Pharmeval.</p>
+      <div class="admin-info-row"><strong>Version actuelle :</strong> <span id="admin-version"></span></div>
+      <div class="admin-info-row"><strong>Utilisateur connecté :</strong> <span id="admin-current-user"></span></div>
+      <div class="admin-info-row"><strong>Rôle :</strong> <span id="admin-current-role"></span></div>
     </div>
-    <p class="import-intro" style="margin:var(--space-2) 0 0 0;">Bienvenue dans l'espace d'administration de Pharmeval.</p>
-    <div class="admin-info-row"><strong>Version actuelle :</strong> <span id="admin-version"></span></div>
-    <div class="admin-info-row"><strong>Utilisateur connecté :</strong> <span id="admin-current-user"></span></div>
-    <div class="admin-info-row"><strong>Rôle :</strong> <span id="admin-current-role"></span></div>
+    <img class="home-welcome-illustration" src="assets/illustrations/administration.png" alt="" aria-hidden="true">
   </div>
 
   <!-- MENU ADMINISTRATION (Sprint 10) : navigue vers les ecrans dedies.
@@ -173,9 +176,9 @@
   <div id="history-list-section">
     <div class="card home-welcome-card" style="margin-bottom:var(--space-4);">
       <div class="home-welcome-text">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <h2 style="margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="7"/><line x1="22" y1="20" x2="2" y2="20"/></svg> Mes évaluations</h2>
-          <button class="btn-secondary" onclick="closeHistoryView()">← Retour à l'accueil</button>
+          <button class="btn-secondary" style="white-space:nowrap;" onclick="closeHistoryView()">← Retour à l'accueil</button>
         </div>
         <p class="import-intro" style="margin:8px 0 0 0;">Retrouvez vos évaluations passées, votre progression par parcours et nos recommandations personnalisées.</p>
       </div>
