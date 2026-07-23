@@ -8,8 +8,9 @@
 // a qu'UNE seule progression de defi par utilisateur, contrairement a
 // question_progress qui en a une par question).
 
-import { db } from "../firebase-config.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { db, auth } from "../firebase-config.js";
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const COLLECTION = 'daily_challenge_progress';
 
@@ -23,8 +24,17 @@ function logError(context, err) {
  */
 export async function getDailyChallengeProgress(userId) {
   try {
-    const snap = await getDoc(doc(db, COLLECTION, userId));
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/daily-challenge/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logError('lecture de la progression de ' + userId + ' (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logError('lecture de la progression de ' + userId, err);
     return null;

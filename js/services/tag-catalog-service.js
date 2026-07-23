@@ -15,12 +15,13 @@
 // que ce service lira seront LE MEME document, sans migration, sans
 // renommage, sans transformation.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, increment,
   collection, query, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { normalizeForDedup } from "./normalization-utils.js";
+import { API_BASE_URL } from "../config.js";
 
 const TAGS_COLLECTION = 'tags';
 const DEFAULT_PAGE_SIZE = 200; // suffisant pour peupler un selecteur de filtre - voir listAllTags()
@@ -82,8 +83,17 @@ export async function findOrCreateTag(label) {
 /** @param {string} tagId @returns {Promise<object|null>} */
 export async function getTagById(tagId) {
   try {
-    const snap = await getDoc(doc(db, TAGS_COLLECTION, tagId));
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/tags/${tagId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logTagError('lecture du tag ' + tagId + ' (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logTagError('lecture du tag ' + tagId, err);
     return null;
@@ -125,11 +135,16 @@ export async function getTagsByIds(tagIds) {
 export async function listMostUsedTags(options) {
   const pageSize = (options && options.pageSize) || DEFAULT_PAGE_SIZE;
   try {
-    const q = query(collection(db, TAGS_COLLECTION), orderBy('usageCount', 'desc'), limit(pageSize));
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/tags/most-used?pageSize=${pageSize}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logTagError('listage des tags les plus utilisés (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logTagError('listage des tags les plus utilisés', err);
     return { items: [], error: true };
