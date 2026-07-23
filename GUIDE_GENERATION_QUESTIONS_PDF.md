@@ -125,6 +125,15 @@ explicite de David) :
 - Varier la difficulté (`Basique`/`Approfondi`, valeurs déjà utilisées dans le
   catalogue existant) selon que la réponse demande un fait isolé ou un croisement de
   plusieurs informations (ex. lire un tableau à deux axes).
+- **L'image n'apparaît qu'à la correction (justification), jamais pendant que
+  l'utilisateur répond à la question.** Piège rencontré sur le premier lot : plusieurs
+  énoncés étaient rédigés "D'après le tableau ci-dessous, ..." comme si l'image était
+  visible en même temps que la question — incohérent avec l'endroit réel où elle
+  s'affiche. Ne jamais écrire "ci-dessous"/"illustré ci-dessous"/"reproduit ci-dessous"
+  dans le texte de la **question** ; l'énoncé doit se suffire à lui-même comme une
+  question de connaissance/raisonnement normale. C'est dans la **justification**
+  (qui accompagne réellement l'image) qu'on peut décrire le contenu du tableau/schéma
+  sans réserve.
 
 ## Étape 4 — Format de l'identifiant "Question ID" (point CRITIQUE)
 
