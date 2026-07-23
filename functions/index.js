@@ -399,4 +399,53 @@ app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
   }
 });
 
+const DOCUMENT_SOURCES_COLLECTION = "document_sources";
+const DEFAULT_SOURCES_PAGE_SIZE = 50;
+
+// Meme verification que isRequesterCatalogAdmin() dans firestore.rules :
+// role 'admin' OU 'super_admin', ET statut 'active'.
+async function isRequesterCatalogAdmin(requesterUid) {
+  const snap = await admin.firestore().collection("users").doc(requesterUid).get();
+  if (!snap.exists) return false;
+  const data = snap.data();
+  return (data.role === "admin" || data.role === "super_admin") && data.status === "active";
+}
+
+// Reprend queryDocumentSources() de
+// js/services/document-source-catalog-service.js. Deux chemins reels bien
+// distincts (document-source-service.js) : browseActiveDocumentSources()
+// (Entrainement libre, tout utilisateur, TOUJOURS status=active) et
+// browseDocumentSources() (administration, sans filtre de statut -> voit
+// aussi les brouillons). Meme regle que firestore.rules : voir les sources
+// non-actives exige isRequesterCatalogAdmin(), jamais un simple utilisateur
+// authentifie.
+app.get("/api/document-sources", requireAuth, async (req, res) => {
+  const { sourceType, status } = req.query;
+  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : DEFAULT_SOURCES_PAGE_SIZE;
+  try {
+    if (status !== "active" && !(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION);
+    if (sourceType) q = q.where("sourceType", "==", sourceType);
+    if (status) q = q.where("status", "==", status);
+    q = q.orderBy("display.order", "asc").limit(pageSize);
+
+    const snap = await q.get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[document-sources]", err && err.code, err);
+    const isIndexMissing = /index/i.test((err && err.message) || "");
+    res.status(500).json({
+      items: [],
+      error: true,
+      indexMissing: isIndexMissing,
+      message: isIndexMissing
+        ? "Cette fonctionnalité nécessite un index Firestore qui n'est pas encore déployé."
+        : undefined,
+    });
+  }
+});
+
 exports.api = onRequest(app);

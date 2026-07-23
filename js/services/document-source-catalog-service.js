@@ -4,11 +4,12 @@
 // (voir document-source-metadata-service.js) - ce fichier ne fait que
 // lire/ecrire ce qui lui est deja fourni construit et valide.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, increment, writeBatch,
-  collection, query, where, orderBy, limit, getDocs,
+  collection, query, where, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const SOURCE_COLLECTION = 'document_sources';
 
@@ -96,14 +97,20 @@ export async function getDocumentSourcesByIds(sourceIds) {
 export async function queryDocumentSources(options) {
   const opts = options || {};
   try {
-    const clauses = [];
-    if (opts.sourceType) clauses.push(where('sourceType', '==', opts.sourceType));
-    if (opts.status) clauses.push(where('status', '==', opts.status));
-    clauses.push(orderBy('display.order', 'asc'));
-    clauses.push(limit(opts.pageSize || DEFAULT_PAGE_SIZE));
-    const snap = await getDocs(query(collection(db, SOURCE_COLLECTION), ...clauses));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({ pageSize: String(opts.pageSize || DEFAULT_PAGE_SIZE) });
+    if (opts.sourceType) params.set('sourceType', opts.sourceType);
+    if (opts.status) params.set('status', opts.status);
+    const res = await fetch(`${API_BASE_URL}/api/document-sources?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      logCatalogError('liste des sources (API ' + res.status + ')', null);
+      return { items: [], error: true, indexMissing: !!body.indexMissing, message: body.message };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('liste des sources', err);
     return { items: [], error: true, indexMissing: isIndexMissingError(err), message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : undefined };
