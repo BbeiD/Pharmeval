@@ -569,4 +569,31 @@ app.get("/api/users", requireAuth, async (req, res) => {
   }
 });
 
+const AUDIT_LOGS_COLLECTION = "audit_logs";
+const DEFAULT_AUDIT_READ_LIMIT = 50;
+
+// Reprend getRecentAuditEntries() de js/services/audit-service.js (journal
+// d'audit, fiche utilisateur admin + tableau de bord admin). Meme regle
+// que firestore.rules (match /audit_logs/{logId}) : administrateurs
+// uniquement, sans exception (peut contenir des infos sur n'importe qui).
+app.get("/api/audit-logs", requireAuth, async (req, res) => {
+  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_AUDIT_READ_LIMIT;
+  const { targetUid } = req.query;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(AUDIT_LOGS_COLLECTION);
+    if (targetUid) q = q.where("targetUid", "==", targetUid);
+    q = q.orderBy("date", "desc").limit(max);
+
+    const snap = await q.get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[audit-logs]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 exports.api = onRequest(app);

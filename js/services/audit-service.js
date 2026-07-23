@@ -8,17 +8,13 @@
 // statut) doit passer par logAction() ci-dessous - voir
 // js/services/admin-service.js, seul appelant legitime de ce service.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   collection,
   addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const AUDIT_COLLECTION = 'audit_logs';
 const DEFAULT_READ_LIMIT = 50;
@@ -77,16 +73,18 @@ export async function logAction(entry) {
 export async function getRecentAuditEntries(options) {
   const max = (options && options.limit) || DEFAULT_READ_LIMIT;
   try {
-    const colRef = collection(db, AUDIT_COLLECTION);
-    const clauses = [];
-    if (options && options.targetUid) clauses.push(where('targetUid', '==', options.targetUid));
-    clauses.push(orderBy('date', 'desc'));
-    clauses.push(limit(max));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({ limit: String(max) });
+    if (options && options.targetUid) params.set('targetUid', options.targetUid);
+    const res = await fetch(`${API_BASE_URL}/api/audit-logs?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logAuditError('lecture du journal d\'audit (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logAuditError('lecture du journal d\'audit', err);
     return { items: [], error: true };
