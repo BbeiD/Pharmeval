@@ -16,11 +16,11 @@
 // dans Entrainement libre tant qu'aucun backfill explicite n'aura ete
 // demande et developpe separement (hors perimetre de cette phase).
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, increment, runTransaction,
-  collection, query, where, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const PROGRESS_COLLECTION = 'question_progress';
 const APPLIED_RESULTS_COLLECTION = 'question_progress_applied_results';
@@ -85,8 +85,16 @@ export async function getQuestionProgressForMany(userId, pedagogicalIds) {
  */
 export async function getAllQuestionProgressForUser(userId) {
   try {
-    const snap = await getDocs(query(collection(db, PROGRESS_COLLECTION), where('userId', '==', userId)));
-    return { items: snap.docs.map(function(d) { return d.data(); }), error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-progress`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logProgressError('lecture complète de la progression de ' + userId + ' (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logProgressError('lecture complète de la progression de ' + userId, err);
     return { items: [], error: true };

@@ -596,4 +596,26 @@ app.get("/api/audit-logs", requireAuth, async (req, res) => {
   }
 });
 
+const QUESTION_PROGRESS_COLLECTION = "question_progress";
+
+// Reprend getAllQuestionProgressForUser() de
+// js/services/question-progress-catalog-service.js (progression globale
+// de l'accueil, Mes competences, classification du pool Entrainement
+// libre). Toujours le requerant lui-meme (ctx.uid chez tous les
+// appelants reels) - pas de bypass admin necessaire.
+app.get("/api/question-progress", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(QUESTION_PROGRESS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[question-progress]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 exports.api = onRequest(app);
