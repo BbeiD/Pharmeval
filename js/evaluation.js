@@ -22,7 +22,7 @@ import {
   startParcoursMixedSession, restartParcoursMixedSession,
   getActiveDailyChallengeSession,
 } from "./services/evaluation-session-service.js";
-import { finalizeEvaluation, resolveExplanations } from "./services/evaluation-result-service.js";
+import { finalizeEvaluation, resolveExplanations, resolveJustificationResourceRefs } from "./services/evaluation-result-service.js";
 import { todayDateStr } from "./services/date-utils.js";
 import { checkAnswerCorrectness } from "./services/evaluation-correction-service.js";
 import { isQuestionAnswered } from "./services/evaluation-session-metadata-service.js";
@@ -373,6 +373,13 @@ function renderQuestion(index) {
 // ---------------------------------------------------------------------------
 
 const explanationCache = new Map();
+const resourceRefsCache = new Map();
+
+// PROTOTYPE PHASE 1 (test David, 23/07/2026 - "images dans les justifications") :
+// meme chemin que JUSTIFICATION_IMAGE_BASE_PATH dans evaluation-result.js -
+// doit rester synchronise avec ce fichier tant que ce n'est pas centralise
+// (Phase 2, vraie architecture frontend/backend en reflexion).
+const JUSTIFICATION_IMAGE_BASE_PATH = 'assets/justifications/';
 
 function hideExplanation() {
   const el = qs('ev-explanation');
@@ -403,22 +410,33 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
   explanationEl.className = explanationClass;
 
   let text = explanationCache.get(pedagogicalId);
-  if (text === undefined) {
+  let refs = resourceRefsCache.get(pedagogicalId);
+  if (text === undefined || refs === undefined) {
     try {
-      const map = await resolveExplanations([pedagogicalId]);
-      text = map.get(pedagogicalId) || '';
+      const [explanationMap, resourceRefsMap] = await Promise.all([
+        resolveExplanations([pedagogicalId]),
+        resolveJustificationResourceRefs([pedagogicalId]),
+      ]);
+      text = explanationMap.get(pedagogicalId) || '';
+      refs = resourceRefsMap.get(pedagogicalId) || [];
     } catch (err) {
       console.error('Impossible de charger la justification de cette question :', err);
       text = '';
+      refs = [];
     }
     explanationCache.set(pedagogicalId, text);
+    resourceRefsCache.set(pedagogicalId, refs);
   }
   // L'utilisateur a pu changer de question pendant la lecture reseau -
   // jamais afficher une justification sur la mauvaise question.
   if (state.session.questionIds[state.session.currentQuestionIndex] !== pedagogicalId) return;
 
-  explanationEl.innerHTML = verdict.replace('</strong>', ' :</strong>') + ' ' +
+  let html = verdict.replace('</strong>', ' :</strong>') + ' ' +
     escapeHtml(text || 'Aucune justification disponible pour cette question.');
+  refs.forEach(function(filename) {
+    html += '<img class="er-question-explanation-image" src="' + escapeHtml(JUSTIFICATION_IMAGE_BASE_PATH + filename) + '" alt="Illustration de la justification" loading="lazy">';
+  });
+  explanationEl.innerHTML = html;
 }
 
 // ---------------------------------------------------------------------------
