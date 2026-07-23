@@ -4,3 +4,8 @@ ui-debug.log
 database-debug.log
 .firebase/
 node_modules/
+
+# Fichiers de travail deposes pour analyse (jamais publies via GitHub
+# Pages, qui sert tout le depot tel quel) - voir data/catalogue-review/.
+data/catalogue-review/*
+!data/catalogue-review/.gitkeep
