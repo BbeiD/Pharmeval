@@ -171,9 +171,15 @@
 
   <!-- Liste -->
   <div id="history-list-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-4);">
-      <h2 style="margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="7"/><line x1="22" y1="20" x2="2" y2="20"/></svg> Mes évaluations</h2>
-      <button class="btn-secondary" onclick="closeHistoryView()">← Retour à l'accueil</button>
+    <div class="card home-welcome-card" style="margin-bottom:var(--space-4);">
+      <div class="home-welcome-text">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <h2 style="margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="7"/><line x1="22" y1="20" x2="2" y2="20"/></svg> Mes évaluations</h2>
+          <button class="btn-secondary" onclick="closeHistoryView()">← Retour à l'accueil</button>
+        </div>
+        <p class="import-intro" style="margin:8px 0 0 0;">Retrouvez vos évaluations passées, votre progression par parcours et nos recommandations personnalisées.</p>
+      </div>
+      <img class="home-welcome-illustration" src="assets/illustrations/mes-evaluations.png" alt="" aria-hidden="true">
     </div>
 
     <!-- AJOUT : "Mes parcours" - progression par parcours, puis par
