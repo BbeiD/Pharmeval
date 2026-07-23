@@ -13,7 +13,7 @@
 // Firestore (voir firestore.rules), qui doivent independamment interdire
 // les memes operations sensibles.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { ROLES, STATUSES } from "./authorization-service.js";
 import {
@@ -23,10 +23,9 @@ import {
   collection,
   query,
   where,
-  orderBy,
-  limit,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 // Ne charge jamais la collection entiere sans controle (meme principe deja
 // applique a l'historique des evaluations, voir history-service.js Sprint
@@ -35,7 +34,6 @@ import {
 // utilisateurs de Pharmeval a ce stade ; a revoir avec un filtrage
 // veritablement cote serveur (index composites) si la base grossit
 // significativement (voir RAPPORT_SPRINT8.md, "Limites").
-const USER_LIST_FETCH_LIMIT = 500;
 const DEFAULT_PAGE_SIZE = 20;
 
 function logUserManagementError(context, err) {
@@ -54,14 +52,16 @@ function logUserManagementError(context, err) {
  */
 export async function fetchAllUsersBounded() {
   try {
-    const colRef = collection(db, 'users');
-    const q = query(colRef, orderBy('createdAt', 'desc'), limit(USER_LIST_FETCH_LIMIT + 1));
-    const snap = await getDocs(q);
-    const all = [];
-    snap.forEach(function(d) { all.push(d.data()); });
-    const truncated = all.length > USER_LIST_FETCH_LIMIT;
-    const items = all.slice(0, USER_LIST_FETCH_LIMIT);
-    return { items: items, truncated: truncated, error: false };
+    if (!auth.currentUser) return { items: [], truncated: false, error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logUserManagementError('chargement de la liste des utilisateurs (API ' + res.status + ')', null);
+      return { items: [], truncated: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logUserManagementError('chargement de la liste des utilisateurs', err);
     return { items: [], truncated: false, error: true };

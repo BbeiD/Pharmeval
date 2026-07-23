@@ -542,4 +542,31 @@ app.get("/api/parcours/:id", requireAuth, async (req, res) => {
   }
 });
 
+const USERS_LIST_FETCH_LIMIT = 500;
+
+// Reprend fetchAllUsersBounded() de js/services/user-management-service.js
+// (admin/users.js via user-directory-service.js, et la recherche de cible
+// utilisateur pour une attribution). Lecture de TOUS les utilisateurs :
+// reservee aux administrateurs, meme principe que firestore.rules
+// (match /users/{userId} - lecture de la fiche d'un tiers = isRequesterAdmin()).
+app.get("/api/users", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], truncated: false, error: "Accès refusé" });
+    }
+    const snap = await admin
+      .firestore()
+      .collection("users")
+      .orderBy("createdAt", "desc")
+      .limit(USERS_LIST_FETCH_LIMIT + 1)
+      .get();
+    const all = snap.docs.map((d) => d.data());
+    const truncated = all.length > USERS_LIST_FETCH_LIMIT;
+    res.json({ items: all.slice(0, USERS_LIST_FETCH_LIMIT), truncated, error: false });
+  } catch (err) {
+    console.error("[users]", err && err.code, err);
+    res.status(500).json({ items: [], truncated: false, error: true });
+  }
+});
+
 exports.api = onRequest(app);
