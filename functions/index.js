@@ -227,4 +227,34 @@ app.get("/api/evaluations", requireAuth, async (req, res) => {
   }
 });
 
+const STATISTICS_FETCH_LIMIT = 100;
+
+// Reprend getEvaluationsForStatistics() de js/services/history-service.js
+// (donut de progression sur l'accueil, Mes evaluations, statistics.js).
+// Toujours les evaluations du requerant lui-meme, meme regle que /api/evaluations.
+app.get("/api/evaluations/for-statistics", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_RESULTS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .orderBy("createdAt", "desc")
+      .limit(STATISTICS_FETCH_LIMIT + 1)
+      .get();
+
+    const rawAll = snap.docs.map((d) => {
+      const data = d.data();
+      if (!data.id) data.id = d.id;
+      return data;
+    });
+    const truncated = rawAll.length > STATISTICS_FETCH_LIMIT;
+    const items = rawAll.slice(0, STATISTICS_FETCH_LIMIT).map(normalizeEvaluationResult);
+
+    res.json({ items, truncated, error: false });
+  } catch (err) {
+    console.error("[evaluations/for-statistics]", err && err.code, err);
+    res.status(500).json({ items: [], truncated: false, error: true });
+  }
+});
+
 exports.api = onRequest(app);

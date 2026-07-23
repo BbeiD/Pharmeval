@@ -24,7 +24,6 @@ import {
 import { API_BASE_URL } from "../config.js";
 
 const DEFAULT_PAGE_SIZE = 20;
-const STATISTICS_FETCH_LIMIT = 100;
 
 function logHistoryError(context, err) {
   const code = (err && err.code) || 'erreur-inconnue';
@@ -154,25 +153,16 @@ export async function getEvaluationsForStatistics() {
     return { items: [], truncated: false, error: false };
   }
   try {
-    const colRef = collection(db, 'evaluation_results');
-    const q = query(
-      colRef,
-      where('userId', '==', ctx.uid),
-      orderBy('createdAt', 'desc'),
-      limit(STATISTICS_FETCH_LIMIT + 1)
-    );
-    const snap = await getDocs(q);
-    const rawAll = [];
-    snap.forEach(function(d) {
-      const data = d.data();
-      if (!data.id) data.id = d.id;
-      rawAll.push(data);
+    if (!auth.currentUser) return { items: [], truncated: false, error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/evaluations/for-statistics`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-
-    const truncated = rawAll.length > STATISTICS_FETCH_LIMIT;
-    const items = rawAll.slice(0, STATISTICS_FETCH_LIMIT).map(normalizeResult);
-
-    return { items: items, truncated: truncated, error: false };
+    if (!res.ok) {
+      logHistoryError('chargement des evaluations pour l\'analyse de progression (API ' + res.status + ')', null);
+      return { items: [], truncated: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logHistoryError('chargement des evaluations pour l\'analyse de progression', err);
     return { items: [], truncated: false, error: true };
