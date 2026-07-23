@@ -10,6 +10,10 @@ setGlobalOptions({ maxInstances: 10 });
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
+app.use((req, res, next) => {
+  res.on("finish", () => console.log(`${req.method} ${req.path} -> ${res.statusCode}`));
+  next();
+});
 
 async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
@@ -95,6 +99,33 @@ app.get("/api/daily-challenge/:uid", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[daily-challenge]", err && err.code, err);
     res.status(500).json({ data: null, error: true });
+  }
+});
+
+const COMPETENCY_PROGRESS_COLLECTION = "competency_progress";
+
+// Reprend listProgressionsByUser() de
+// js/services/competency-progress-catalog-service.js (utilisee par "Mes
+// competences"). Meme regle d'acces que firestore.rules (match
+// /competency_progress/{progressId}) : le proprietaire ou un admin.
+app.get("/api/competency-progress/:uid", requireAuth, async (req, res) => {
+  const { uid } = req.params;
+  try {
+    if (req.user.uid !== uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(COMPETENCY_PROGRESS_COLLECTION)
+      .where("userId", "==", uid)
+      .orderBy("lastEvaluationAt", "desc")
+      .limit(100)
+      .get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[competency-progress]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
   }
 });
 

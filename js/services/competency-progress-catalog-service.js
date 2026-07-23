@@ -4,11 +4,12 @@
 // (voir competency-progress-service.js) - ce fichier ne fait que
 // lire/ecrire un document deja construit.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   doc, getDoc, setDoc,
   collection, query, where, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const PROGRESS_COLLECTION = 'competency_progress';
 
@@ -59,14 +60,16 @@ export async function saveProgressionDocument(progressDocument) {
  */
 export async function listProgressionsByUser(userId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, PROGRESS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('lastEvaluationAt', 'desc'),
-      limit(100)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/competency-progress/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture des progressions de l\'utilisateur ' + userId + ' (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('lecture des progressions de l\'utilisateur ' + userId, err);
     return { items: [], error: true };
