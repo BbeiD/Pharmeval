@@ -29,20 +29,16 @@
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { formatThemeLabel } from "./theme-utils.js";
-import { normalizeTagList } from "./tag-service.js";
 import { QUESTION_STATUSES } from "./question-metadata-service.js";
 import {
   queryQuestionsPage,
   updateQuestionStatus,
-  updateQuestionFields,
   deleteQuestionDocument,
   publishAllDraftQuestions as publishAllDraftQuestionsInCatalog,
   DEFAULT_BANK_PAGE_SIZE,
 } from "./question-catalog-service.js";
 import { searchQuestions as searchQuestionsViaProvider } from "./question-search-provider.js";
 import { logQuestionAction, getRecentQuestionAuditLogs } from "./question-audit-service.js";
-
-const MIN_EXPLANATION_LENGTH = 10;
 
 function denied(message) {
   return { status: 'denied', message: message };
@@ -310,60 +306,11 @@ export async function permanentlyDeleteQuestion(question) {
   return success('Question supprimée définitivement.');
 }
 
-// ---------------------------------------------------------------------------
-// Edition limitee (explication / tags / source)
-// ---------------------------------------------------------------------------
-
-/**
- * Modifie UNIQUEMENT les champs editables limites de ce sprint
- * (explication, tags, source - voir "Aucune edition complete"). Valide et
- * normalise avant d'ecrire ; journalise l'ancienne et la nouvelle valeur
- * de chaque champ reellement modifie.
- *
- * @param {object} question - la question actuelle (avant modification)
- * @param {{explanation?:string, tags?:Array<string>, source?:string}} fields
- * @returns {Promise<object>}
- */
-export async function editQuestionMetadata(question, fields) {
-  const access = checkAccess();
-  if (access.status !== 'authorized') return denied(access.message);
-  if (!question || !question.pedagogicalId) return errorResult('Question cible introuvable.');
-
-  const f = fields || {};
-  const payload = {};
-
-  if (Object.prototype.hasOwnProperty.call(f, 'explanation')) {
-    const trimmed = (f.explanation || '').toString().trim();
-    if (trimmed.length < MIN_EXPLANATION_LENGTH) {
-      return errorResult('L\'explication doit contenir au moins ' + MIN_EXPLANATION_LENGTH + ' caractères.');
-    }
-    payload.explanation = trimmed;
-  }
-  if (Object.prototype.hasOwnProperty.call(f, 'tags')) {
-    payload.tags = normalizeTagList(f.tags);
-  }
-  if (Object.prototype.hasOwnProperty.call(f, 'source')) {
-    payload.source = (f.source || '').toString().trim() || null;
-  }
-
-  if (Object.keys(payload).length === 0) {
-    return denied('Aucune modification à enregistrer.');
-  }
-
-  const result = await updateQuestionFields(question.pedagogicalId, payload);
-  if (!result.success) return errorResult('L\'enregistrement des modifications a échoué. Veuillez réessayer.');
-
-  const ctx = getCurrentUserContext();
-  Object.keys(payload).forEach(function(field) {
-    logQuestionAction({
-      adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
-      pedagogicalId: question.pedagogicalId, actionType: 'edit_' + field,
-      oldValue: question[field], newValue: payload[field],
-    }).catch(function() {});
-  });
-
-  return success('Modifications enregistrées avec succès.');
-}
+// CORRECTIF (demande directe de David, 23/07/2026) : editQuestionMetadata()
+// (edition limitee explication/tags/source) retiree - le fichier Excel doit
+// rester l'unique source authentique du contenu editorial, plus aucune
+// edition ponctuelle depuis l'admin (voir admin/bank.js). Toute correction
+// passe desormais par une resynchronisation du catalogue.
 
 // ---------------------------------------------------------------------------
 // CORRECTIF : historique visuel (timeline) - consultable depuis la fiche

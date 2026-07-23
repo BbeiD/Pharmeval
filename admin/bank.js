@@ -20,7 +20,7 @@ import { formatDateFr } from "../js/services/date-utils.js";
 import {
   browseQuestions, publishQuestion, archiveQuestion, revertQuestionToDraft,
   moveQuestionToTrash, restoreQuestionFromTrash, permanentlyDeleteQuestion,
-  editQuestionMetadata, getQuestionTimeline, publishAllDraftQuestions,
+  getQuestionTimeline, publishAllDraftQuestions,
 } from "../js/services/question-bank-service.js";
 import { computeCompleteness, renderCompletenessBar } from "../js/services/question-completeness-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "../js/services/document-source-catalog-service.js";
@@ -387,32 +387,18 @@ function detailHtml(q) {
   // CORRECTIF : historique visuel (timeline), consultable sans quitter l'ecran
   html += '<div class="bank-detail-section"><h4>Historique</h4><div id="bank-timeline-container" class="bank-timeline">Chargement…</div></div>';
 
-  // Edition limitee
-  html += '<div class="bank-detail-section"><h4>Modifier</h4>';
-  html += '<label class="bank-edit-label">Explication</label>';
-  html += '<textarea id="bank-edit-explanation" class="bank-edit-textarea">' + escapeHtml(q.explanation || '') + '</textarea>';
-  html += '<label class="bank-edit-label">Tags (séparés par des virgules)</label>';
-  html += '<input type="text" id="bank-edit-tags" class="bank-select" value="' + escapeHtml((q.tags || []).join(', ')) + '">';
-  html += '<label class="bank-edit-label">Source</label>';
-  html += '<input type="text" id="bank-edit-source" class="bank-select" value="' + escapeHtml(q.source || '') + '">';
-  html += '<div class="btn-row"><button class="btn-primary" onclick="saveBankEdit()">Enregistrer les modifications</button></div>';
-  html += '</div>';
-
   html += '</div>';
   return html;
 }
 
-export async function saveBankEdit() {
-  const q = state.items.find(function(item) { return item.pedagogicalId === state.selectedId; });
-  if (!q) return;
-  const explanation = document.getElementById('bank-edit-explanation').value;
-  const tags = document.getElementById('bank-edit-tags').value.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
-  const source = document.getElementById('bank-edit-source').value;
-
-  const result = await editQuestionMetadata(q, { explanation: explanation, tags: tags, source: source });
-  showBankMessage(result.status, result.message);
-  if (result.status === 'success') loadPage();
-}
+// CORRECTIF (demande directe de David, 23/07/2026) : retire le formulaire
+// "Modifier" (explication/tags/source, en doublon des memes champs deja
+// affiches en lecture seule plus haut) - David tient a ce que le fichier
+// Excel reste l'unique source authentique du contenu editorial ("ca me
+// garantit que j'ai un fichier authentique"). Toute correction doit
+// desormais passer par une resynchronisation du catalogue, jamais par une
+// edition ponctuelle ici. editQuestionMetadata() (question-bank-service.js)
+// n'a plus d'appelant et a ete retiree en meme temps - voir ce fichier.
 
 // ---------------------------------------------------------------------------
 // Confirmation avant action sensible
@@ -511,7 +497,6 @@ window.onBankSearchInput = onBankSearchInput;
 window.requestBulkPublish = requestBulkPublish;
 window.goToBankPage = goToBankPage;
 window.selectBankQuestion = selectBankQuestion;
-window.saveBankEdit = saveBankEdit;
 window.requestBankAction = requestBankAction;
 window.cancelBankAction = cancelBankAction;
 window.confirmBankAction = confirmBankAction;
