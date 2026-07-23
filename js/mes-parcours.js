@@ -20,11 +20,13 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
-import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
-import { icon } from "./icons.js";
+import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -139,7 +141,36 @@ async function loadMyParcours() {
     if (active) state.activeSessionByParcoursId.set(entry.parcours.id, active);
   }));
 
+  renderStatsGrid();
   renderGrid();
+}
+
+// AJOUT (refonte visuelle, 23/07/2026) : tuiles de synthese, meme
+// vocabulaire visuel que l'accueil (.stat-card-grid) - comptes DERIVES du
+// meme statusForEntry() deja utilise par les onglets, jamais recalcules.
+function renderStatsGrid() {
+  const gridEl = document.getElementById('mesparcours-stats-grid');
+  if (!gridEl) return;
+
+  const total = state.entries.length;
+  const enCours = state.entries.filter(function(e) { return statusForEntry(e.parcours.id) === 'en-cours'; }).length;
+  const terminees = state.entries.filter(function(e) { return statusForEntry(e.parcours.id) === 'terminees'; }).length;
+
+  const tiles = [
+    { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', value: String(total), label: 'Parcours attribués' },
+    { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', value: String(enCours), label: 'En cours' },
+    { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-green', value: String(terminees), label: 'Terminés au moins une fois' },
+  ];
+
+  gridEl.innerHTML = tiles.map(function(t) {
+    return (
+      '<div class="stat-card">' +
+        '<div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
+        '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
+        '<div class="stat-card-label">' + escapeHtml(t.label) + '</div>' +
+      '</div>'
+    );
+  }).join('');
 }
 
 function renderGrid() {
@@ -189,7 +220,7 @@ function cardHtml(entry, attempts, hasActiveSession) {
     '<div class="mesparcours-card">' +
       '<div class="mesparcours-card-stripe" style="' + stripe + '"></div>' +
       '<div class="mesparcours-card-body">' +
-        '<h3>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h3>' +
+        '<h3>' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 18 }) + ' ' + escapeHtml(p.name) + '</h3>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' +
           '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + mandatoryBadge + dueBadge +

@@ -85,6 +85,46 @@ export function resolveParcoursColorHex(colorValue) {
   return PARCOURS_COLOR_HEX[colorValue] || colorValue;
 }
 
+// AJOUT (bibliotheque d'icones, remplace les emojis - meme correctif que
+// document-source-metadata-service.js/DOCUMENT_SOURCE_TYPE_DEFAULT_ICON,
+// demande directe de David 23/07/2026 : "les emoji ca ne colle pas avec la
+// charte graphique") : icone par defaut d'un Parcours quand aucune icone
+// personnalisee valide n'est enregistree.
+export const PARCOURS_DEFAULT_ICON = 'content-formation-diploma';
+
+/** Choix proposes a l'admin pour personnaliser l'icone d'UN parcours (voir
+ * admin/parcours.js) - meme principe que SOURCE_ICON_PICKER_CHOICES
+ * (document-source-metadata-service.js), palette curatee et non exhaustive. */
+export const PARCOURS_ICON_PICKER_CHOICES = Object.freeze([
+  'content-formation-diploma', 'content-skills', 'content-question-bank', 'content-question',
+  'academic-diploma', 'academic-institution', 'academic-scales-legal', 'academic-scroll-official',
+  'academic-pen-signature', 'academic-bookmark', 'academic-label', 'academic-pin', 'academic-growth-chart',
+  'medical-hospital-cross', 'medical-pill', 'medical-stethoscope', 'medical-microscope',
+  'medical-test-tube', 'medical-flask', 'medical-dna', 'medical-bandage',
+  'medical-syringe', 'medical-bacteria', 'medical-bottle-lotion', 'medical-petri-dish',
+  'highlight-star-filled', 'highlight-star-premium', 'highlight-lightbulb', 'highlight-search',
+  'highlight-brain', 'highlight-check-validated', 'highlight-heart',
+  'dot-red', 'dot-orange', 'dot-yellow', 'dot-green', 'dot-blue', 'dot-violet', 'dot-black', 'dot-white-grey',
+]);
+
+/**
+ * Resout la cle d'icone a afficher pour un parcours - sa personnalisation
+ * (`icon`) SI elle correspond a une cle reelle du pack, sinon l'icone par
+ * defaut. COMPATIBILITE ASCENDANTE : un parcours cree avant ce correctif
+ * porte un emoji brut (ex. "💉") dans `icon` - cette valeur ne correspondra
+ * a aucune cle connue et retombera silencieusement sur PARCOURS_DEFAULT_ICON,
+ * jamais affichee comme texte brut (meme regle que resolveSourceIconKey,
+ * admin/document-sources.js).
+ * @param {{icon?: string}} parcours
+ * @param {Set<string>} knownIconKeys - cles valides (ICONS+DOT_ICONS reunis, voir appelant)
+ * @returns {string}
+ */
+export function resolveParcoursIconKey(parcours, knownIconKeys) {
+  const custom = parcours && parcours.icon;
+  if (custom && knownIconKeys.has(custom)) return custom;
+  return PARCOURS_DEFAULT_ICON;
+}
+
 function randomIdSuffix() {
   // 8 caracteres hexadecimaux, suffisant pour une collision quasi-nulle a
   // l'echelle du nombre de parcours/competences realistement crees par

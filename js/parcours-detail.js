@@ -14,9 +14,11 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getParcoursDetailForUser } from "./services/parcours-view-service.js";
 import { formatDateFr } from "./services/date-utils.js";
-import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
-import { icon } from "./icons.js";
+import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 const LEVEL_LABELS = { essentiel: 'Essentiel', approfondi: 'Approfondi', avance: 'Avancé' };
 
@@ -98,7 +100,7 @@ function renderHeader(view) {
 
   let html = '<div class="pv-header-card">';
   if (hex) html += '<div class="pv-header-stripe" style="background:' + escapeHtml(hex) + ';"></div>';
-  html += '<h1>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h1>';
+  html += '<h1>' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 22 }) + ' ' + escapeHtml(p.name) + '</h1>';
   html += '<p class="pv-header-description">' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>';
 
   html += '<div class="bank-detail-tags-row">';

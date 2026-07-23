@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
-import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
 import { calculateOverview } from "./services/statistics-service.js";
@@ -33,7 +33,9 @@ import { getDailyChallengeStateForUser, startTodaysChallenge } from "./services/
 import { DAILY_CHALLENGE_QUESTION_COUNT } from "./services/daily-challenge-logic.js";
 import { formatRelativeFr } from "./services/date-utils.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
-import { icon } from "./icons.js";
+import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 // AJOUT ("Activité récente", demande directe de David) : une icone + une
 // couleur par type d'evenement (voir recent-activity-logic.js) - jamais de
@@ -228,7 +230,7 @@ function cardHtml(entry, attempts) {
     '<div class="mesparcours-card">' +
       '<div class="mesparcours-card-stripe" style="' + stripe + '"></div>' +
       '<div class="mesparcours-card-body">' +
-        '<h3>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h3>' +
+        '<h3>' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 18 }) + ' ' + escapeHtml(p.name) + '</h3>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
         '<p class="mesparcours-attempts">' + escapeHtml(attemptsLineHtml(attempts)) + '</p>' +

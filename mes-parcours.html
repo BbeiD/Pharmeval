@@ -14,19 +14,25 @@
 <div id="site-header-mount"></div>
 
 <div id="mesparcours-view" class="bank-page" style="display:none;">
-  <div class="bank-header">
-    <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="12" y1="7" x2="17" y2="7"/><line x1="12" y1="11" x2="17" y2="11"/><line x1="12" y1="15" x2="16" y2="15"/></svg> Mes parcours</h2>
+  <div class="card home-welcome-card" style="margin-bottom:var(--space-4);">
+    <div class="home-welcome-text">
+      <h2 style="margin-bottom:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="12" y1="7" x2="17" y2="7"/><line x1="12" y1="11" x2="17" y2="11"/><line x1="12" y1="15" x2="16" y2="15"/></svg> Mes parcours</h2>
+      <p class="import-intro" style="margin:0;">Les parcours ci-dessous vous ont été attribués directement, via votre groupe, ou via votre profil.</p>
+    </div>
+    <img class="home-welcome-illustration" src="assets/illustrations/mes-parcours.png" alt="" aria-hidden="true">
   </div>
 
-  <p class="admin-users-disclaimer">Les parcours ci-dessous vous ont été attribués directement, via votre groupe, ou via votre profil.</p>
+  <div class="stat-card-grid" id="mesparcours-stats-grid" style="margin-bottom:var(--space-4);"></div>
 
   <div id="mesparcours-message" class="admin-message" style="display:none;"></div>
 
-  <div id="mesparcours-tabs" class="bank-tabs"></div>
+  <div class="card">
+    <div id="mesparcours-tabs" class="bank-tabs"></div>
 
-  <div id="mesparcours-empty" class="bank-list-empty" style="display:none;"></div>
+    <div id="mesparcours-empty" class="bank-list-empty" style="display:none;"></div>
 
-  <div id="mesparcours-grid" class="mesparcours-grid"></div>
+    <div id="mesparcours-grid" class="mesparcours-grid"></div>
+  </div>
 </div>
 
 <script type="module" src="js/mes-parcours.js"></script>

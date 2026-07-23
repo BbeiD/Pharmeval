@@ -14,7 +14,10 @@ import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
-import { PARCOURS_COLOR_HEX, resolveParcoursColorHex } from "../js/services/parcours-metadata-service.js";
+import {
+  PARCOURS_COLOR_HEX, resolveParcoursColorHex,
+  PARCOURS_ICON_PICKER_CHOICES, PARCOURS_DEFAULT_ICON, resolveParcoursIconKey,
+} from "../js/services/parcours-metadata-service.js";
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
   moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours,
@@ -39,7 +42,9 @@ import {
   listParcoursAssignments, createAssignment, removeAssignment, searchAssignmentTargets,
 } from "../js/services/assignment-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
-import { icon } from "../js/icons.js";
+import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
+
+const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
 // desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
@@ -165,7 +170,7 @@ function rowHtml(p) {
   return (
     '<div class="bank-row' + selected + '" onclick="selectParcours(\'' + escapeHtml(p.id) + '\')">' +
       '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</span>' +
+        '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
         '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
       '</div>' +
       '<div class="bank-row-question">' + escapeHtml((p.description || '').slice(0, 90)) + '</div>' +
@@ -272,11 +277,55 @@ function capitalizeFirst(s) {
 }
 
 // ---------------------------------------------------------------------------
+// CORRECTIF (bibliotheque d'icones, remplace les emojis - demande directe de
+// David 23/07/2026) : meme picker repliable que admin/document-sources.js
+// (.emoji-picker/.emoji-picker-btn, CSS deja existant), generalise ici a
+// deux instances possibles (creation ET edition) via un `inputId` distinct.
+// ---------------------------------------------------------------------------
+
+function iconSwatchesHtml(inputId) {
+  return PARCOURS_ICON_PICKER_CHOICES.map(function(key) {
+    return '<button type="button" class="emoji-picker-btn" onclick="pickParcoursIcon(\'' + inputId + '\',\'' + key + '\')" title="' + key + '">' + renderAnyIcon(key, { size: 20 }) + '</button>';
+  }).join('');
+}
+
+function iconPickerHtml(inputId, selectedIcon) {
+  const previewKey = (selectedIcon && KNOWN_ICON_KEYS.has(selectedIcon)) ? selectedIcon : PARCOURS_DEFAULT_ICON;
+  return (
+    '<div id="' + inputId + '-container">' +
+      '<button type="button" class="ds-icon-preview-btn" onclick="toggleParcoursIconPicker(\'' + inputId + '\')" title="Choisir une icône">' + renderAnyIcon(previewKey, { size: 24 }) + '</button>' +
+      ' <button type="button" class="btn-secondary" onclick="toggleParcoursIconPicker(\'' + inputId + '\')">Choisir une icône</button>' +
+      '<input type="hidden" id="' + inputId + '" value="' + escapeHtml(selectedIcon || '') + '">' +
+      '<div id="' + inputId + '-panel" class="emoji-picker" style="display:none;">' + iconSwatchesHtml(inputId) + '</div>' +
+    '</div>'
+  );
+}
+
+export function toggleParcoursIconPicker(inputId) {
+  const el = document.getElementById(inputId + '-panel');
+  if (!el) return;
+  el.style.display = (el.style.display === 'none') ? 'grid' : 'none';
+}
+window.toggleParcoursIconPicker = toggleParcoursIconPicker;
+
+export function pickParcoursIcon(inputId, iconValue) {
+  const hiddenInput = document.getElementById(inputId);
+  if (hiddenInput) hiddenInput.value = iconValue;
+  const container = document.getElementById(inputId + '-container');
+  const previewBtn = container && container.querySelector('.ds-icon-preview-btn');
+  if (previewBtn) previewBtn.innerHTML = renderAnyIcon(iconValue || PARCOURS_DEFAULT_ICON, { size: 24 });
+  const panel = document.getElementById(inputId + '-panel');
+  if (panel) panel.style.display = 'none';
+}
+window.pickParcoursIcon = pickParcoursIcon;
+
+// ---------------------------------------------------------------------------
 // Creation
 // ---------------------------------------------------------------------------
 
 export function openCreateParcoursForm() {
   document.getElementById('parcours-create-color-container').innerHTML = colorPickerHtml('parcours-create-color', '');
+  document.getElementById('parcours-create-icon-container').innerHTML = iconPickerHtml('parcours-create-icon', '');
   document.getElementById('parcours-create-card').style.display = 'block';
 }
 export function closeCreateParcoursForm() {
@@ -299,6 +348,7 @@ export async function submitCreateParcours() {
       if (el) el.value = '';
     });
     document.getElementById('parcours-create-color-container').innerHTML = '';
+    document.getElementById('parcours-create-icon-container').innerHTML = '';
     await loadPage();
   }
 }
@@ -343,7 +393,7 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect) {
   let html = '<div class="bank-detail-card">';
 
   html += '<div class="bank-detail-header">';
-  html += '<h3>' + (p.icon ? escapeHtml(p.icon) + ' ' : '') + escapeHtml(p.name) + '</h3>';
+  html += '<h3>' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 18 }) + ' ' + escapeHtml(p.name) + '</h3>';
   html += '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>';
   html += '</div>';
   html += '<div class="bank-detail-tags-row">';
@@ -497,7 +547,7 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect) {
   html += '<label class="bank-edit-label">Couleur</label>';
   html += colorPickerHtml('parcours-edit-color', PARCOURS_COLOR_HEX[p.color] ? p.color : '');
   html += '<label class="bank-edit-label">Icône</label>';
-  html += '<input type="text" id="parcours-edit-icon" class="bank-select" value="' + escapeHtml(p.icon || '') + '">';
+  html += iconPickerHtml('parcours-edit-icon', KNOWN_ICON_KEYS.has(p.icon) ? p.icon : '');
   html += '<div class="btn-row"><button class="btn-primary" onclick="saveParcoursEdit()">Enregistrer les modifications</button></div>';
   html += '</div>';
 
