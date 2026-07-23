@@ -14,8 +14,9 @@ import { formatUserFullName } from "../js/services/user-profile-metadata-service
 import {
   browseUsers, getUserDetail, loadReferenceOptions,
   deactivateUser, reactivateUser, editUserBusinessProfile, getUserTimeline,
-  createPendingInvite, listPendingInvites, cancelPendingInvite,
+  createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
+import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
 
@@ -34,6 +35,7 @@ let state = {
 };
 let refOptions = { organizations: [], profiles: [], groups: [] };
 let pendingAction = null;
+let bulkImportRows = [];
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -310,6 +312,7 @@ async function renderTimeline(u) {
   }).join('') + '</ul>';
 }
 function describeAuditEntry(entry) {
+  if (entry.actionType === 'account_created') return 'Compte créé';
   if (entry.actionType === 'role_change') return 'Changement de rôle (' + entry.oldValue + ' → ' + entry.newValue + ')';
   if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
   if (entry.actionType && entry.actionType.indexOf('business_profile_edit_') === 0) return 'Modification (' + entry.actionType.replace('business_profile_edit_', '') + ')';
@@ -408,6 +411,86 @@ export async function cancelInvite(email) {
 }
 
 // ---------------------------------------------------------------------------
+// Import en masse (Excel) - demande directe de David, 23/07/2026
+// ---------------------------------------------------------------------------
+
+export function openBulkImportForm() {
+  document.getElementById('users-bulk-file-input').value = '';
+  document.getElementById('users-bulk-preview').innerHTML = '';
+  bulkImportRows = [];
+  document.getElementById('users-bulk-import-card').style.display = 'block';
+}
+export function closeBulkImportForm() {
+  document.getElementById('users-bulk-import-card').style.display = 'none';
+}
+export function downloadUserImportTemplate() {
+  const wb = buildUserImportTemplateWorkbook(window.XLSX, refOptions);
+  window.XLSX.writeFile(wb, 'Modele_import_utilisateurs.xlsx');
+}
+export async function analyzeBulkImportFile() {
+  const input = document.getElementById('users-bulk-file-input');
+  const previewEl = document.getElementById('users-bulk-preview');
+  const file = input.files && input.files[0];
+  if (!file) { previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">Choisissez d\'abord un fichier Excel.</p>'; return; }
+
+  previewEl.innerHTML = '<div class="bank-list-loading">Analyse du fichier…</div>';
+  const arrayBuffer = await file.arrayBuffer();
+  let parsed;
+  try {
+    parsed = parseUserImportWorkbook(window.XLSX, arrayBuffer, refOptions);
+  } catch (err) {
+    console.error('[admin/users] échec de lecture du fichier d\'import', err);
+    previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">Fichier illisible - vérifiez qu\'il s\'agit bien d\'un .xlsx exporté depuis le modèle.</p>';
+    bulkImportRows = [];
+    return;
+  }
+  if (parsed.headerError) {
+    previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">' + escapeHtml(parsed.headerError) + '</p>';
+    bulkImportRows = [];
+    return;
+  }
+  bulkImportRows = parsed.rows;
+  renderBulkPreview();
+}
+function renderBulkPreview() {
+  const previewEl = document.getElementById('users-bulk-preview');
+  const validRows = bulkImportRows.filter(function(r) { return r.valid; });
+  const errorCount = bulkImportRows.length - validRows.length;
+
+  let html = '<p>' + validRows.length + ' ligne(s) valide(s), ' + errorCount + ' en erreur (sur ' + bulkImportRows.length + ' au total).</p>';
+  html += '<div style="max-height:280px;overflow-y:auto;"><table class="bank-table"><thead><tr><th>Ligne</th><th>E-mail</th><th>Statut</th></tr></thead><tbody>';
+  html += bulkImportRows.map(function(r) {
+    const statusCell = r.valid
+      ? '<span class="bank-badge bank-badge-published">OK</span>'
+      : '<span class="bank-badge bank-badge-archived">' + escapeHtml(r.errors.join(' ; ')) + '</span>';
+    return '<tr><td>' + r.rowNumber + '</td><td>' + escapeHtml(r.email || '—') + '</td><td>' + statusCell + '</td></tr>';
+  }).join('') + '</tbody></table></div>';
+
+  if (validRows.length > 0) {
+    html += '<div class="btn-row"><button class="btn-primary" onclick="confirmBulkImportClick()">Confirmer l\'import (' + validRows.length + ' ligne(s))</button></div>';
+  }
+  previewEl.innerHTML = html;
+}
+export async function confirmBulkImportClick() {
+  const validRows = bulkImportRows.filter(function(r) { return r.valid; });
+  const previewEl = document.getElementById('users-bulk-preview');
+  previewEl.innerHTML = '<div class="bank-list-loading">Import en cours (' + validRows.length + ' fiche(s))…</div>';
+
+  const results = await createPendingInvitesBulk(validRows);
+  const successes = results.filter(function(r) { return r.status === 'success'; });
+  const failures = results.filter(function(r) { return r.status !== 'success'; });
+
+  let html = '<p class="admin-message admin-message-' + (failures.length ? 'error' : 'success') + '" style="display:block;">' +
+    successes.length + ' fiche(s) pré-provisionnée(s) avec succès' + (failures.length ? ', ' + failures.length + ' échec(s) ci-dessous.' : '.') + '</p>';
+  if (failures.length) {
+    html += '<ul>' + failures.map(function(f) { return '<li>' + escapeHtml(f.email) + ' : ' + escapeHtml(f.message) + '</li>'; }).join('') + '</ul>';
+  }
+  previewEl.innerHTML = html;
+  bulkImportRows = [];
+  await renderPendingInvitesList();
+}
+
+// ---------------------------------------------------------------------------
 // Exposition au HTML
 // ---------------------------------------------------------------------------
 
@@ -423,3 +506,8 @@ window.openInviteForm = openInviteForm;
 window.closeInviteForm = closeInviteForm;
 window.submitInvite = submitInvite;
 window.cancelInvite = cancelInvite;
+window.openBulkImportForm = openBulkImportForm;
+window.closeBulkImportForm = closeBulkImportForm;
+window.downloadUserImportTemplate = downloadUserImportTemplate;
+window.analyzeBulkImportFile = analyzeBulkImportFile;
+window.confirmBulkImportClick = confirmBulkImportClick;

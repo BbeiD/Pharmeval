@@ -18,10 +18,11 @@ import { fetchAllUsersBounded, getUserByUid } from "./user-management-service.js
 import { changeUserStatus, updateUserBusinessProfile } from "./admin-service.js";
 import { getRecentAuditEntries } from "./audit-service.js";
 import { formatUserFullName } from "./user-profile-metadata-service.js";
+import { toComparableDate } from "./date-utils.js";
 import { organizationsBank } from "./organizations-bank-service.js";
 import { profilesBank } from "./profiles-bank-service.js";
 import { groupsBank } from "./groups-bank-service.js";
-import { createPendingInvite, listPendingInvites, cancelPendingInvite } from "./user-invite-service.js";
+import { createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite } from "./user-invite-service.js";
 
 function checkAccess() {
   const ctx = getCurrentUserContext();
@@ -165,15 +166,41 @@ export function editUserBusinessProfile(targetUser, fields) {
  * Historique d'un utilisateur : REUTILISE le journal d'audit générique
  * (audit_logs, Sprint 8) filtré par targetUid (ajout additif Sprint 14,
  * voir audit-service.js) - jamais une nouvelle collection.
+ *
+ * CORRECTIF (demande directe de David, 23/07/2026) : audit_logs ne
+ * contient QUE les actions administrateur explicites (role_change,
+ * status_change, business_profile_edit_*) - un compte auto-inscrit sur
+ * lequel aucun admin n'est encore intervenu y a donc ZERO entree, ce qui
+ * se lisait comme "l'historique ne fonctionne pas". Ajoute ici une entree
+ * synthetique "Compte créé" a partir de users/{uid}.createdAt (deja lu par
+ * getUserByUid, aucune nouvelle ecriture/collection/regle necessaire),
+ * fusionnee avec le vrai journal d'audit et triee par date reelle - ainsi
+ * TOUT compte a au moins une entree, meme sans jamais avoir ete touche par
+ * un administrateur.
  * @param {string} uid
  * @returns {Promise<{items:Array<object>, error:boolean}>}
  */
-export function getUserTimeline(uid) {
-  return getRecentAuditEntries({ targetUid: uid, limit: 100 });
+export async function getUserTimeline(uid) {
+  const [auditResult, user] = await Promise.all([
+    getRecentAuditEntries({ targetUid: uid, limit: 100 }),
+    getUserByUid(uid),
+  ]);
+  if (auditResult.error) return auditResult;
+
+  const items = auditResult.items.slice();
+  if (user && user.createdAt) {
+    items.push({ date: user.createdAt, actionType: 'account_created' });
+  }
+  items.sort(function(a, b) {
+    const da = toComparableDate(a.date);
+    const db = toComparableDate(b.date);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+  return { items: items, error: false };
 }
 
 // ---------------------------------------------------------------------------
 // "Création" (pré-provisionnement, voir user-invite-service.js)
 // ---------------------------------------------------------------------------
 
-export { createPendingInvite, listPendingInvites, cancelPendingInvite };
+export { createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite };

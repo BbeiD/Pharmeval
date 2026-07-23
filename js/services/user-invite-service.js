@@ -90,6 +90,28 @@ export async function createPendingInvite(fields) {
 }
 
 /**
+ * Import en masse (demande directe de David, 23/07/2026) : repete
+ * createPendingInvite() ligne par ligne pour un lot deja valide/resolu par
+ * js/services/user-bulk-import-service.js (organisation/profil/groupes
+ * deja convertis en identifiants) - aucune nouvelle regle Firestore,
+ * aucune nouvelle collection, memes garanties unitaires (idempotence par
+ * email, refus si deja consommee) que la pré-provision au fil de l'eau.
+ * Sequentiel (pas de Promise.all) : un lot reste de taille humaine (import
+ * Excel rempli a la main), et ecrire un par un evite de saturer Firestore
+ * en cas de gros fichier.
+ * @param {Array<{email:string, firstName?:string, lastName?:string, organizationId?:string, profileId?:string, groupIds?:Array<string>}>} rows
+ * @returns {Promise<Array<{email:string, status:string, message:string}>>}
+ */
+export async function createPendingInvitesBulk(rows) {
+  const results = [];
+  for (const row of (rows || [])) {
+    const result = await createPendingInvite(row);
+    results.push(Object.assign({ email: row.email }, result));
+  }
+  return results;
+}
+
+/**
  * Liste les pré-provisions non encore consommées (lecture bornée).
  * @returns {Promise<{items:Array<object>, error:boolean}>}
  */

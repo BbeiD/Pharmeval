@@ -6,6 +6,10 @@
 <title>Pharmeval — Utilisateurs</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
 <link rel="stylesheet" href="../css/styles.css">
+<!-- AJOUT (import en masse par Excel, demande directe de David 23/07/2026) :
+     meme bibliotheque SheetJS que admin/catalog-sync.html, chargee ici pour
+     lire/generer des classeurs .xlsx cote client. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -54,6 +58,7 @@
         <option value="">Groupe : Tous</option>
       </select>
       <button class="btn-primary" onclick="openInviteForm()">+ Pré-provisionner</button>
+      <button class="btn-secondary" onclick="openBulkImportForm()">+ Import en masse (Excel)</button>
     </div>
 
     <div id="users-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
@@ -79,6 +84,28 @@
         <button class="btn-primary" onclick="submitInvite()">Pré-provisionner</button>
       </div>
       <div id="users-pending-invites-list" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- AJOUT (import en masse par Excel, demande directe de David 23/07/2026) :
+         meme regle metier que la carte de pré-provisionnement unitaire
+         ci-dessus (voir js/services/user-bulk-import-service.js) - lit un
+         classeur .xlsx, resout Organisation/Profil/Groupes par leur NOM
+         vers leur identifiant, previsualise ligne par ligne avant toute
+         ecriture, puis appelle createPendingInvitesBulk() uniquement sur
+         confirmation explicite. -->
+    <div id="users-bulk-import-card" class="bank-detail-card" style="display:none; margin-bottom:16px;">
+      <h3>Import en masse d'utilisateurs (Excel)</h3>
+      <p class="admin-users-disclaimer">Comme pour la pré-provision unitaire ci-dessus, chaque ligne prépare une fiche - aucun compte de connexion n'est créé directement. La fiche sera automatiquement complétée dès la première connexion réelle de la personne avec la même adresse e-mail.</p>
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="downloadUserImportTemplate()">⬇ Télécharger le modèle Excel</button>
+      </div>
+      <label class="bank-edit-label">Fichier Excel rempli</label>
+      <input type="file" id="users-bulk-file-input" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="closeBulkImportForm()">Annuler</button>
+        <button class="btn-primary" onclick="analyzeBulkImportFile()">Analyser</button>
+      </div>
+      <div id="users-bulk-preview" style="margin-top:12px;"></div>
     </div>
 
     <!-- CORRECTIF (demande directe de David, 23/07/2026) : grille de
