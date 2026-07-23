@@ -16,7 +16,15 @@ import { getCompetencyById } from "./services/competency-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./services/question-catalog-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
-import { icon } from "./icons.js";
+import { icon, renderAnyIcon } from "./icons.js";
+
+// CORRECTIF (demande directe de David, 23/07/2026, "des petits cadres plus
+// adaptés") : tuile a icone (meme composant que admin/document-sources.js,
+// .source-tile) plutot que la liste bank-row - une pastille de couleur
+// (coin superieur droit, meme pattern que source-tile-status-dot) indique
+// le masteryStatus deja calcule, jamais une nouvelle echelle de couleur.
+const MASTERY_STATUS_DOT = { mastered: 'dot-green', to_reinforce: 'dot-orange', not_acquired: 'dot-red' };
+const COMPETENCY_TILE_ICON = 'content-skills';
 
 // CORRECTIF (demande directe de David, 23/07/2026) : plus de "tendance"
 // (voir getMyCompetencyProgressFromQuestions(), competency-progress-
@@ -154,19 +162,21 @@ function buildRadarChart(items) {
 // ---------------------------------------------------------------------------
 
 function renderList() {
-  qs('mc-list').innerHTML = state.items.map(function(p) {
-    const selected = p.competencyId === state.selectedId ? ' bank-row-selected' : '';
-    return (
-      '<div class="bank-row' + selected + '" onclick="selectCompetency(\'' + escapeHtml(p.competencyId) + '\')">' +
-        '<div class="bank-row-top">' +
-          '<span class="bank-row-id">' + escapeHtml(p.competencyName) + '</span>' +
-          '<span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span>' +
-        '</div>' +
-        '<div class="bank-row-question">' + p.masteredPercent + ' % maîtrisé (' + p.masteredCount + '/' + p.evaluationCount + ' questions)</div>' +
-        '<div class="bank-row-meta">' + p.evaluationCount + ' question(s) rencontrée(s)</div>' +
-      '</div>'
-    );
-  }).join('');
+  qs('mc-list').innerHTML = state.items.map(competencyTileHtml).join('');
+}
+
+function competencyTileHtml(p) {
+  const selectedCls = p.competencyId === state.selectedId ? ' source-tile-selected' : '';
+  const dotKey = MASTERY_STATUS_DOT[p.masteryStatus] || 'dot-white-grey';
+  const levelLabel = COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel;
+  const title = levelLabel + ' · ' + p.masteredPercent + ' % maîtrisé (' + p.masteredCount + '/' + p.evaluationCount + ' questions)';
+  return (
+    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectCompetency(\'' + escapeHtml(p.competencyId) + '\')" title="' + escapeHtml(title) + '">' +
+      '<span class="source-tile-status-dot" aria-hidden="true">' + renderAnyIcon(dotKey, { size: 12 }) + '</span>' +
+      '<span class="source-tile-emoji" aria-hidden="true">' + icon(COMPETENCY_TILE_ICON, { size: 24 }) + '</span>' +
+      '<span class="source-tile-name">' + escapeHtml(p.competencyName) + '</span>' +
+    '</button>'
+  );
 }
 
 export async function selectCompetency(competencyId) {
@@ -201,7 +211,11 @@ export async function selectCompetency(competencyId) {
 
 function detailHtml(p) {
   let html = '<div class="bank-detail-card">';
-  html += '<div class="bank-detail-header"><h3>' + escapeHtml(p.competencyName) + '</h3><span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span></div>';
+  // CORRECTIF (demande directe de David, 23/07/2026) : .bank-detail-header
+  // h3 est en police monospace dans le reste de l'appli (pensee pour des
+  // codes/identifiants) - un nom de competence est du texte normal, jamais
+  // un code, d'ou le retour explicite a la police standard ici.
+  html += '<div class="bank-detail-header"><h3 style="font-family:inherit;">' + escapeHtml(p.competencyName) + '</h3><span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span></div>';
 
   html += '<div class="bank-detail-section"><h4>Chiffres clés</h4>';
   html += '<div class="bank-detail-row"><strong>Maîtrisées :</strong> ' + p.masteredCount + ' / ' + p.evaluationCount + ' (' + p.masteredPercent + ' %)</div>';

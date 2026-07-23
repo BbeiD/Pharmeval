@@ -1836,6 +1836,12 @@
   }
   .mc-radar-legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1; min-width: 180px; }
   .mc-radar-legend-item { color: var(--text2); }
+  /* CORRECTIF (demande directe de David, 23/07/2026) : les noms de
+     competences sont plus longs que les noms de source documentaire pour
+     lesquels .source-tile (96px) a ete concu - elargi UNIQUEMENT ici pour
+     eviter les coupures de mot disgracieuses, jamais en changeant la
+     regle partagee (voir admin/document-sources.js). */
+  #mc-list.source-tile-grid .source-tile { width: 132px; }
 
   @media (max-width: 600px) {
     .mc-radar-card { flex-direction: column; text-align: center; }
