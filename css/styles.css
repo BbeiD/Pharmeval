@@ -1551,6 +1551,13 @@
   .bank-row-id { font-size: 11px; font-weight: 700; color: var(--text2); font-family: monospace; white-space: nowrap; }
   .bank-row-question { color: var(--text); line-height: 1.35; max-width: 260px; }
 
+  /* AJOUT (demande directe de David, 23/07/2026) : nom d'une pre-provision
+     en attente (liste secondaire, admin/users.js) - police normale,
+     jamais .bank-row-id/monospace (une personne n'est pas un code). Le
+     reste de la liste utilisateurs est une grille de tuiles, voir
+     .source-tile (styles partages avec admin/document-sources.js). */
+  .users-row-name { font-size: 13px; font-weight: 700; color: var(--text); }
+
   .bank-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; }
   .bank-pagination-label { font-size: 12px; color: var(--text2); }
 
@@ -1858,6 +1865,13 @@
      eviter les coupures de mot disgracieuses, jamais en changeant la
      regle partagee (voir admin/document-sources.js). */
   #mc-list.source-tile-grid .source-tile { width: 132px; }
+  /* CORRECTIF (demande directe de David, 23/07/2026) : une adresse e-mail
+     n'a pas d'espace ou se couper proprement - tronquee sur une seule
+     ligne avec "…" plutot que coupee au milieu d'un mot (l'adresse
+     complete reste lisible au survol, voir title="" sur la tuile). */
+  #users-list.source-tile-grid .source-tile-name {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
 
   @media (max-width: 600px) {
     .mc-radar-card { flex-direction: column; text-align: center; }

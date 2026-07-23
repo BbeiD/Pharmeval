@@ -17,7 +17,7 @@ import {
   createPendingInvite, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
-import { icon } from "../js/icons.js";
+import { icon, renderAnyIcon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
 // desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
@@ -146,31 +146,27 @@ function renderList() {
     return;
   }
   emptyEl.style.display = 'none';
-  listEl.innerHTML = state.items.map(rowHtml).join('');
+  listEl.innerHTML = state.items.map(userTileHtml).join('');
 }
 
-function rowHtml(u) {
+// CORRECTIF (demande directe de David, 23/07/2026) : tuile a icone (meme
+// composant que admin/document-sources.js, .source-tile) plutot que la
+// liste bank-row - n'affiche QUE l'e-mail et le statut (pastille de
+// couleur, coin superieur droit), jamais le nom/l'organisation/le profil
+// ici (la fiche complete reste accessible au clic, panneau de detail en
+// dessous).
+const USER_STATUS_DOT = { active: 'dot-green', suspended: 'dot-red', pending: 'dot-orange' };
+
+function userTileHtml(u) {
   const badge = STATUS_BADGES[u.status] || STATUS_BADGES.active;
-  const selected = u.uid === state.selectedId ? ' bank-row-selected' : '';
-  // CORRECTIF : sans prenom/nom/displayName, formatUserFullName() retombe
-  // deja sur l'e-mail comme "titre" - sans cette garde, la ligne e-mail
-  // juste en dessous (toujours affichee) et la ligne meta (qui retombait
-  // elle aussi sur l'e-mail faute d'organisation/profil) repetaient le
-  // meme e-mail jusqu'a 3 fois de suite pour un utilisateur auto-inscrit
-  // sans fiche completee. La ligne e-mail n'est desormais affichee que
-  // lorsqu'elle apporte une information distincte du titre.
-  const hasRealName = !!((u.firstName || u.lastName || u.displayName || '').toString().trim());
-  const title = hasRealName ? formatUserFullName(u) : (u.email || '(sans nom)');
-  const meta = [u.organizationLabel, u.profileLabel].filter(Boolean).join(' · ') || '—';
+  const selectedCls = u.uid === state.selectedId ? ' source-tile-selected' : '';
+  const dotKey = USER_STATUS_DOT[u.status] || 'dot-white-grey';
   return (
-    '<div class="bank-row' + selected + '" onclick="selectUser(\'' + escapeHtml(u.uid) + '\')">' +
-      '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + escapeHtml(title) + '</span>' +
-        '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
-      '</div>' +
-      (hasRealName ? '<div class="bank-row-question">' + escapeHtml(u.email) + '</div>' : '') +
-      '<div class="bank-row-meta">' + escapeHtml(meta) + '</div>' +
-    '</div>'
+    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectUser(\'' + escapeHtml(u.uid) + '\')" title="' + escapeHtml((u.email || '') + ' · ' + badge.label) + '">' +
+      '<span class="source-tile-status-dot" aria-hidden="true">' + renderAnyIcon(dotKey, { size: 12 }) + '</span>' +
+      '<span class="source-tile-emoji" aria-hidden="true">' + icon('nav-profile', { size: 24 }) + '</span>' +
+      '<span class="source-tile-name">' + escapeHtml(u.email || '(sans e-mail)') + '</span>' +
+    '</button>'
   );
 }
 
@@ -221,7 +217,11 @@ export async function selectUser(uid) {
 function detailHtml(u) {
   const badge = STATUS_BADGES[u.status] || STATUS_BADGES.active;
   let html = '<div class="bank-detail-card">';
-  html += '<div class="bank-detail-header"><h3>' + escapeHtml(formatUserFullName(u)) + '</h3><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></div>';
+  // CORRECTIF (demande directe de David, 23/07/2026) : .bank-detail-header
+  // h3 est en police monospace ailleurs dans l'appli (pensee pour des
+  // codes) - un nom d'utilisateur est du texte normal, meme correctif que
+  // "Mes competences".
+  html += '<div class="bank-detail-header"><h3 style="font-family:inherit;">' + escapeHtml(formatUserFullName(u)) + '</h3><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></div>';
   html += '<div class="bank-detail-tags-row"><span class="bank-chip">' + escapeHtml(u.uid) + '</span><span class="bank-chip">' + escapeHtml(u.email) + '</span></div>';
 
   html += '<div class="bank-detail-section"><h4>Fiche</h4>';
@@ -396,7 +396,7 @@ async function renderPendingInvitesList() {
   if (result.items.length === 0) { container.innerHTML = '<p class="bank-list-empty" style="padding:0;">Aucune pré-provision en attente.</p>'; return; }
   container.innerHTML = '<h4>Pré-provisions en attente (' + result.items.length + ')</h4>' +
     result.items.map(function(inv) {
-      return '<div class="bank-row"><div class="bank-row-top"><span class="bank-row-id">' + escapeHtml([inv.firstName, inv.lastName].filter(Boolean).join(' ') || inv.email) + '</span>' +
+      return '<div class="bank-row"><div class="bank-row-top"><span class="users-row-name">' + escapeHtml([inv.firstName, inv.lastName].filter(Boolean).join(' ') || inv.email) + '</span>' +
         '<button class="btn-secondary bank-delete-btn" onclick="cancelInvite(\'' + escapeHtml(inv.email) + '\')">Annuler</button></div>' +
         '<div class="bank-row-question">' + escapeHtml(inv.email) + '</div></div>';
     }).join('');

@@ -81,17 +81,18 @@
       <div id="users-pending-invites-list" style="margin-top:16px;"></div>
     </div>
 
-    <div class="bank-columns">
-      <div class="bank-list-column">
-        <div id="users-list-empty" class="bank-list-empty" style="display:none;"></div>
-        <div id="users-list" class="bank-list"></div>
-        <div id="users-pagination" class="bank-pagination"></div>
-      </div>
-      <div class="bank-detail-column">
-        <div id="users-detail-placeholder" class="bank-detail-placeholder">Sélectionnez un utilisateur dans la liste pour afficher sa fiche complète.</div>
-        <div id="users-detail" class="bank-detail" style="display:none;"></div>
-      </div>
-    </div>
+    <!-- CORRECTIF (demande directe de David, 23/07/2026) : grille de
+         tuiles (meme composant que admin/document-sources.html,
+         source-tile-grid) a la place de la liste bank-row/bank-columns -
+         chaque tuile n'affiche que l'e-mail et le statut (pastille de
+         couleur), la fiche complete n'apparait qu'au clic, en pleine
+         largeur en dessous. -->
+    <div id="users-list-empty" class="bank-list-empty" style="display:none;"></div>
+    <div id="users-list" class="source-tile-grid" style="margin-bottom:var(--space-4);"></div>
+    <div id="users-pagination" class="bank-pagination" style="margin-bottom:var(--space-4);"></div>
+
+    <div id="users-detail-placeholder" class="bank-detail-placeholder">Sélectionnez un utilisateur dans la liste pour afficher sa fiche complète.</div>
+    <div id="users-detail" class="bank-detail" style="display:none;"></div>
   </div>
 </div>
 
