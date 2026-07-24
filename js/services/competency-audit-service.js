@@ -5,14 +5,9 @@
 // (Sprint 12) / question-audit-service.js (Sprint 11), applique a ce
 // nouveau type de contenu.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  addDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
-const COMPETENCY_AUDIT_COLLECTION = 'competency_audit_logs';
 const DEFAULT_READ_LIMIT = 50;
 
 function logCompetencyAuditError(context, err) {
@@ -29,17 +24,18 @@ function logCompetencyAuditError(context, err) {
  */
 export async function logCompetencyAction(entry) {
   try {
-    const colRef = collection(db, COMPETENCY_AUDIT_COLLECTION);
-    await addDoc(colRef, {
-      date: new Date().toISOString(),
-      adminUid: entry.adminUid || null,
-      adminEmail: entry.adminEmail || '',
-      competencyId: entry.competencyId || null,
-      actionType: entry.actionType || 'unknown',
-      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : '',
-      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : '',
+    if (!auth.currentUser) return { success: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/competency-audit-logs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
     });
-    return { success: true };
+    if (!res.ok) {
+      logCompetencyAuditError('enregistrement d\'une action sur une compétence (API ' + res.status + ')', null);
+      return { success: false };
+    }
+    return await res.json();
   } catch (err) {
     logCompetencyAuditError('enregistrement d\'une action sur une compétence', err);
     return { success: false };

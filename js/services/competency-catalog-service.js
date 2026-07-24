@@ -15,11 +15,6 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  writeBatch,
   collection,
   query,
   where,
@@ -29,6 +24,16 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
+
+async function callCompetencyApi(path, options) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options && options.headers) },
+  });
+  return res;
+}
 
 const COMPETENCY_COLLECTION = 'competencies';
 
@@ -58,9 +63,12 @@ function logCatalogError(context, err) {
  */
 export async function createCompetencyDocument(competencyDocument) {
   try {
-    const ref = doc(db, COMPETENCY_COLLECTION, competencyDocument.id);
-    await setDoc(ref, competencyDocument);
-    return { success: true, error: false };
+    const res = await callCompetencyApi('/api/competencies', { method: 'POST', body: JSON.stringify(competencyDocument) });
+    if (!res || !res.ok) {
+      logCatalogError('création de la compétence ' + competencyDocument.id + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création de la compétence ' + competencyDocument.id, err);
     return { success: false, error: true };
@@ -185,9 +193,12 @@ export async function searchCompetenciesBounded(options) {
  */
 export async function updateCompetencyStatus(competencyId, newStatus) {
   try {
-    const ref = doc(db, COMPETENCY_COLLECTION, competencyId);
-    await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
-    return { success: true, error: false };
+    const res = await callCompetencyApi(`/api/competencies/${competencyId}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+    if (!res || !res.ok) {
+      logCatalogError('changement de statut de la compétence ' + competencyId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('changement de statut de la compétence ' + competencyId, err);
     return { success: false, error: true };
@@ -203,19 +214,12 @@ export async function updateCompetencyStatus(competencyId, newStatus) {
  */
 export async function publishAllDraftCompetencies() {
   try {
-    const snap = await getDocs(query(collection(db, COMPETENCY_COLLECTION), where('status', '==', 'draft'), limit(2000)));
-    const refs = [];
-    snap.forEach(function(d) { refs.push(d.ref); });
-    if (refs.length === 0) return { success: true, publishedCount: 0, error: false };
-
-    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
-    const now = new Date().toISOString();
-    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
-      const batch = writeBatch(db);
-      refs.slice(i, i + CHUNK_SIZE).forEach(function(ref) { batch.update(ref, { status: 'published', updatedAt: now }); });
-      await batch.commit();
+    const res = await callCompetencyApi('/api/competencies/publish-all-draft', { method: 'POST' });
+    if (!res || !res.ok) {
+      logCatalogError('publication en masse des compétences en brouillon (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, publishedCount: 0, error: true };
     }
-    return { success: true, publishedCount: refs.length, error: false };
+    return await res.json();
   } catch (err) {
     logCatalogError('publication en masse des compétences en brouillon', err);
     return { success: false, publishedCount: 0, error: true };
@@ -236,11 +240,13 @@ export async function updateCompetencyFields(competencyId, fields) {
   allowed.forEach(function(key) {
     if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
   });
-  payload.updatedAt = new Date().toISOString();
   try {
-    const ref = doc(db, COMPETENCY_COLLECTION, competencyId);
-    await updateDoc(ref, payload);
-    return { success: true, error: false };
+    const res = await callCompetencyApi(`/api/competencies/${competencyId}/fields`, { method: 'PATCH', body: JSON.stringify(payload) });
+    if (!res || !res.ok) {
+      logCatalogError('modification des champs de la compétence ' + competencyId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('modification des champs de la compétence ' + competencyId, err);
     return { success: false, error: true };
@@ -256,9 +262,12 @@ export async function updateCompetencyFields(competencyId, fields) {
  */
 export async function deleteCompetencyDocument(competencyId) {
   try {
-    const ref = doc(db, COMPETENCY_COLLECTION, competencyId);
-    await deleteDoc(ref);
-    return { success: true, error: false };
+    const res = await callCompetencyApi(`/api/competencies/${competencyId}`, { method: 'DELETE' });
+    if (!res || !res.ok) {
+      logCatalogError('suppression de la compétence ' + competencyId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('suppression de la compétence ' + competencyId, err);
     return { success: false, error: true };

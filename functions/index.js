@@ -1226,6 +1226,127 @@ app.get("/api/competencies", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend createCompetencyDocument() de js/services/competency-catalog-
+// service.js. Meme regle "create" que firestore.rules : isRequesterAdmin(),
+// id == identifiant du document, statut TOUJOURS 'draft'.
+app.post("/api/competencies", requireAuth, async (req, res) => {
+  const competencyDocument = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    if (!competencyDocument.id || competencyDocument.status !== "draft") return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(COMPETENCIES_COLLECTION).doc(competencyDocument.id);
+    if ((await ref.get()).exists) return res.status(409).json({ success: false, error: true });
+    await ref.set(competencyDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[competencies:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateCompetencyFields() de js/services/competency-catalog-
+// service.js (edition complete). Meme regle "update n°1" : isRequesterAdmin(),
+// id ET statut inchanges.
+app.patch("/api/competencies/:id/fields", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(COMPETENCIES_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    if ("status" in fields && fields.status !== snap.data().status) return res.status(403).json({ success: false, error: true });
+    await ref.update({ ...fields, updatedAt: new Date().toISOString() });
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[competencies/:id/fields]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateCompetencyStatus(). Combine les regles "update n°2"
+// (transitions generales draft/published/archived) et "n°2b"
+// (Archive<->Corbeille).
+const COMPETENCY_STATUS_GENERAL_TARGETS = ["draft", "published", "archived"];
+app.patch("/api/competencies/:id/status", requireAuth, async (req, res) => {
+  const newStatus = req.body && req.body.status;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(COMPETENCIES_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const oldStatus = snap.data().status;
+    const generalOk = oldStatus !== "trash" && COMPETENCY_STATUS_GENERAL_TARGETS.includes(newStatus);
+    const trashOk = (oldStatus === "archived" && newStatus === "trash") || (oldStatus === "trash" && newStatus === "archived");
+    if (!generalOk && !trashOk) return res.status(403).json({ success: false, error: true });
+    await ref.update({ status: newStatus, updatedAt: new Date().toISOString() });
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[competencies/:id/status]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend publishAllDraftCompetencies().
+app.post("/api/competencies/publish-all-draft", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, publishedCount: 0, error: true });
+    const snap = await admin.firestore().collection(COMPETENCIES_COLLECTION).where("status", "==", "draft").limit(2000).get();
+    const refs = snap.docs.map((d) => d.ref);
+    const CHUNK_SIZE = 400;
+    const now = new Date().toISOString();
+    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
+      const batch = admin.firestore().batch();
+      refs.slice(i, i + CHUNK_SIZE).forEach((ref) => batch.update(ref, { status: "published", updatedAt: now }));
+      await batch.commit();
+    }
+    res.json({ success: true, publishedCount: refs.length, error: false });
+  } catch (err) {
+    console.error("[competencies/publish-all-draft]", err && err.code, err);
+    res.status(500).json({ success: false, publishedCount: 0, error: true });
+  }
+});
+
+// Reprend deleteCompetencyDocument(). Meme regle "delete" : isRequesterAdmin(),
+// uniquement depuis la corbeille.
+app.delete("/api/competencies/:id", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(COMPETENCIES_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.json({ success: true, error: false });
+    if (snap.data().status !== "trash") return res.status(403).json({ success: false, error: true });
+    await ref.delete();
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[competencies/:id:delete]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend logCompetencyAction() de js/services/competency-audit-service.js.
+// Meme regle que firestore.rules (match /competency_audit_logs/{logId}) :
+// isRequesterAdmin(), adminUid == demandeur.
+app.post("/api/competency-audit-logs", requireAuth, async (req, res) => {
+  const entry = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false });
+    if (entry.adminUid !== req.user.uid) return res.status(403).json({ success: false });
+    await admin.firestore().collection("competency_audit_logs").add({
+      date: new Date().toISOString(),
+      adminUid: entry.adminUid || null,
+      adminEmail: entry.adminEmail || "",
+      competencyId: entry.competencyId || null,
+      actionType: entry.actionType || "unknown",
+      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[competency-audit-logs:post]", err && err.code, err);
+    res.status(500).json({ success: false });
+  }
+});
+
 const PARCOURS_COLLECTION_FOR_GETBYID = "parcours";
 
 // Reprend getParcoursById() de js/services/parcours-catalog-service.js
