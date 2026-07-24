@@ -848,4 +848,101 @@ app.get("/api/reference-bank/:bankType", requireAuth, async (req, res) => {
   }
 });
 
+const QUESTION_REPORTS_COLLECTION = "question_reports";
+
+// Reprend getOpenReportCounts() de js/services/question-report-service.js
+// (badge de signalements dans la Banque de questions). Reservee aux
+// administrateurs - meme regle que firestore.rules (le role 'editor'
+// possede MANAGE_QUESTIONS cote client mais firestore.rules n'autorise
+// que isRequesterAdmin() a lire tous les signalements ; cette route
+// reproduit fidelement la garantie reelle, pas la verification cote
+// client optimiste).
+app.get("/api/question-reports/open-counts", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (ids.length === 0) return res.json({ counts: {}, error: false });
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ counts: {}, error: false });
+    }
+    const results = await Promise.all(
+      ids.map(async (pid) => {
+        const snap = await admin
+          .firestore()
+          .collection(QUESTION_REPORTS_COLLECTION)
+          .where("pedagogicalId", "==", pid)
+          .where("status", "==", "open")
+          .get();
+        return { pedagogicalId: pid, count: snap.size };
+      })
+    );
+    const counts = {};
+    results.forEach((r) => {
+      if (r.count > 0) counts[r.pedagogicalId] = r.count;
+    });
+    res.json({ counts, error: false });
+  } catch (err) {
+    console.error("[question-reports/open-counts]", err && err.code, err);
+    res.status(500).json({ counts: {}, error: true });
+  }
+});
+
+// Reprend getReportsForQuestion() de js/services/question-report-service.js.
+// Reservee aux administrateurs (meme raisonnement que ci-dessus).
+app.get("/api/question-reports", requireAuth, async (req, res) => {
+  const { pedagogicalId } = req.query;
+  if (!pedagogicalId) return res.status(400).json({ items: [], error: false, authorized: true });
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ items: [], error: false, authorized: false });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(QUESTION_REPORTS_COLLECTION)
+      .where("pedagogicalId", "==", pedagogicalId)
+      .get();
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    res.json({ items, error: false, authorized: true });
+  } catch (err) {
+    console.error("[question-reports]", err && err.code, err);
+    res.status(500).json({ items: [], error: true, authorized: true });
+  }
+});
+
+const DEFAULT_CONTENT_AUDIT_LIMIT = 50;
+
+// Reprend getRecentQuestionAuditLogs()/getRecentParcoursAuditLogs()/
+// getRecentCompetencyAuditLogs() (question-, parcours-, competency-audit-
+// service.js) - 3 fichiers miroirs exacts, une seule route parametree.
+// Collection resolue via allowlist explicite. Reservee aux administrateurs
+// (meme regle que firestore.rules pour les 3 collections).
+const CONTENT_AUDIT_CONFIG = {
+  question: { collection: "question_audit_logs", filterField: "pedagogicalId" },
+  parcours: { collection: "parcours_audit_logs", filterField: "parcoursId" },
+  competency: { collection: "competency_audit_logs", filterField: "competencyId" },
+};
+
+app.get("/api/content-audit-logs/:logType", requireAuth, async (req, res) => {
+  const config = CONTENT_AUDIT_CONFIG[req.params.logType];
+  if (!config) return res.status(400).json({ items: [], error: false });
+  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_CONTENT_AUDIT_LIMIT;
+  const filterId = req.query.filterId;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(config.collection);
+    if (filterId) q = q.where(config.filterField, "==", filterId);
+    q = q.orderBy("date", "desc").limit(max);
+    const snap = await q.get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[content-audit-logs]", req.params.logType, err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 exports.api = onRequest(app);

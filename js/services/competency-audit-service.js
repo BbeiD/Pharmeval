@@ -5,16 +5,12 @@
 // (Sprint 12) / question-audit-service.js (Sprint 11), applique a ce
 // nouveau type de contenu.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   collection,
   addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const COMPETENCY_AUDIT_COLLECTION = 'competency_audit_logs';
 const DEFAULT_READ_LIMIT = 50;
@@ -60,16 +56,18 @@ export async function getRecentCompetencyAuditLogs(options) {
   const opts = options || {};
   const max = opts.limit || DEFAULT_READ_LIMIT;
   try {
-    const colRef = collection(db, COMPETENCY_AUDIT_COLLECTION);
-    const clauses = [];
-    if (opts.competencyId) clauses.push(where('competencyId', '==', opts.competencyId));
-    clauses.push(orderBy('date', 'desc'));
-    clauses.push(limit(max));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({ limit: String(max) });
+    if (opts.competencyId) params.set('filterId', opts.competencyId);
+    const res = await fetch(`${API_BASE_URL}/api/content-audit-logs/competency?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCompetencyAuditError('lecture du journal des actions sur les compétences (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCompetencyAuditError('lecture du journal des actions sur les compétences', err);
     return { items: [], error: true };

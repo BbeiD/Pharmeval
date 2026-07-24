@@ -15,16 +15,12 @@
 // Meme pattern que audit-service.js et import-log-service.js : ecriture
 // "best effort", jamais bloquante pour l'action elle-meme.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   collection,
   addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const QUESTION_AUDIT_COLLECTION = 'question_audit_logs';
 const DEFAULT_READ_LIMIT = 50;
@@ -75,16 +71,18 @@ export async function getRecentQuestionAuditLogs(options) {
   const opts = options || {};
   const max = opts.limit || DEFAULT_READ_LIMIT;
   try {
-    const colRef = collection(db, QUESTION_AUDIT_COLLECTION);
-    const clauses = [];
-    if (opts.pedagogicalId) clauses.push(where('pedagogicalId', '==', opts.pedagogicalId));
-    clauses.push(orderBy('date', 'desc'));
-    clauses.push(limit(max));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const params = new URLSearchParams({ limit: String(max) });
+    if (opts.pedagogicalId) params.set('filterId', opts.pedagogicalId);
+    const res = await fetch(`${API_BASE_URL}/api/content-audit-logs/question?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logQuestionAuditError('lecture du journal des actions sur les questions (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logQuestionAuditError('lecture du journal des actions sur les questions', err);
     return { items: [], error: true };

@@ -12,12 +12,13 @@
 // l'administrateur, qui corrige ensuite via une resynchronisation du
 // catalogue.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  collection, addDoc, doc, updateDoc, query, where, getDocs,
+  collection, addDoc, doc, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { hasPermission, PERMISSIONS } from "./authorization-service.js";
+import { API_BASE_URL } from "../config.js";
 
 const REPORT_COLLECTION = 'question_reports';
 
@@ -93,12 +94,16 @@ export async function submitQuestionReport(fields) {
 export async function getReportsForQuestion(pedagogicalId) {
   if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return { items: [], error: false, authorized: false };
   try {
-    const q = query(collection(db, REPORT_COLLECTION), where('pedagogicalId', '==', pedagogicalId));
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(Object.assign({ id: d.id }, d.data())); });
-    items.sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
-    return { items: items, error: false, authorized: true };
+    if (!auth.currentUser) return { items: [], error: false, authorized: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-reports?pedagogicalId=${encodeURIComponent(pedagogicalId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logReportError('lecture des signalements de ' + pedagogicalId + ' (API ' + res.status + ')', null);
+      return { items: [], error: true, authorized: true };
+    }
+    return await res.json();
   } catch (err) {
     logReportError('lecture des signalements de ' + pedagogicalId, err);
     return { items: [], error: true, authorized: true };
@@ -119,14 +124,17 @@ export async function getOpenReportCounts(pedagogicalIds) {
   const ids = pedagogicalIds || [];
   if (ids.length === 0) return { counts: new Map(), error: false };
   try {
-    const results = await Promise.all(ids.map(async function(pid) {
-      const q = query(collection(db, REPORT_COLLECTION), where('pedagogicalId', '==', pid), where('status', '==', 'open'));
-      const snap = await getDocs(q);
-      return { pedagogicalId: pid, count: snap.size };
-    }));
-    const counts = new Map();
-    results.forEach(function(r) { if (r.count > 0) counts.set(r.pedagogicalId, r.count); });
-    return { counts: counts, error: false };
+    if (!auth.currentUser) return { counts: new Map(), error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-reports/open-counts?ids=${ids.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logReportError('comptage des signalements ouverts (API ' + res.status + ')', null);
+      return { counts: new Map(), error: true };
+    }
+    const body = await res.json();
+    return { counts: new Map(Object.entries(body.counts || {})), error: false };
   } catch (err) {
     logReportError('comptage des signalements ouverts', err);
     return { counts: new Map(), error: true };
