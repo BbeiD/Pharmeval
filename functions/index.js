@@ -656,4 +656,111 @@ app.get("/api/evaluation-results/:id", requireAuth, async (req, res) => {
   }
 });
 
+const EVALUATION_SESSIONS_COLLECTION = "evaluation_sessions";
+
+// Reprend findActiveSession() (parcours/competence). Toujours le
+// requerant lui-meme (ctx.uid chez tous les appelants reels).
+app.get("/api/sessions/active", requireAuth, async (req, res) => {
+  const { parcoursId, competencyId } = req.query;
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_SESSIONS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .where("parcoursId", "==", parcoursId || null)
+      .where("competencyId", "==", competencyId || null)
+      .where("status", "==", "in_progress")
+      .limit(1)
+      .get();
+    res.json({ data: snap.empty ? null : snap.docs[0].data(), error: false });
+  } catch (err) {
+    console.error("[sessions/active]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend countPreviousAttempts().
+app.get("/api/sessions/attempts-count", requireAuth, async (req, res) => {
+  const { parcoursId, competencyId } = req.query;
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_SESSIONS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .where("parcoursId", "==", parcoursId || null)
+      .where("competencyId", "==", competencyId || null)
+      .orderBy("startedAt", "desc")
+      .limit(50)
+      .get();
+    res.json({ count: snap.size, error: false });
+  } catch (err) {
+    console.error("[sessions/attempts-count]", err && err.code, err);
+    res.status(500).json({ count: 0, error: true });
+  }
+});
+
+// Reprend findActiveFreeTrainingSession() / findActiveDailyChallengeSession()
+// - meme requete Firestore que le front (correctif du 22/07/2026), filtre
+// dailyChallengeDate applique ICI cote serveur (equivalent du filtre
+// cote client d'origine).
+app.get("/api/sessions/active-free-training", requireAuth, async (req, res) => {
+  const { dailyChallengeDate } = req.query;
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_SESSIONS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .where("sessionType", "==", "free_training")
+      .where("status", "==", "in_progress")
+      .limit(5)
+      .get();
+    const items = snap.docs.map((d) => d.data());
+    const match = dailyChallengeDate
+      ? items.find((s) => s.dailyChallengeDate === dailyChallengeDate)
+      : items.find((s) => !s.dailyChallengeDate);
+    res.json({ data: match || null, error: false });
+  } catch (err) {
+    console.error("[sessions/active-free-training]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend countPreviousFreeTrainingAttempts().
+app.get("/api/sessions/free-training-attempts-count", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_SESSIONS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .where("sessionType", "==", "free_training")
+      .orderBy("startedAt", "desc")
+      .limit(50)
+      .get();
+    res.json({ count: snap.size, error: false });
+  } catch (err) {
+    console.error("[sessions/free-training-attempts-count]", err && err.code, err);
+    res.status(500).json({ count: 0, error: true });
+  }
+});
+
+// Reprend getSessionById() de js/services/evaluation-session-catalog-service.js
+// (reprise/redemarrage d'une session). Meme regle que firestore.rules
+// (match /evaluation_sessions/{sessionId}) : proprietaire ou admin.
+// DOIT rester APRES les routes statiques ci-dessus (sinon ":id" les
+// intercepterait, ex. "active" traite comme un identifiant de session).
+app.get("/api/sessions/:id", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection(EVALUATION_SESSIONS_COLLECTION).doc(req.params.id).get();
+    if (!snap.exists) return res.json({ data: null, error: false });
+    const data = snap.data();
+    if (data.userId !== req.user.uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ data: null, error: false });
+    }
+    res.json({ data, error: false });
+  } catch (err) {
+    console.error("[sessions/:id]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
 exports.api = onRequest(app);

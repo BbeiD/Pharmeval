@@ -7,11 +7,21 @@
 // qui lui est deja fourni construit et valide, meme principe que tous les
 // autres `*-catalog-service.js` du projet.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc,
-  collection, query, where, orderBy, limit, getDocs,
+  doc, setDoc, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
+
+async function fetchSessionApi(path) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
 
 const SESSION_COLLECTION = 'evaluation_sessions';
 
@@ -41,8 +51,8 @@ export async function createSessionDocument(sessionDocument) {
  */
 export async function getSessionById(sessionId) {
   try {
-    const snap = await getDoc(doc(db, SESSION_COLLECTION, sessionId));
-    return snap.exists() ? snap.data() : null;
+    const body = await fetchSessionApi(`/api/sessions/${sessionId}`);
+    return body ? body.data : null;
   } catch (err) {
     logCatalogError('lecture de la session ' + sessionId, err);
     return null;
@@ -62,15 +72,9 @@ export async function getSessionById(sessionId) {
  */
 export async function findActiveSession(userId, parcoursId, competencyId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SESSION_COLLECTION),
-      where('userId', '==', userId),
-      where('parcoursId', '==', parcoursId),
-      where('competencyId', '==', competencyId),
-      where('status', '==', 'in_progress'),
-      limit(1)
-    ));
-    return snap.empty ? null : snap.docs[0].data();
+    const params = new URLSearchParams({ parcoursId: parcoursId || '', competencyId: competencyId || '' });
+    const body = await fetchSessionApi(`/api/sessions/active?${params.toString()}`);
+    return body ? body.data : null;
   } catch (err) {
     logCatalogError('recherche d\'une session active', err);
     return null;
@@ -90,15 +94,9 @@ export async function findActiveSession(userId, parcoursId, competencyId) {
  */
 export async function countPreviousAttempts(userId, parcoursId, competencyId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SESSION_COLLECTION),
-      where('userId', '==', userId),
-      where('parcoursId', '==', parcoursId),
-      where('competencyId', '==', competencyId),
-      orderBy('startedAt', 'desc'),
-      limit(50)
-    ));
-    return snap.size;
+    const params = new URLSearchParams({ parcoursId: parcoursId || '', competencyId: competencyId || '' });
+    const body = await fetchSessionApi(`/api/sessions/attempts-count?${params.toString()}`);
+    return body ? body.count : 0;
   } catch (err) {
     logCatalogError('comptage des tentatives précédentes', err);
     return 0; // fail-open : ne bloque jamais un demarrage de session sur une simple panne de comptage
@@ -127,15 +125,8 @@ export async function countPreviousAttempts(userId, parcoursId, competencyId) {
  */
 export async function findActiveFreeTrainingSession(userId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SESSION_COLLECTION),
-      where('userId', '==', userId),
-      where('sessionType', '==', 'free_training'),
-      where('status', '==', 'in_progress'),
-      limit(5)
-    ));
-    const match = snap.docs.map(function(d) { return d.data(); }).find(function(s) { return !s.dailyChallengeDate; });
-    return match || null;
+    const body = await fetchSessionApi('/api/sessions/active-free-training');
+    return body ? body.data : null;
   } catch (err) {
     logCatalogError('recherche d\'une session d\'entraînement libre active', err);
     return null;
@@ -154,15 +145,9 @@ export async function findActiveFreeTrainingSession(userId) {
  */
 export async function findActiveDailyChallengeSession(userId, dateStr) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SESSION_COLLECTION),
-      where('userId', '==', userId),
-      where('sessionType', '==', 'free_training'),
-      where('status', '==', 'in_progress'),
-      limit(5)
-    ));
-    const match = snap.docs.map(function(d) { return d.data(); }).find(function(s) { return s.dailyChallengeDate === dateStr; });
-    return match || null;
+    const params = new URLSearchParams({ dailyChallengeDate: dateStr || '' });
+    const body = await fetchSessionApi(`/api/sessions/active-free-training?${params.toString()}`);
+    return body ? body.data : null;
   } catch (err) {
     logCatalogError('recherche du défi du jour actif', err);
     return null;
@@ -178,14 +163,8 @@ export async function findActiveDailyChallengeSession(userId, dateStr) {
  */
 export async function countPreviousFreeTrainingAttempts(userId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, SESSION_COLLECTION),
-      where('userId', '==', userId),
-      where('sessionType', '==', 'free_training'),
-      orderBy('startedAt', 'desc'),
-      limit(50)
-    ));
-    return snap.size;
+    const body = await fetchSessionApi('/api/sessions/free-training-attempts-count');
+    return body ? body.count : 0;
   } catch (err) {
     logCatalogError('comptage des tentatives d\'entraînement libre précédentes', err);
     return 0; // fail-open, meme principe que countPreviousAttempts()
