@@ -6,7 +6,11 @@ const admin = require("firebase-admin");
 const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 
 admin.initializeApp();
-setGlobalOptions({ maxInstances: 10 });
+// europe-west1 : co-localise le calcul avec Firestore (deja en europe-west1)
+// - reduit la latence et evite un transfert de donnees vers les Etats-Unis
+// a chaque requete (RGPD, constate le 24/07/2026 : la fonction tournait par
+// defaut en us-central1, faute de region explicitement precisee jusqu'ici).
+setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 
 const app = express();
 // maxAge : autorise le navigateur a mettre en cache la reponse du
