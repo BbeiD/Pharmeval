@@ -5,10 +5,7 @@
 // lire/ecrire ce qui lui est deja fourni construit et valide.
 
 import { db, auth } from "../firebase-config.js";
-import {
-  doc, setDoc, updateDoc, increment, writeBatch,
-  collection, query, where, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { doc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
 
 const SOURCE_COLLECTION = 'document_sources';
@@ -50,8 +47,18 @@ const INDEX_MISSING_MESSAGE = 'Cette fonctionnalité nécessite un index Firesto
 /** @param {object} sourceDocument @returns {Promise<{success:boolean, error:boolean}>} */
 export async function createDocumentSourceDoc(sourceDocument) {
   try {
-    await setDoc(doc(db, SOURCE_COLLECTION, sourceDocument.id), sourceDocument);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sources`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(sourceDocument),
+    });
+    if (!res.ok) {
+      logCatalogError('création de la source ' + sourceDocument.id + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création de la source ' + sourceDocument.id, err);
     return { success: false, error: true };
@@ -133,8 +140,18 @@ export async function queryDocumentSources(options) {
 /** @param {string} sourceId @param {object} fields @returns {Promise<{success:boolean, error:boolean}>} */
 export async function updateDocumentSourceFields(sourceId, fields) {
   try {
-    await updateDoc(doc(db, SOURCE_COLLECTION, sourceId), fields);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sources/${sourceId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      logCatalogError('mise à jour de la source ' + sourceId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('mise à jour de la source ' + sourceId, err);
     return { success: false, error: true };
@@ -150,13 +167,20 @@ export async function updateDocumentSourceFields(sourceId, fields) {
  * @returns {Promise<{success:boolean, error:boolean}>}
  */
 export async function incrementDocumentSourceCounters(sourceId, deltas) {
-  const payload = {};
-  if (deltas.sectionCount) payload.sectionCount = increment(deltas.sectionCount);
-  if (deltas.questionCount) payload.questionCount = increment(deltas.questionCount);
-  if (Object.keys(payload).length === 0) return { success: true, error: false };
+  if (!deltas.sectionCount && !deltas.questionCount) return { success: true, error: false };
   try {
-    await updateDoc(doc(db, SOURCE_COLLECTION, sourceId), payload);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sources/${sourceId}/counters`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(deltas),
+    });
+    if (!res.ok) {
+      logCatalogError('mise à jour des compteurs de la source ' + sourceId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('mise à jour des compteurs de la source ' + sourceId, err);
     return { success: false, error: true };
@@ -172,16 +196,17 @@ export async function incrementDocumentSourceCounters(sourceId, deltas) {
  */
 export async function activateAllDraftSources() {
   try {
-    const snap = await getDocs(query(collection(db, SOURCE_COLLECTION), where('status', '==', 'draft'), limit(500)));
-    const refs = [];
-    snap.forEach(function(d) { refs.push(d.ref); });
-    if (refs.length === 0) return { success: true, activatedCount: 0, error: false };
-
-    const now = new Date().toISOString();
-    const batch = writeBatch(db); // <=500 sources attendues, jamais un volume comparable a `questions`
-    refs.forEach(function(ref) { batch.update(ref, { status: 'active', isActive: true, updatedAt: now }); });
-    await batch.commit();
-    return { success: true, activatedCount: refs.length, error: false };
+    if (!auth.currentUser) return { success: false, activatedCount: 0, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sources/activate-all-draft`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('activation en masse des sources en brouillon (API ' + res.status + ')', null);
+      return { success: false, activatedCount: 0, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('activation en masse des sources en brouillon', err);
     return { success: false, activatedCount: 0, error: true };

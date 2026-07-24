@@ -517,6 +517,99 @@ app.get("/api/document-sources", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend createDocumentSourceDoc() de js/services/document-source-
+// catalog-service.js. Meme regle "create" que firestore.rules :
+// isRequesterCatalogAdmin(), identifiant du document == champ `id`,
+// statut TOUJOURS 'draft'. Refuse un identifiant deja existant (create
+// strict, jamais un ecrasement silencieux du SDK Admin).
+app.post("/api/document-sources", requireAuth, async (req, res) => {
+  const sourceDocument = req.body || {};
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if (!sourceDocument.id || sourceDocument.status !== "draft") {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(sourceDocument.id);
+    const existing = await ref.get();
+    if (existing.exists) {
+      return res.status(409).json({ success: false, error: true });
+    }
+    await ref.set(sourceDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sources:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateDocumentSourceFields() de js/services/document-source-
+// catalog-service.js. Meme regle "update" que firestore.rules :
+// isRequesterCatalogAdmin(), identifiant du document inchange (pas de
+// hasOnly() cote regles - aucune restriction de champs ici).
+app.patch("/api/document-sources/:id", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    if ("id" in fields && fields.id !== snap.data().id) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await ref.update(fields);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sources/:id:patch]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend incrementDocumentSourceCounters() de js/services/document-
+// source-catalog-service.js. Meme regle que ci-dessus (une incrementation
+// est une mise a jour comme une autre du point de vue de firestore.rules).
+app.post("/api/document-sources/:id/counters", requireAuth, async (req, res) => {
+  const deltas = req.body || {};
+  const payload = {};
+  if (deltas.sectionCount) payload.sectionCount = FieldValue.increment(deltas.sectionCount);
+  if (deltas.questionCount) payload.questionCount = FieldValue.increment(deltas.questionCount);
+  if (Object.keys(payload).length === 0) return res.json({ success: true, error: false });
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(req.params.id).update(payload);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sources/:id/counters]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend activateAllDraftSources() de js/services/document-source-
+// catalog-service.js. Meme regle (isRequesterCatalogAdmin()), un seul
+// writeBatch (<=500 sources attendues, meme borne que le client).
+app.post("/api/document-sources/activate-all-draft", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, activatedCount: 0, error: true });
+    }
+    const snap = await admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).where("status", "==", "draft").limit(500).get();
+    if (snap.empty) return res.json({ success: true, activatedCount: 0, error: false });
+    const now = new Date().toISOString();
+    const batch = admin.firestore().batch();
+    snap.docs.forEach((d) => batch.update(d.ref, { status: "active", isActive: true, updatedAt: now }));
+    await batch.commit();
+    res.json({ success: true, activatedCount: snap.size, error: false });
+  } catch (err) {
+    console.error("[document-sources/activate-all-draft]", err && err.code, err);
+    res.status(500).json({ success: false, activatedCount: 0, error: true });
+  }
+});
+
 const DOCUMENT_SECTIONS_COLLECTION = "document_sections";
 
 // Reprend listSectionsBySource()/listActiveSectionsBySource() de
@@ -544,6 +637,81 @@ app.get("/api/document-sections", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[document-sections]", err && err.code, err);
     res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend createDocumentSectionDoc() de js/services/document-section-
+// catalog-service.js. Meme regle "create" que firestore.rules :
+// isRequesterCatalogAdmin(), identifiant du document == champ `id`.
+// Refuse un identifiant deja existant (create strict).
+app.post("/api/document-sections", requireAuth, async (req, res) => {
+  const sectionDocument = req.body || {};
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if (!sectionDocument.id) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(sectionDocument.id);
+    const existing = await ref.get();
+    if (existing.exists) {
+      return res.status(409).json({ success: false, error: true });
+    }
+    await ref.set(sectionDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sections:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateDocumentSectionFields() de js/services/document-section-
+// catalog-service.js. Meme regle "update" que firestore.rules :
+// isRequesterCatalogAdmin(), identifiant ET documentSourceId inchanges
+// (une section ne change jamais de source par cette voie).
+app.patch("/api/document-sections/:id", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const current = snap.data();
+    if ("id" in fields && fields.id !== current.id) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if ("documentSourceId" in fields && fields.documentSourceId !== current.documentSourceId) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await ref.update(fields);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sections/:id:patch]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend incrementDocumentSectionCounters() de js/services/document-
+// section-catalog-service.js. Meme regle que ci-dessus.
+app.post("/api/document-sections/:id/counters", requireAuth, async (req, res) => {
+  const deltas = req.body || {};
+  const payload = {};
+  if (deltas.directQuestionCount) payload.directQuestionCount = FieldValue.increment(deltas.directQuestionCount);
+  if (deltas.totalQuestionCount) payload.totalQuestionCount = FieldValue.increment(deltas.totalQuestionCount);
+  if (deltas.childSectionCount) payload.childSectionCount = FieldValue.increment(deltas.childSectionCount);
+  if (Object.keys(payload).length === 0) return res.json({ success: true, error: false });
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(req.params.id).update(payload);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[document-sections/:id/counters]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
   }
 });
 

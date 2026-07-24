@@ -4,10 +4,7 @@
 // (voir document-section-metadata-service.js).
 
 import { db, auth } from "../firebase-config.js";
-import {
-  doc, setDoc, updateDoc, increment,
-  collection, query, where, orderBy, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { doc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
 
 async function fetchDocumentSections(documentSourceId, status) {
@@ -41,8 +38,18 @@ function logCatalogError(context, err) {
 /** @param {object} sectionDocument @returns {Promise<{success:boolean, error:boolean}>} */
 export async function createDocumentSectionDoc(sectionDocument) {
   try {
-    await setDoc(doc(db, SECTION_COLLECTION, sectionDocument.id), sectionDocument);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sections`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(sectionDocument),
+    });
+    if (!res.ok) {
+      logCatalogError('création de la section ' + sectionDocument.id + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création de la section ' + sectionDocument.id, err);
     return { success: false, error: true };
@@ -122,36 +129,21 @@ export async function listActiveSectionsBySource(documentSourceId) {
   }
 }
 
-/**
- * Liste les enfants DIRECTS d'une section (utile pour une navigation
- * paresseuse plutot que de toujours charger l'arborescence complete d'une
- * grosse source).
- * @param {string} documentSourceId
- * @param {string|null} parentSectionId - null pour les sections racines
- * @returns {Promise<{items:Array<object>, error:boolean}>}
- */
-export async function listChildSections(documentSourceId, parentSectionId) {
-  try {
-    const snap = await getDocs(query(
-      collection(db, SECTION_COLLECTION),
-      where('documentSourceId', '==', documentSourceId),
-      where('parentSectionId', '==', parentSectionId),
-      orderBy('displayOrder', 'asc'),
-      limit(200)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
-  } catch (err) {
-    logCatalogError('liste des sous-sections', err);
-    return { items: [], error: true };
-  }
-}
-
 /** @param {string} sectionId @param {object} fields @returns {Promise<{success:boolean, error:boolean}>} */
 export async function updateDocumentSectionFields(sectionId, fields) {
   try {
-    await updateDoc(doc(db, SECTION_COLLECTION, sectionId), fields);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sections/${sectionId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      logCatalogError('mise à jour de la section ' + sectionId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('mise à jour de la section ' + sectionId, err);
     return { success: false, error: true };
@@ -167,14 +159,22 @@ export async function updateDocumentSectionFields(sectionId, fields) {
  * @returns {Promise<{success:boolean, error:boolean}>}
  */
 export async function incrementDocumentSectionCounters(sectionId, deltas) {
-  const payload = {};
-  if (deltas.directQuestionCount) payload.directQuestionCount = increment(deltas.directQuestionCount);
-  if (deltas.totalQuestionCount) payload.totalQuestionCount = increment(deltas.totalQuestionCount);
-  if (deltas.childSectionCount) payload.childSectionCount = increment(deltas.childSectionCount);
-  if (Object.keys(payload).length === 0) return { success: true, error: false };
-  try {
-    await updateDoc(doc(db, SECTION_COLLECTION, sectionId), payload);
+  if (!deltas.directQuestionCount && !deltas.totalQuestionCount && !deltas.childSectionCount) {
     return { success: true, error: false };
+  }
+  try {
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sections/${sectionId}/counters`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(deltas),
+    });
+    if (!res.ok) {
+      logCatalogError('mise à jour des compteurs de la section ' + sectionId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('mise à jour des compteurs de la section ' + sectionId, err);
     return { success: false, error: true };
