@@ -9,13 +9,8 @@
 // 6) : ce fichier n'importe et ne touche JAMAIS evaluation-session-
 // catalog-service.js.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  doc, setDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
-
-const RESULT_COLLECTION = 'evaluation_results';
 
 function logCatalogError(context, err) {
   console.error('[evaluation-result-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
@@ -30,8 +25,18 @@ function logCatalogError(context, err) {
  */
 export async function createResultDocument(resultDocument) {
   try {
-    await setDoc(doc(db, RESULT_COLLECTION, resultDocument.id), resultDocument);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/evaluation-results`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(resultDocument),
+    });
+    if (!res.ok) {
+      logCatalogError('création du résultat ' + resultDocument.id + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création du résultat ' + resultDocument.id, err);
     return { success: false, error: true };

@@ -717,6 +717,44 @@ app.get("/api/evaluation-results/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend createResultDocument() de js/services/evaluation-result-catalog-
+// service.js. Meme regle "create" que firestore.rules : uniquement en son
+// propre nom, identifiant du document == sessionId, ecriture unique
+// (refuse si un resultat existe deja, jamais un ecrasement), et la
+// session correspondante doit exister, appartenir au demandeur et etre
+// deja 'submitted' - conditions verifiees ici via un get() explicite,
+// comme le fait la regle Firestore.
+app.post("/api/evaluation-results", requireAuth, async (req, res) => {
+  const resultDocument = req.body || {};
+  if (
+    resultDocument.userId !== req.user.uid ||
+    !resultDocument.id ||
+    resultDocument.sessionId !== resultDocument.id
+  ) {
+    return res.status(403).json({ success: false, error: true });
+  }
+  try {
+    const resultRef = admin.firestore().collection(EVALUATION_RESULTS_COLLECTION).doc(resultDocument.id);
+    const existingResult = await resultRef.get();
+    if (existingResult.exists) {
+      return res.status(409).json({ success: false, error: true });
+    }
+    const sessionSnap = await admin.firestore().collection(EVALUATION_SESSIONS_COLLECTION).doc(resultDocument.id).get();
+    if (
+      !sessionSnap.exists ||
+      sessionSnap.data().userId !== req.user.uid ||
+      sessionSnap.data().status !== "submitted"
+    ) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await resultRef.set(resultDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[evaluation-results:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
 const EVALUATION_SESSIONS_COLLECTION = "evaluation_sessions";
 
 // Reprend findActiveSession() (parcours/competence). Toujours le
