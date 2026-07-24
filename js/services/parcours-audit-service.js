@@ -4,14 +4,9 @@
 // exact de question-audit-service.js (Sprint 11), applique a ce nouveau
 // type de contenu.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  addDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
-const PARCOURS_AUDIT_COLLECTION = 'parcours_audit_logs';
 const DEFAULT_READ_LIMIT = 50;
 
 function logParcoursAuditError(context, err) {
@@ -29,17 +24,18 @@ function logParcoursAuditError(context, err) {
  */
 export async function logParcoursAction(entry) {
   try {
-    const colRef = collection(db, PARCOURS_AUDIT_COLLECTION);
-    await addDoc(colRef, {
-      date: new Date().toISOString(),
-      adminUid: entry.adminUid || null,
-      adminEmail: entry.adminEmail || '',
-      parcoursId: entry.parcoursId || null,
-      actionType: entry.actionType || 'unknown',
-      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : '',
-      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : '',
+    if (!auth.currentUser) return { success: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/parcours-audit-logs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
     });
-    return { success: true };
+    if (!res.ok) {
+      logParcoursAuditError('enregistrement d\'une action sur un parcours (API ' + res.status + ')', null);
+      return { success: false };
+    }
+    return await res.json();
   } catch (err) {
     logParcoursAuditError('enregistrement d\'une action sur un parcours', err);
     return { success: false };

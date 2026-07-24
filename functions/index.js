@@ -1248,6 +1248,107 @@ app.get("/api/parcours/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend createParcoursDocument() de js/services/parcours-catalog-service.js.
+// Meme regle "create" que firestore.rules : isRequesterAdmin(), id ==
+// identifiant du document, statut TOUJOURS 'draft'. Refuse un doublon.
+app.post("/api/parcours", requireAuth, async (req, res) => {
+  const parcoursDocument = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    if (!parcoursDocument.id || parcoursDocument.status !== "draft") return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(PARCOURS_COLLECTION).doc(parcoursDocument.id);
+    if ((await ref.get()).exists) return res.status(409).json({ success: false, error: true });
+    await ref.set(parcoursDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[parcours:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateParcoursFields() de js/services/parcours-catalog-service.js
+// (edition complete). Meme regle "update n°1" : isRequesterAdmin(), id ET
+// statut inchanges - jamais un changement de statut "au passage".
+app.patch("/api/parcours/:id/fields", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(PARCOURS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    if ("status" in fields && fields.status !== snap.data().status) return res.status(403).json({ success: false, error: true });
+    await ref.update({ ...fields, updatedAt: new Date().toISOString() });
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[parcours/:id/fields]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateParcoursStatus() de js/services/parcours-catalog-service.js.
+// Combine les regles "update n°2" (transitions generales) et "n°2b"
+// (Archive<->Corbeille), meme principe que /api/questions/:id/status.
+const PARCOURS_STATUS_GENERAL_TARGETS = ["draft", "review", "published", "archived"];
+app.patch("/api/parcours/:id/status", requireAuth, async (req, res) => {
+  const newStatus = req.body && req.body.status;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(PARCOURS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const oldStatus = snap.data().status;
+    const generalOk = oldStatus !== "trash" && PARCOURS_STATUS_GENERAL_TARGETS.includes(newStatus);
+    const trashOk = (oldStatus === "archived" && newStatus === "trash") || (oldStatus === "trash" && newStatus === "archived");
+    if (!generalOk && !trashOk) return res.status(403).json({ success: false, error: true });
+    await ref.update({ status: newStatus, updatedAt: new Date().toISOString() });
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[parcours/:id/status]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend deleteParcoursDocument() de js/services/parcours-catalog-service.js.
+// Meme regle "delete" : isRequesterAdmin(), uniquement depuis la corbeille.
+app.delete("/api/parcours/:id", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    const ref = admin.firestore().collection(PARCOURS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.json({ success: true, error: false });
+    if (snap.data().status !== "trash") return res.status(403).json({ success: false, error: true });
+    await ref.delete();
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[parcours/:id:delete]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend logParcoursAction() de js/services/parcours-audit-service.js.
+// Meme regle que firestore.rules (match /parcours_audit_logs/{logId}) :
+// isRequesterAdmin(), adminUid == demandeur.
+app.post("/api/parcours-audit-logs", requireAuth, async (req, res) => {
+  const entry = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false });
+    if (entry.adminUid !== req.user.uid) return res.status(403).json({ success: false });
+    await admin.firestore().collection("parcours_audit_logs").add({
+      date: new Date().toISOString(),
+      adminUid: entry.adminUid || null,
+      adminEmail: entry.adminEmail || "",
+      parcoursId: entry.parcoursId || null,
+      actionType: entry.actionType || "unknown",
+      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[parcours-audit-logs:post]", err && err.code, err);
+    res.status(500).json({ success: false });
+  }
+});
+
 const USERS_LIST_FETCH_LIMIT = 500;
 
 // Reprend fetchAllUsersBounded() de js/services/user-management-service.js

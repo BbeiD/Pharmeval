@@ -16,10 +16,6 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
   collection,
   query,
   where,
@@ -29,6 +25,16 @@ import {
   getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
+
+async function callParcoursApi(path, options) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options && options.headers) },
+  });
+  return res;
+}
 
 const PARCOURS_COLLECTION = 'parcours';
 
@@ -63,9 +69,12 @@ function logCatalogError(context, err) {
  */
 export async function createParcoursDocument(parcoursDocument) {
   try {
-    const ref = doc(db, PARCOURS_COLLECTION, parcoursDocument.id);
-    await setDoc(ref, parcoursDocument);
-    return { success: true, error: false };
+    const res = await callParcoursApi('/api/parcours', { method: 'POST', body: JSON.stringify(parcoursDocument) });
+    if (!res || !res.ok) {
+      logCatalogError('création du parcours ' + parcoursDocument.id + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création du parcours ' + parcoursDocument.id, err);
     return { success: false, error: true };
@@ -174,9 +183,12 @@ export async function searchParcoursBounded(options) {
  */
 export async function updateParcoursStatus(parcoursId, newStatus) {
   try {
-    const ref = doc(db, PARCOURS_COLLECTION, parcoursId);
-    await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
-    return { success: true, error: false };
+    const res = await callParcoursApi(`/api/parcours/${parcoursId}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+    if (!res || !res.ok) {
+      logCatalogError('changement de statut du parcours ' + parcoursId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('changement de statut du parcours ' + parcoursId, err);
     return { success: false, error: true };
@@ -201,11 +213,13 @@ export async function updateParcoursFields(parcoursId, fields) {
   allowed.forEach(function(key) {
     if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
   });
-  payload.updatedAt = new Date().toISOString();
   try {
-    const ref = doc(db, PARCOURS_COLLECTION, parcoursId);
-    await updateDoc(ref, payload);
-    return { success: true, error: false };
+    const res = await callParcoursApi(`/api/parcours/${parcoursId}/fields`, { method: 'PATCH', body: JSON.stringify(payload) });
+    if (!res || !res.ok) {
+      logCatalogError('modification des champs du parcours ' + parcoursId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('modification des champs du parcours ' + parcoursId, err);
     return { success: false, error: true };
@@ -223,9 +237,12 @@ export async function updateParcoursFields(parcoursId, fields) {
  */
 export async function deleteParcoursDocument(parcoursId) {
   try {
-    const ref = doc(db, PARCOURS_COLLECTION, parcoursId);
-    await deleteDoc(ref);
-    return { success: true, error: false };
+    const res = await callParcoursApi(`/api/parcours/${parcoursId}`, { method: 'DELETE' });
+    if (!res || !res.ok) {
+      logCatalogError('suppression du parcours ' + parcoursId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('suppression du parcours ' + parcoursId, err);
     return { success: false, error: true };
