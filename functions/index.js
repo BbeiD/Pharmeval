@@ -9,7 +9,15 @@ admin.initializeApp();
 setGlobalOptions({ maxInstances: 10 });
 
 const app = express();
-app.use(cors({ origin: true }));
+// maxAge : autorise le navigateur a mettre en cache la reponse du
+// preflight CORS (requete OPTIONS) au lieu de la refaire avant CHAQUE
+// appel - l'en-tete "Authorization" declenche un preflight sur toute
+// requete cross-origin (meme un GET), et son absence ici ajoutait un
+// aller-retour reseau complet avant chaque lecture/ecriture (constate :
+// ralentissement sensible de l'auto-sauvegarde des reponses en
+// evaluation, 24/07/2026). Chaque navigateur applique de toute facon son
+// propre plafond si 86400s (24h) le depasse - aucun risque a viser large.
+app.use(cors({ origin: true, maxAge: 86400 }));
 app.use(express.json());
 app.use((req, res, next) => {
   res.on("finish", () => console.log(`${req.method} ${req.path} -> ${res.statusCode}`));
