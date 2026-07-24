@@ -21,14 +21,14 @@
 // nativement l'unicité d'une pré-provision par adresse, sans requête
 // supplémentaire.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { completeUserBusinessFields } from "./user-profile-metadata-service.js";
 import {
   doc, getDoc, setDoc, deleteDoc, updateDoc,
-  collection, query, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const INVITE_COLLECTION = 'pending_user_invites';
 
@@ -119,10 +119,16 @@ export async function listPendingInvites() {
   const access = checkAccess();
   if (access.status !== 'authorized') return { items: [], error: true, message: access.message };
   try {
-    const snap = await getDocs(query(collection(db, INVITE_COLLECTION), orderBy('createdAt', 'desc'), limit(200)));
-    const items = [];
-    snap.forEach(function(d) { const data = d.data(); if (!data.consumedAt) items.push(data); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/pending-invites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logError('lecture des pré-provisions (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logError('lecture des pré-provisions', err);
     return { items: [], error: true };
@@ -162,10 +168,17 @@ export async function getPendingInviteByEmail(email) {
   const normalized = normalizeEmail(email);
   if (!normalized) return null;
   try {
-    const snap = await getDoc(doc(db, INVITE_COLLECTION, normalized));
-    if (!snap.exists()) return null;
-    const data = snap.data();
-    return data.consumedAt ? null : data;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/pending-invites/${encodeURIComponent(normalized)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logError('lecture d\'une pré-provision par e-mail (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logError('lecture d\'une pré-provision par e-mail', err);
     return null;

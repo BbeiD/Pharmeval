@@ -763,4 +763,49 @@ app.get("/api/sessions/:id", requireAuth, async (req, res) => {
   }
 });
 
+const PENDING_INVITES_COLLECTION = "pending_user_invites";
+
+// Reprend listPendingInvites() de js/services/user-invite-service.js
+// (admin/users.js). Reservee aux administrateurs.
+app.get("/api/pending-invites", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(PENDING_INVITES_COLLECTION)
+      .orderBy("createdAt", "desc")
+      .limit(200)
+      .get();
+    const items = snap.docs.map((d) => d.data()).filter((data) => !data.consumedAt);
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[pending-invites]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend getPendingInviteByEmail() de js/services/user-invite-service.js
+// (user-service.js, ensureUserDocument() a la toute premiere connexion
+// reelle). Meme regle que firestore.rules (match /pending_user_invites/{email}) :
+// l'administrateur, OU l'utilisateur dont l'e-mail AUTHENTIFIE (dans le
+// jeton, pas juste un parametre) correspond exactement.
+app.get("/api/pending-invites/:email", requireAuth, async (req, res) => {
+  const normalized = (req.params.email || "").trim().toLowerCase();
+  try {
+    const requesterEmail = (req.user.email || "").toLowerCase();
+    if (requesterEmail !== normalized && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ data: null, error: "Accès refusé" });
+    }
+    const snap = await admin.firestore().collection(PENDING_INVITES_COLLECTION).doc(normalized).get();
+    if (!snap.exists) return res.json({ data: null, error: false });
+    const data = snap.data();
+    res.json({ data: data.consumedAt ? null : data, error: false });
+  } catch (err) {
+    console.error("[pending-invites/:email]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
 exports.api = onRequest(app);
