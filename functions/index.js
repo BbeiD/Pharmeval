@@ -3,7 +3,7 @@ const { onRequest } = require("firebase-functions/https");
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const { Timestamp } = require("firebase-admin/firestore");
+const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 
 admin.initializeApp();
 setGlobalOptions({ maxInstances: 10 });
@@ -676,6 +676,101 @@ app.get("/api/question-progress", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[question-progress]", err && err.code, err);
     res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend getQuestionProgressForMany() de js/services/question-progress-
+// catalog-service.js (verification du pool Entrainement libre, progression
+// d'un parcours). Toujours le requerant lui-meme (ctx.uid/uid chez tous les
+// appelants reels, jamais un tiers, meme regle que firestore.rules) -
+// enregistree AVANT la route parametree /:pedagogicalId ci-dessous (sinon
+// "many" y serait intercepte comme un identifiant de question).
+app.get("/api/question-progress/many", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const uniqueIds = Array.from(new Set(ids));
+  if (uniqueIds.length === 0) return res.json({});
+  try {
+    const results = await Promise.all(uniqueIds.map(async (pid) => {
+      const snap = await admin.firestore().collection(QUESTION_PROGRESS_COLLECTION).doc(`${req.user.uid}_${pid}`).get();
+      return { pedagogicalId: pid, data: snap.exists ? snap.data() : null };
+    }));
+    const map = {};
+    results.forEach((r) => { map[r.pedagogicalId] = r.data; }); // null explicitement conserve = "jamais vue"
+    res.json(map);
+  } catch (err) {
+    console.error("[question-progress/many]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
+const APPLIED_RESULTS_COLLECTION = "question_progress_applied_results";
+
+// Reprend applyEvaluationResultIfNew() de js/services/question-progress-
+// catalog-service.js - POINT D'ENTREE UNIQUE pour appliquer un resultat
+// d'evaluation a la progression par question, avec la MEME garantie
+// d'idempotence qu'auparavant cote client (un marqueur
+// question_progress_applied_results/{resultId} pose dans une TRANSACTION
+// avant tout increment - si le marqueur existe deja, no-op silencieux).
+// Chaque entree doit porter le uid du demandeur (jamais celui d'un tiers,
+// meme regle que question_progress), et le resultat correspondant doit
+// exister et appartenir au demandeur (meme regle que la creation du
+// marqueur cote firestore.rules) - le SDK Admin contournant les regles,
+// ces deux verifications sont refaites ici explicitement.
+app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
+  const { resultId, entries } = req.body || {};
+  if (!resultId || !Array.isArray(entries) || entries.some((e) => e.userId !== req.user.uid)) {
+    return res.status(403).json({ success: false, applied: false, error: true });
+  }
+
+  try {
+    const resultSnap = await admin.firestore().collection(EVALUATION_RESULTS_COLLECTION).doc(resultId).get();
+    if (!resultSnap.exists || resultSnap.data().userId !== req.user.uid) {
+      return res.status(403).json({ success: false, applied: false, error: true });
+    }
+  } catch (err) {
+    console.error("[question-progress/apply:check]", err && err.code, err);
+    return res.status(500).json({ success: false, applied: false, error: true });
+  }
+
+  const markerRef = admin.firestore().collection(APPLIED_RESULTS_COLLECTION).doc(resultId);
+  let alreadyApplied = false;
+  try {
+    await admin.firestore().runTransaction(async (tx) => {
+      const markerSnap = await tx.get(markerRef);
+      if (markerSnap.exists) {
+        alreadyApplied = true;
+        return;
+      }
+      tx.set(markerRef, { resultId, appliedAt: new Date().toISOString() });
+    });
+  } catch (err) {
+    console.error("[question-progress/apply:marker]", err && err.code, err);
+    return res.status(500).json({ success: false, applied: false, error: true });
+  }
+
+  if (alreadyApplied) {
+    return res.json({ success: true, applied: false, error: false });
+  }
+
+  const nowIso = new Date().toISOString();
+  try {
+    await Promise.all(entries.map((e) => {
+      const ref = admin.firestore().collection(QUESTION_PROGRESS_COLLECTION).doc(`${e.userId}_${e.pedagogicalId}`);
+      return ref.set({
+        userId: e.userId,
+        pedagogicalId: e.pedagogicalId,
+        timesSeen: FieldValue.increment(1),
+        timesCorrect: FieldValue.increment(e.isCorrect ? 1 : 0),
+        lastSeenAt: nowIso,
+        lastStatus: e.isCorrect ? "correct" : "not_correct",
+      }, { merge: true });
+    }));
+    res.json({ success: true, applied: true, error: false });
+  } catch (err) {
+    console.error("[question-progress/apply:increment]", err && err.code, err);
+    // le marqueur EST pose (meme limite honnete que la version client) -
+    // ne jamais presenter ce cas comme "non applique" a ce stade
+    res.status(500).json({ success: false, applied: true, error: true });
   }
 });
 
