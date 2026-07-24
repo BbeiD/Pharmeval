@@ -618,4 +618,42 @@ app.get("/api/question-progress", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend getAllResultsForUser() de
+// js/services/evaluation-result-catalog-service.js (reconciliation de
+// progression, "Activite recente" de l'accueil via recent-activity-
+// service.js). Toujours le requerant lui-meme, documents bruts (pas la
+// normalisation de history-service.js, usage different).
+app.get("/api/evaluation-results", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_RESULTS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .get();
+    const items = snap.docs.map((d) => d.data());
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[evaluation-results]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend getResultById() de js/services/evaluation-result-catalog-service.js
+// (page de resultat d'evaluation). Meme regle que firestore.rules (match
+// /evaluation_results/{resultId}) : proprietaire ou admin, jamais un tiers.
+app.get("/api/evaluation-results/:id", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection(EVALUATION_RESULTS_COLLECTION).doc(req.params.id).get();
+    if (!snap.exists) return res.json({ data: null, error: false });
+    const data = snap.data();
+    if (data.userId !== req.user.uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ data: null, error: false });
+    }
+    res.json({ data, error: false });
+  } catch (err) {
+    console.error("[evaluation-results/:id]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
 exports.api = onRequest(app);

@@ -9,10 +9,11 @@
 // 6) : ce fichier n'importe et ne touche JAMAIS evaluation-session-
 // catalog-service.js.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, collection, query, where, getDocs,
+  doc, setDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const RESULT_COLLECTION = 'evaluation_results';
 
@@ -45,8 +46,17 @@ export async function createResultDocument(resultDocument) {
  */
 export async function getResultById(resultId) {
   try {
-    const snap = await getDoc(doc(db, RESULT_COLLECTION, resultId));
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/evaluation-results/${resultId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture du résultat ' + resultId + ' (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logCatalogError('lecture du résultat ' + resultId, err);
     return null;
@@ -66,8 +76,16 @@ export async function getResultById(resultId) {
  */
 export async function getAllResultsForUser(userId) {
   try {
-    const snap = await getDocs(query(collection(db, RESULT_COLLECTION), where('userId', '==', userId)));
-    return { items: snap.docs.map(function(d) { return d.data(); }), error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/evaluation-results`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture groupée des résultats de ' + userId + ' (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('lecture groupée des résultats de ' + userId, err);
     return { items: [], error: true };
