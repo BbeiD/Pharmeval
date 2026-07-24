@@ -4,14 +4,8 @@
 // (voir competency-progress-service.js) - ce fichier ne fait que
 // lire/ecrire un document deja construit.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  doc, getDoc, setDoc,
-  collection, query, where, orderBy, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
-
-const PROGRESS_COLLECTION = 'competency_progress';
 
 function logCatalogError(context, err) {
   console.error('[competency-progress-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
@@ -25,8 +19,17 @@ function logCatalogError(context, err) {
  */
 export async function getProgressionById(progressId) {
   try {
-    const snap = await getDoc(doc(db, PROGRESS_COLLECTION, progressId));
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/competency-progress/by-id/${progressId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture de la progression ' + progressId + ' (API ' + res.status + ')', null);
+      return null;
+    }
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     logCatalogError('lecture de la progression ' + progressId, err);
     return null;
@@ -44,8 +47,18 @@ export async function getProgressionById(progressId) {
  */
 export async function saveProgressionDocument(progressDocument) {
   try {
-    await setDoc(doc(db, PROGRESS_COLLECTION, progressDocument.id), progressDocument);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/competency-progress`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(progressDocument),
+    });
+    if (!res.ok) {
+      logCatalogError('enregistrement de la progression ' + progressDocument.id + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('enregistrement de la progression ' + progressDocument.id, err);
     return { success: false, error: true };

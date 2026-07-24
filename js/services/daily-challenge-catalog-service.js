@@ -8,11 +8,8 @@
 // a qu'UNE seule progression de defi par utilisateur, contrairement a
 // question_progress qui en a une par question).
 
-import { db, auth } from "../firebase-config.js";
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
-
-const COLLECTION = 'daily_challenge_progress';
 
 function logError(context, err) {
   console.error('[daily-challenge-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
@@ -51,8 +48,18 @@ export async function getDailyChallengeProgress(userId) {
  */
 export async function saveDailyChallengeProgress(progress) {
   try {
-    await setDoc(doc(db, COLLECTION, progress.userId), progress);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/daily-challenge/${progress.userId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(progress),
+    });
+    if (!res.ok) {
+      logError('écriture de la progression de ' + progress.userId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logError('écriture de la progression de ' + progress.userId, err);
     return { success: false, error: true };

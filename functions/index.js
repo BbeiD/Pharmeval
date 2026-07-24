@@ -103,6 +103,26 @@ app.get("/api/daily-challenge/:uid", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend saveDailyChallengeProgress() de
+// js/services/daily-challenge-catalog-service.js. Meme regle que
+// firestore.rules (create ET update) : uniquement en son propre nom,
+// document.userId == uid. Ecriture complete (jamais partielle), meme
+// principe que le client.
+app.put("/api/daily-challenge/:uid", requireAuth, async (req, res) => {
+  const { uid } = req.params;
+  const progress = req.body || {};
+  if (req.user.uid !== uid || progress.userId !== uid) {
+    return res.status(403).json({ success: false, error: true });
+  }
+  try {
+    await admin.firestore().collection(DAILY_CHALLENGE_COLLECTION).doc(uid).set(progress);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[daily-challenge:put]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
 const COMPETENCY_PROGRESS_COLLECTION = "competency_progress";
 
 // Reprend listProgressionsByUser() de
@@ -127,6 +147,47 @@ app.get("/api/competency-progress/:uid", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[competency-progress]", err && err.code, err);
     res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend getProgressionById() de
+// js/services/competency-progress-catalog-service.js. Meme regle que
+// firestore.rules : le proprietaire ou un admin. Enregistre AVANT la route
+// parametree /:uid ci-dessus (2 segments contre 1, aucune collision
+// possible dans Express, mais gardee ici pour rester proche du fichier
+// source qu'elle complete).
+app.get("/api/competency-progress/by-id/:progressId", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection(COMPETENCY_PROGRESS_COLLECTION).doc(req.params.progressId).get();
+    if (!snap.exists) return res.json({ data: null, error: false });
+    const data = snap.data();
+    if (data.userId !== req.user.uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ data: null, error: "Accès refusé" });
+    }
+    res.json({ data, error: false });
+  } catch (err) {
+    console.error("[competency-progress/by-id]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend saveProgressionDocument() de
+// js/services/competency-progress-catalog-service.js. Meme regle que
+// firestore.rules (create ET update, identiques ici) : uniquement en son
+// propre nom, identifiant conforme a uid_competencyId. Ecriture complete
+// (setDoc), jamais partielle - meme principe que le client.
+app.post("/api/competency-progress", requireAuth, async (req, res) => {
+  const progressDocument = req.body || {};
+  const expectedId = `${req.user.uid}_${progressDocument.competencyId}`;
+  if (progressDocument.userId !== req.user.uid || progressDocument.id !== expectedId) {
+    return res.status(403).json({ success: false, error: true });
+  }
+  try {
+    await admin.firestore().collection(COMPETENCY_PROGRESS_COLLECTION).doc(progressDocument.id).set(progressDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[competency-progress:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
   }
 });
 
