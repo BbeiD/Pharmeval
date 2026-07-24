@@ -15,14 +15,9 @@
 // Meme pattern que audit-service.js et import-log-service.js : ecriture
 // "best effort", jamais bloquante pour l'action elle-meme.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  addDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
-const QUESTION_AUDIT_COLLECTION = 'question_audit_logs';
 const DEFAULT_READ_LIMIT = 50;
 
 function logQuestionAuditError(context, err) {
@@ -42,17 +37,18 @@ function logQuestionAuditError(context, err) {
  */
 export async function logQuestionAction(entry) {
   try {
-    const colRef = collection(db, QUESTION_AUDIT_COLLECTION);
-    await addDoc(colRef, {
-      date: new Date().toISOString(),
-      adminUid: entry.adminUid || null,
-      adminEmail: entry.adminEmail || '',
-      pedagogicalId: entry.pedagogicalId || null,
-      actionType: entry.actionType || 'unknown',
-      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : '',
-      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : '',
+    if (!auth.currentUser) return { success: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-audit-logs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
     });
-    return { success: true };
+    if (!res.ok) {
+      logQuestionAuditError('enregistrement d\'une action sur une question (API ' + res.status + ')', null);
+      return { success: false };
+    }
+    return await res.json();
   } catch (err) {
     logQuestionAuditError('enregistrement d\'une action sur une question', err);
     return { success: false };

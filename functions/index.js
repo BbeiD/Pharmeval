@@ -405,6 +405,7 @@ app.get("/api/assigned-parcours", requireAuth, async (req, res) => {
 
 const QUESTIONS_COLLECTION = "questions";
 const DEFAULT_SEARCH_SCAN_LIMIT = 500; // meme defaut que question-catalog-service.js (front)
+const MAX_QUESTIONS_PER_IMPORT = 500; // meme valeur que question-import-validator.js (front)
 
 // Reprend buildFilterDescriptors() de js/services/question-filter-utils.js
 // - logique pure dupliquee ici a l'identique (le fichier d'origine ne peut
@@ -465,6 +466,213 @@ app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
         ? "Cette fonctionnalité nécessite un index Firestore qui n'est pas encore déployé."
         : null,
     });
+  }
+});
+
+// Reprend writeQuestionsBatch() de js/services/question-catalog-service.js
+// (import Excel). Meme regle "create" que firestore.rules : isRequesterAdmin(),
+// pedagogicalId == identifiant du document, statut TOUJOURS 'draft' - verifie
+// PAR ENTREE (le validateur cote client refuse deja un fichier > 500
+// questions, mais le SDK Admin contourne firestore.rules, la verification
+// est donc refaite ici, defense en profondeur identique au commentaire
+// d'origine). Un seul writeBatch (atomique : tout ou rien).
+app.post("/api/questions/batch", requireAuth, async (req, res) => {
+  const documents = req.body && req.body.documents;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, writtenCount: 0, error: true });
+    }
+    if (!documents || typeof documents !== "object") {
+      return res.status(400).json({ success: false, writtenCount: 0, error: true });
+    }
+    const entries = Object.entries(documents);
+    if (entries.length === 0) return res.json({ success: true, writtenCount: 0, error: false });
+    if (entries.length > MAX_QUESTIONS_PER_IMPORT) {
+      return res.status(403).json({ success: false, writtenCount: 0, error: true });
+    }
+    const invalid = entries.some(([pedagogicalId, document]) => (
+      document.pedagogicalId !== pedagogicalId || document.status !== "draft"
+    ));
+    if (invalid) {
+      return res.status(403).json({ success: false, writtenCount: 0, error: true });
+    }
+    const batch = admin.firestore().batch();
+    entries.forEach(([pedagogicalId, document]) => {
+      batch.set(admin.firestore().collection(QUESTIONS_COLLECTION).doc(pedagogicalId), document);
+    });
+    await batch.commit();
+    res.json({ success: true, writtenCount: entries.length, error: false });
+  } catch (err) {
+    console.error("[questions/batch]", err && err.code, err);
+    res.status(500).json({ success: false, writtenCount: 0, error: true });
+  }
+});
+
+// Reprend updateQuestionStatus() de js/services/question-catalog-service.js
+// (Publier/Archiver/Remettre en brouillon depuis la Banque de questions, ET
+// la transition securisee Archivee<->Corbeille - meme fonction cote client
+// pour les deux, voir son unique appelant question-bank-service.js). Combine
+// les 2 branches distinctes de firestore.rules (mise a jour n°2 et n°2b) :
+// seul {status, updatedAt} est jamais ecrit, jamais un autre champ.
+const QUESTION_STATUS_GENERAL_TARGETS = ["draft", "review", "published", "archived"];
+app.patch("/api/questions/:id/status", requireAuth, async (req, res) => {
+  const newStatus = req.body && req.body.status;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(QUESTIONS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const oldStatus = snap.data().status;
+
+    const generalTransition = oldStatus !== "trash" && QUESTION_STATUS_GENERAL_TARGETS.includes(newStatus);
+    const trashTransition = (oldStatus === "archived" && newStatus === "trash") || (oldStatus === "trash" && newStatus === "archived");
+    if (!generalTransition && !trashTransition) {
+      return res.status(403).json({ success: false, error: true });
+    }
+
+    await ref.update({ status: newStatus, updatedAt: new Date().toISOString() });
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[questions/:id/status]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// NOUVELLE ROUTE (correction du 24/07/2026 - voir git history pour l'ancienne
+// updateQuestionFields() cote client, qui melangeait a tort 2 regles
+// distinctes de firestore.rules derriere une seule liste blanche figee sur
+// l'une d'elles seulement - bug de reclassement en masse jamais reellement
+// ecrit, corrige ici plutot que reproduit). Reprend la mise a jour n°4 de
+// firestore.rules ("classification documentaire") : isRequesterCatalogAdmin(),
+// seuls documentSourceId/documentSectionId/functionalCode/classificationVersion
+// (+updatedAt) modifiables, statut TOUJOURS inchange. Utilisee par
+// document-count-service.js (classement individuel ET par lots).
+const QUESTION_CLASSIFICATION_KEYS = ["documentSourceId", "documentSectionId", "functionalCode", "classificationVersion"];
+app.patch("/api/questions/:id/classification", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if (!Object.keys(fields).every((k) => QUESTION_CLASSIFICATION_KEYS.includes(k))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(QUESTIONS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const payload = { ...fields, updatedAt: new Date().toISOString() };
+    await ref.update(payload);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[questions/:id/classification]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend deleteQuestionDocument() de js/services/question-catalog-service.js.
+// Meme regle "delete" que firestore.rules (suppression securisee) :
+// isRequesterAdmin() ET la question doit DEJA etre a la corbeille - jamais
+// un contournement du workflow Question -> Archivee -> Corbeille -> Suppression.
+app.delete("/api/questions/:id", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    const ref = admin.firestore().collection(QUESTIONS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.json({ success: true, error: false });
+    if (snap.data().status !== "trash") {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await ref.delete();
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[questions/:id:delete]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend archiveQuestionsBySource() de js/services/question-catalog-
+// service.js ("Supprimer le référentiel" -> archivage en cascade). Meme
+// regle que la mise a jour n°2 (isRequesterAdmin()), n'ecrit jamais que
+// {status,updatedAt}, ignore les questions deja a la corbeille (decision
+// individuelle deja prise, independante du sort de la source).
+app.post("/api/questions/archive-by-source", requireAuth, async (req, res) => {
+  const { documentSourceId } = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, archivedCount: 0, error: true });
+    }
+    if (!documentSourceId) return res.status(400).json({ success: false, archivedCount: 0, error: true });
+    const snap = await admin.firestore().collection(QUESTIONS_COLLECTION).where("documentSourceId", "==", documentSourceId).limit(2000).get();
+    const refsToArchive = snap.docs.filter((d) => d.data().status !== "trash").map((d) => d.ref);
+
+    const CHUNK_SIZE = 400;
+    const now = new Date().toISOString();
+    for (let i = 0; i < refsToArchive.length; i += CHUNK_SIZE) {
+      const batch = admin.firestore().batch();
+      refsToArchive.slice(i, i + CHUNK_SIZE).forEach((ref) => batch.update(ref, { status: "archived", updatedAt: now }));
+      await batch.commit();
+    }
+    res.json({ success: true, archivedCount: refsToArchive.length, error: false });
+  } catch (err) {
+    console.error("[questions/archive-by-source]", err && err.code, err);
+    res.status(500).json({ success: false, archivedCount: 0, error: true });
+  }
+});
+
+// Reprend publishAllDraftQuestions() de js/services/question-catalog-
+// service.js. Meme regle que la mise a jour n°2 (isRequesterAdmin()).
+app.post("/api/questions/publish-all-draft", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, publishedCount: 0, error: true });
+    }
+    const snap = await admin.firestore().collection(QUESTIONS_COLLECTION).where("status", "==", "draft").limit(2000).get();
+    const refs = snap.docs.map((d) => d.ref);
+
+    const CHUNK_SIZE = 400;
+    const now = new Date().toISOString();
+    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
+      const batch = admin.firestore().batch();
+      refs.slice(i, i + CHUNK_SIZE).forEach((ref) => batch.update(ref, { status: "published", updatedAt: now }));
+      await batch.commit();
+    }
+    res.json({ success: true, publishedCount: refs.length, error: false });
+  } catch (err) {
+    console.error("[questions/publish-all-draft]", err && err.code, err);
+    res.status(500).json({ success: false, publishedCount: 0, error: true });
+  }
+});
+
+// Reprend logQuestionAction() de js/services/question-audit-service.js.
+// Meme regle "create" que firestore.rules (match /question_audit_logs/{logId}) :
+// isRequesterAdmin(), adminUid == demandeur. Ecriture "best effort" (le
+// front n'attend jamais cette route pour valider l'action elle-meme).
+app.post("/api/question-audit-logs", requireAuth, async (req, res) => {
+  const entry = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false });
+    }
+    if (entry.adminUid !== req.user.uid) {
+      return res.status(403).json({ success: false });
+    }
+    await admin.firestore().collection("question_audit_logs").add({
+      date: new Date().toISOString(),
+      adminUid: entry.adminUid || null,
+      adminEmail: entry.adminEmail || "",
+      pedagogicalId: entry.pedagogicalId || null,
+      actionType: entry.actionType || "unknown",
+      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[question-audit-logs:post]", err && err.code, err);
+    res.status(500).json({ success: false });
   }
 });
 
@@ -712,6 +920,267 @@ app.post("/api/document-sections/:id/counters", requireAuth, async (req, res) =>
   } catch (err) {
     console.error("[document-sections/:id/counters]", err && err.code, err);
     res.status(500).json({ success: false, error: true });
+  }
+});
+
+// =========================================================================
+// Reprend js/services/document-count-service.js (Correctif Sprint 20) :
+// SEUL point du projet autorise a modifier questionCount (document_sources)
+// et directQuestionCount/totalQuestionCount (document_sections). Fonctions
+// PURES dupliquees ici a l'identique (memes raisons que
+// buildQuestionFilterDescriptors() plus haut : le fichier d'origine ne peut
+// pas etre importe tel quel, ESM navigateur vs CommonJS Cloud Functions).
+// =========================================================================
+
+const MAX_SECTION_DEPTH = 50;
+
+function getSectionAncestorIdsServer(section) {
+  const path = Array.isArray(section && section.path) ? section.path : [];
+  const unique = new Set(path);
+  if (unique.size !== path.length) {
+    return { ancestorIds: [], anomaly: `Cycle détecté dans le chemin de la section "${section.id}" (un ancêtre apparaît plusieurs fois) — réconciliation recommandée.` };
+  }
+  if (path.length > MAX_SECTION_DEPTH) {
+    return { ancestorIds: [], anomaly: `Profondeur anormale (${path.length} > ${MAX_SECTION_DEPTH}) pour la section "${section.id}" — réconciliation recommandée.` };
+  }
+  return { ancestorIds: path.slice(), anomaly: null };
+}
+
+function isSameDestinationServer(a, b) {
+  const aSource = (a && a.sourceId) || null;
+  const aSection = (a && a.sectionId) || null;
+  const bSource = (b && b.sourceId) || null;
+  const bSection = (b && b.sectionId) || null;
+  return aSource === bSource && aSection === bSection;
+}
+
+function computeClassificationDeltaServer(oldDest, newDest, getAncestorIdsFn) {
+  const sourceDeltas = {};
+  const sectionDeltas = {};
+
+  function addSource(id, delta) {
+    if (!id) return;
+    sourceDeltas[id] = (sourceDeltas[id] || 0) + delta;
+  }
+  function addSection(id, direct, total) {
+    if (!id) return;
+    if (!sectionDeltas[id]) sectionDeltas[id] = { direct: 0, total: 0 };
+    sectionDeltas[id].direct += direct;
+    sectionDeltas[id].total += total;
+  }
+
+  if (oldDest && oldDest.sourceId) {
+    addSource(oldDest.sourceId, -1);
+    if (oldDest.sectionId) {
+      addSection(oldDest.sectionId, -1, -1);
+      getAncestorIdsFn(oldDest.sectionId).forEach((ancId) => addSection(ancId, 0, -1));
+    }
+  }
+  if (newDest && newDest.sourceId) {
+    addSource(newDest.sourceId, 1);
+    if (newDest.sectionId) {
+      addSection(newDest.sectionId, 1, 1);
+      getAncestorIdsFn(newDest.sectionId).forEach((ancId) => addSection(ancId, 0, 1));
+    }
+  }
+
+  Object.keys(sourceDeltas).forEach((id) => { if (sourceDeltas[id] === 0) delete sourceDeltas[id]; });
+  Object.keys(sectionDeltas).forEach((id) => {
+    if (sectionDeltas[id].direct === 0 && sectionDeltas[id].total === 0) delete sectionDeltas[id];
+  });
+
+  return { sourceDeltas, sectionDeltas };
+}
+
+function clampNonNegativeServer(value) {
+  if (value < 0) return { value: 0, wasClamped: true };
+  return { value, wasClamped: false };
+}
+
+async function logAuditEvent(adminUid, actionType, oldValue, newValue) {
+  try {
+    await admin.firestore().collection("audit_logs").add({
+      date: new Date().toISOString(),
+      adminUid: adminUid || null,
+      adminEmail: "",
+      targetUid: null,
+      targetEmail: null,
+      actionType,
+      oldValue: oldValue !== undefined && oldValue !== null ? String(oldValue) : "",
+      newValue: newValue !== undefined && newValue !== null ? String(newValue) : "",
+    });
+  } catch (err) {
+    console.error("[document-classification:audit]", err && err.code, err);
+  }
+}
+
+// Reprend applyClassificationDelta() de document-count-service.js : reclasse
+// UNE question de facon transactionnelle (la question ET tous les compteurs
+// affectes, dans LA MEME transaction Firestore). Meme regle que la mise a
+// jour n°4 de firestore.rules sur `questions` : isRequesterCatalogAdmin().
+app.post("/api/document-classification/apply-single", requireAuth, async (req, res) => {
+  const { pedagogicalId, newDest, extraFields } = req.body || {};
+  const inconsistencies = [];
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ status: "error", message: "Accès refusé", inconsistencies: [] });
+    }
+
+    const result = await admin.firestore().runTransaction(async (tx) => {
+      const questionRef = admin.firestore().collection(QUESTIONS_COLLECTION).doc(pedagogicalId);
+      const questionSnap = await tx.get(questionRef);
+      if (!questionSnap.exists) throw new Error("QUESTION_NOT_FOUND");
+      const question = questionSnap.data();
+
+      const oldDest = question.documentSourceId ? { sourceId: question.documentSourceId, sectionId: question.documentSectionId || null } : null;
+      if (isSameDestinationServer(oldDest, newDest)) return { noop: true };
+
+      const sectionIdsToRead = new Set();
+      if (oldDest && oldDest.sectionId) sectionIdsToRead.add(oldDest.sectionId);
+      if (newDest && newDest.sectionId) sectionIdsToRead.add(newDest.sectionId);
+
+      const sectionDocs = {};
+      for (const id of sectionIdsToRead) {
+        const snap = await tx.get(admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(id));
+        if (snap.exists) sectionDocs[id] = snap.data();
+      }
+      const ancestorIdsByLeaf = {};
+      function resolveAncestors(sectionId) {
+        if (ancestorIdsByLeaf[sectionId]) return ancestorIdsByLeaf[sectionId];
+        const sec = sectionDocs[sectionId];
+        if (!sec) { ancestorIdsByLeaf[sectionId] = []; return []; }
+        const resolved = getSectionAncestorIdsServer(sec);
+        if (resolved.anomaly) inconsistencies.push(resolved.anomaly);
+        ancestorIdsByLeaf[sectionId] = resolved.ancestorIds;
+        return resolved.ancestorIds;
+      }
+      if (oldDest && oldDest.sectionId) resolveAncestors(oldDest.sectionId).forEach((id) => sectionIdsToRead.add(id));
+      if (newDest && newDest.sectionId) resolveAncestors(newDest.sectionId).forEach((id) => sectionIdsToRead.add(id));
+      for (const id of sectionIdsToRead) {
+        if (!sectionDocs[id]) {
+          const snap = await tx.get(admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(id));
+          if (snap.exists) sectionDocs[id] = snap.data();
+        }
+      }
+
+      const sourceIdsToRead = new Set();
+      if (oldDest && oldDest.sourceId) sourceIdsToRead.add(oldDest.sourceId);
+      if (newDest && newDest.sourceId) sourceIdsToRead.add(newDest.sourceId);
+      const sourceDocs = {};
+      for (const id of sourceIdsToRead) {
+        const snap = await tx.get(admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(id));
+        if (snap.exists) sourceDocs[id] = snap.data();
+      }
+
+      const delta = computeClassificationDeltaServer(oldDest, newDest, (sectionId) => ancestorIdsByLeaf[sectionId] || []);
+
+      const questionPayload = {
+        documentSourceId: (newDest && newDest.sourceId) || null,
+        documentSectionId: (newDest && newDest.sectionId) || null,
+        classificationVersion: (question.classificationVersion || 0) + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      if (extraFields && extraFields.functionalCode) questionPayload.functionalCode = extraFields.functionalCode;
+      tx.update(questionRef, questionPayload);
+
+      Object.keys(delta.sourceDeltas).forEach((id) => {
+        const current = (sourceDocs[id] && sourceDocs[id].questionCount) || 0;
+        const clamped = clampNonNegativeServer(current + delta.sourceDeltas[id]);
+        if (clamped.wasClamped) inconsistencies.push(`Le compteur de la source "${id}" serait devenu négatif (corrigé à 0) — réconciliation recommandée.`);
+        tx.update(admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(id), { questionCount: clamped.value });
+      });
+      Object.keys(delta.sectionDeltas).forEach((id) => {
+        const currentDirect = (sectionDocs[id] && sectionDocs[id].directQuestionCount) || 0;
+        const currentTotal = (sectionDocs[id] && sectionDocs[id].totalQuestionCount) || 0;
+        const clampedDirect = clampNonNegativeServer(currentDirect + delta.sectionDeltas[id].direct);
+        const clampedTotal = clampNonNegativeServer(currentTotal + delta.sectionDeltas[id].total);
+        if (clampedDirect.wasClamped || clampedTotal.wasClamped) inconsistencies.push(`Le compteur de la section "${id}" serait devenu négatif (corrigé à 0) — réconciliation recommandée.`);
+        tx.update(admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(id), { directQuestionCount: clampedDirect.value, totalQuestionCount: clampedTotal.value });
+      });
+
+      return { noop: false, questionPayload };
+    });
+
+    if (result.noop) {
+      return res.json({ status: "success", message: "Aucune modification nécessaire (destination identique).", inconsistencies: [] });
+    }
+
+    if (inconsistencies.length > 0) {
+      await logAuditEvent(req.user.uid, "document_count_inconsistency_detected", pedagogicalId, inconsistencies.join(" | "));
+    }
+    await logAuditEvent(req.user.uid, "document_counts_updated", pedagogicalId, JSON.stringify(result.questionPayload));
+
+    res.json({ status: "success", message: "Question et compteurs mis à jour de façon cohérente.", inconsistencies });
+  } catch (err) {
+    console.error("[document-classification/apply-single]", pedagogicalId, err && err.message);
+    res.status(err.message === "QUESTION_NOT_FOUND" ? 404 : 500).json({
+      status: "error",
+      message: `La mise à jour transactionnelle a échoué (${err && err.message}).`,
+      inconsistencies: [],
+    });
+  }
+});
+
+// Reprend applyAggregatedCounterDeltas() de document-count-service.js :
+// applique une structure de deltas DEJA agregee (voir prepareBulkDeltas(),
+// reste cote client - pure, sans Firestore) - une transaction PAR document
+// affecte, jamais une transaction unique portant sur tout le lot. Utilisee
+// par applyBulkClassificationDeltas() (reclassement en masse) APRES que le
+// front a deja ecrit chaque question via PATCH /api/questions/:id/classification.
+app.post("/api/document-classification/apply-aggregated-counters", requireAuth, async (req, res) => {
+  const aggregated = (req.body && req.body.aggregated) || { sourceDeltas: {}, sectionDeltas: {} };
+  const inconsistencies = [];
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ inconsistencies: [] });
+    }
+
+    for (const sourceId of Object.keys(aggregated.sourceDeltas || {})) {
+      const delta = aggregated.sourceDeltas[sourceId];
+      if (!delta) continue;
+      try {
+        await admin.firestore().runTransaction(async (tx) => {
+          const ref = admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(sourceId);
+          const snap = await tx.get(ref);
+          const current = snap.exists ? (snap.data().questionCount || 0) : 0;
+          const clamped = clampNonNegativeServer(current + delta);
+          if (clamped.wasClamped) inconsistencies.push(`Le compteur de la source "${sourceId}" serait devenu négatif (corrigé à 0) — réconciliation recommandée.`);
+          tx.update(ref, { questionCount: clamped.value });
+        });
+      } catch (err) {
+        console.error("[document-classification/apply-aggregated-counters:source]", sourceId, err && err.code, err);
+        inconsistencies.push(`Impossible de mettre à jour le compteur de la source "${sourceId}" — réconciliation recommandée.`);
+      }
+    }
+
+    for (const sectionId of Object.keys(aggregated.sectionDeltas || {})) {
+      const d = aggregated.sectionDeltas[sectionId];
+      if (!d || (d.direct === 0 && d.total === 0)) continue;
+      try {
+        await admin.firestore().runTransaction(async (tx) => {
+          const ref = admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(sectionId);
+          const snap = await tx.get(ref);
+          const currentDirect = snap.exists ? (snap.data().directQuestionCount || 0) : 0;
+          const currentTotal = snap.exists ? (snap.data().totalQuestionCount || 0) : 0;
+          const clampedDirect = clampNonNegativeServer(currentDirect + d.direct);
+          const clampedTotal = clampNonNegativeServer(currentTotal + d.total);
+          if (clampedDirect.wasClamped || clampedTotal.wasClamped) inconsistencies.push(`Le compteur de la section "${sectionId}" serait devenu négatif (corrigé à 0) — réconciliation recommandée.`);
+          tx.update(ref, { directQuestionCount: clampedDirect.value, totalQuestionCount: clampedTotal.value });
+        });
+      } catch (err) {
+        console.error("[document-classification/apply-aggregated-counters:section]", sectionId, err && err.code, err);
+        inconsistencies.push(`Impossible de mettre à jour le compteur de la section "${sectionId}" — réconciliation recommandée.`);
+      }
+    }
+
+    if (inconsistencies.length > 0) {
+      await logAuditEvent(req.user.uid, "document_count_inconsistency_detected", "application de deltas agrégés", inconsistencies.join(" | "));
+    }
+
+    res.json({ inconsistencies });
+  } catch (err) {
+    console.error("[document-classification/apply-aggregated-counters]", err && err.code, err);
+    res.status(500).json({ inconsistencies });
   }
 });
 

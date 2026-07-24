@@ -24,8 +24,6 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc,
-  writeBatch,
   collection,
   query,
   where,
@@ -33,27 +31,22 @@ import {
   limit,
   startAfter,
   getDocs,
-  updateDoc,
-  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
 import { buildFilterDescriptors } from "./question-filter-utils.js";
 import { API_BASE_URL } from "../config.js";
 
-const QUESTIONS_COLLECTION = 'questions';
-
-/**
- * CORRECTIF (fiabilisation des compteurs documentaires) : expose une
- * référence de document Firestore brute pour permettre à
- * document-count-service.js de construire ses propres transactions
- * (`runTransaction`), qui doivent lire/écrire la question ET ses
- * sources/sections en une seule opération atomique.
- * @param {string} pedagogicalId
- * @returns {import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js").DocumentReference}
- */
-export function getQuestionRef(pedagogicalId) {
-  return doc(db, QUESTIONS_COLLECTION, pedagogicalId);
+async function callQuestionsApi(path, options) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options && options.headers) },
+  });
+  return res;
 }
+
+const QUESTIONS_COLLECTION = 'questions';
 
 // Sprint 11 : taille de page par defaut pour la navigation paginee de la
 // Banque de questions (voir js/services/question-bank-service.js).
@@ -185,13 +178,15 @@ export async function writeQuestionsBatch(documentsByPedagogicalId) {
   }
 
   try {
-    const batch = writeBatch(db);
-    entries.forEach(function(entry) {
-      const ref = doc(db, QUESTIONS_COLLECTION, entry[0]);
-      batch.set(ref, entry[1]);
+    const res = await callQuestionsApi('/api/questions/batch', {
+      method: 'POST',
+      body: JSON.stringify({ documents: Object.fromEntries(entries) }),
     });
-    await batch.commit();
-    return { success: true, writtenCount: entries.length, error: false };
+    if (!res || !res.ok) {
+      logCatalogError('ecriture du lot de questions (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, writtenCount: 0, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('ecriture du lot de questions', err);
     return { success: false, writtenCount: 0, error: true };
@@ -335,9 +330,15 @@ export async function searchQuestionsBounded(options) {
  */
 export async function updateQuestionStatus(pedagogicalId, newStatus) {
   try {
-    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
-    await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
-    return { success: true, error: false };
+    const res = await callQuestionsApi(`/api/questions/${pedagogicalId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res || !res.ok) {
+      logCatalogError('changement de statut de la question ' + pedagogicalId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('changement de statut de la question ' + pedagogicalId, err);
     return { success: false, error: true };
@@ -345,29 +346,36 @@ export async function updateQuestionStatus(pedagogicalId, newStatus) {
 }
 
 /**
- * Met a jour UNIQUEMENT les champs editables limites de ce sprint
- * (explication, tags, source - voir "Aucune edition complete" du Sprint
- * 11). N'accepte que ces trois cles, jamais un champ arbitraire, pour ne
- * jamais permettre a un appel de contourner l'absence volontaire d'un
- * editeur complet.
- *
+ * Met a jour UNIQUEMENT les champs de classification documentaire d'une
+ * question (documentSourceId/documentSectionId/functionalCode/
+ * classificationVersion). Miroir exact de la mise a jour n°4 de
+ * firestore.rules (isRequesterCatalogAdmin(), statut TOUJOURS inchange) -
+ * DISTINCTE de l'ancien editeur limite du Sprint 11 (explanation/tags/
+ * source, isRequesterAdmin()), retire le 24/07/2026 : les deux regles
+ * etaient a tort servies par une seule fonction cote client
+ * (updateQuestionFields()), dont la liste blanche ne correspondait qu'a
+ * l'editeur - consequence, le reclassement en masse (document-count-
+ * service.js#applyBulkClassificationDeltas) n'ecrivait jamais reellement
+ * documentSourceId/documentSectionId malgre un succes apparent. Voir git
+ * history pour l'ancienne fonction ; l'editeur limite lui-meme n'a plus
+ * aucun appelant reel (retire cote admin, voir question-bank-service.js).
  * @param {string} pedagogicalId
- * @param {{explanation?:string, tags?:Array<string>, source?:string}} fields
+ * @param {{documentSourceId?:(string|null), documentSectionId?:(string|null), functionalCode?:string, classificationVersion?:number}} fields
  * @returns {Promise<{success:boolean, error:boolean}>}
  */
-export async function updateQuestionFields(pedagogicalId, fields) {
-  const allowed = ['explanation', 'tags', 'source'];
-  const payload = {};
-  allowed.forEach(function(key) {
-    if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
-  });
-  payload.updatedAt = new Date().toISOString();
+export async function updateQuestionClassification(pedagogicalId, fields) {
   try {
-    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
-    await updateDoc(ref, payload);
-    return { success: true, error: false };
+    const res = await callQuestionsApi(`/api/questions/${pedagogicalId}/classification`, {
+      method: 'PATCH',
+      body: JSON.stringify(fields),
+    });
+    if (!res || !res.ok) {
+      logCatalogError('classification de la question ' + pedagogicalId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
-    logCatalogError('modification des champs de la question ' + pedagogicalId, err);
+    logCatalogError('classification de la question ' + pedagogicalId, err);
     return { success: false, error: true };
   }
 }
@@ -383,9 +391,12 @@ export async function updateQuestionFields(pedagogicalId, fields) {
  */
 export async function deleteQuestionDocument(pedagogicalId) {
   try {
-    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
-    await deleteDoc(ref);
-    return { success: true, error: false };
+    const res = await callQuestionsApi(`/api/questions/${pedagogicalId}`, { method: 'DELETE' });
+    if (!res || !res.ok) {
+      logCatalogError('suppression de la question ' + pedagogicalId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('suppression de la question ' + pedagogicalId, err);
     return { success: false, error: true };
@@ -404,20 +415,15 @@ export async function deleteQuestionDocument(pedagogicalId) {
  */
 export async function archiveQuestionsBySource(documentSourceId) {
   try {
-    const snap = await getDocs(query(collection(db, QUESTIONS_COLLECTION), where('documentSourceId', '==', documentSourceId), limit(2000)));
-    const refsToArchive = [];
-    snap.forEach(function(d) { if (d.data().status !== 'trash') refsToArchive.push(d.ref); });
-
-    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
-    const now = new Date().toISOString();
-    for (let i = 0; i < refsToArchive.length; i += CHUNK_SIZE) {
-      const batch = writeBatch(db);
-      refsToArchive.slice(i, i + CHUNK_SIZE).forEach(function(ref) {
-        batch.update(ref, { status: 'archived', updatedAt: now });
-      });
-      await batch.commit();
+    const res = await callQuestionsApi('/api/questions/archive-by-source', {
+      method: 'POST',
+      body: JSON.stringify({ documentSourceId }),
+    });
+    if (!res || !res.ok) {
+      logCatalogError('archivage en cascade des questions de la source ' + documentSourceId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, archivedCount: 0, error: true };
     }
-    return { success: true, archivedCount: refsToArchive.length, error: false };
+    return await res.json();
   } catch (err) {
     logCatalogError('archivage en cascade des questions de la source ' + documentSourceId, err);
     return { success: false, archivedCount: 0, error: true };
@@ -467,20 +473,12 @@ export async function getPublishedQuestionIdsBySourceIds(sourceIds) {
  */
 export async function publishAllDraftQuestions() {
   try {
-    const snap = await getDocs(query(collection(db, QUESTIONS_COLLECTION), where('status', '==', 'draft'), limit(2000)));
-    const refs = [];
-    snap.forEach(function(d) { refs.push(d.ref); });
-
-    const CHUNK_SIZE = 400; // marge sous la limite de 500 ecritures par writeBatch Firestore
-    const now = new Date().toISOString();
-    for (let i = 0; i < refs.length; i += CHUNK_SIZE) {
-      const batch = writeBatch(db);
-      refs.slice(i, i + CHUNK_SIZE).forEach(function(ref) {
-        batch.update(ref, { status: 'published', updatedAt: now });
-      });
-      await batch.commit();
+    const res = await callQuestionsApi('/api/questions/publish-all-draft', { method: 'POST' });
+    if (!res || !res.ok) {
+      logCatalogError('publication en masse des questions en brouillon (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, publishedCount: 0, error: true };
     }
-    return { success: true, publishedCount: refs.length, error: false };
+    return await res.json();
   } catch (err) {
     logCatalogError('publication en masse des questions en brouillon', err);
     return { success: false, publishedCount: 0, error: true };

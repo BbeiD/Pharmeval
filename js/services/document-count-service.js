@@ -24,15 +24,27 @@
 // existantes - HORS PÉRIMÈTRE de ce correctif, qui ne porte que sur les
 // compteurs DE QUESTIONS.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  runTransaction, query, collection, where, limit, getDocs,
+  query, collection, where, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { logAction } from "./audit-service.js";
-import { getQuestionRef, updateQuestionFields } from "./question-catalog-service.js";
-import { getDocumentSourceRef, getDocumentSourceById, updateDocumentSourceFields, queryDocumentSources } from "./document-source-catalog-service.js";
-import { getDocumentSectionRef, getDocumentSectionById, listSectionsBySource, updateDocumentSectionFields } from "./document-section-catalog-service.js";
+import { updateQuestionClassification } from "./question-catalog-service.js";
+import { getDocumentSourceById, updateDocumentSourceFields, queryDocumentSources } from "./document-source-catalog-service.js";
+import { getDocumentSectionById, listSectionsBySource, updateDocumentSectionFields } from "./document-section-catalog-service.js";
+
+async function callClassificationApi(path, body) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return res;
+}
 
 /** Garde-fou contre une arborescence corrompue - jamais une hypothèse de
  * profondeur "raisonnable" non vérifiée. */
@@ -46,8 +58,6 @@ const PREP_CHUNK_SIZE = 30;
 /** Nombre d'écritures de questions traitées en parallèle borné lors de
  * l'application d'un lot. */
 const APPLY_CHUNK_SIZE = 25;
-
-function nowIso() { return new Date().toISOString(); }
 
 // ---------------------------------------------------------------------------
 // Résolution des ancêtres (avec garde-fous explicites)
@@ -167,24 +177,7 @@ function mergeDeltas(accumulator, delta) {
 }
 
 // ---------------------------------------------------------------------------
-// Protection contre les compteurs négatifs (jamais un simple masquage)
-// ---------------------------------------------------------------------------
-
-/**
- * "Détecter la tentative de passage sous zéro ; bloquer ou corriger de
- * manière contrôlée ; produire un avertissement clair ; recommander une
- * réconciliation ; journaliser l'anomalie." (cadrage) - clamp EXPLICITE,
- * jamais un `Math.max(0, ...)` silencieux.
- * @param {number} value
- * @returns {{value:number, wasClamped:boolean}}
- */
-function clampNonNegative(value) {
-  if (value < 0) return { value: 0, wasClamped: true };
-  return { value: value, wasClamped: false };
-}
-
-// ---------------------------------------------------------------------------
-// Application INDIVIDUELLE (transaction Firestore)
+// Application INDIVIDUELLE (transaction Firestore, cote serveur)
 // ---------------------------------------------------------------------------
 
 /**
@@ -202,99 +195,10 @@ function clampNonNegative(value) {
  * @returns {Promise<{status:string, message:string, inconsistencies:Array<string>}>}
  */
 export async function applyClassificationDelta(pedagogicalId, newDest, extraFields) {
-  const inconsistencies = [];
-  const ctx = getCurrentUserContext();
-
   try {
-    const result = await runTransaction(db, async function(tx) {
-      const questionRef = getQuestionRef(pedagogicalId);
-      const questionSnap = await tx.get(questionRef);
-      if (!questionSnap.exists()) throw new Error('QUESTION_NOT_FOUND');
-      const question = questionSnap.data();
-
-      const oldDest = question.documentSourceId ? { sourceId: question.documentSourceId, sectionId: question.documentSectionId || null } : null;
-      if (isSameDestination(oldDest, newDest)) {
-        return { noop: true };
-      }
-
-      const sectionIdsToRead = new Set();
-      if (oldDest && oldDest.sectionId) sectionIdsToRead.add(oldDest.sectionId);
-      if (newDest && newDest.sectionId) sectionIdsToRead.add(newDest.sectionId);
-
-      const sectionDocs = {};
-      for (const id of sectionIdsToRead) {
-        const snap = await tx.get(getDocumentSectionRef(id));
-        if (snap.exists()) sectionDocs[id] = snap.data();
-      }
-      const ancestorIdsByLeaf = {};
-      function resolveAncestors(sectionId) {
-        if (ancestorIdsByLeaf[sectionId]) return ancestorIdsByLeaf[sectionId];
-        const sec = sectionDocs[sectionId];
-        if (!sec) { ancestorIdsByLeaf[sectionId] = []; return []; }
-        const resolved = getSectionAncestorIds(sec);
-        if (resolved.anomaly) inconsistencies.push(resolved.anomaly);
-        ancestorIdsByLeaf[sectionId] = resolved.ancestorIds;
-        return resolved.ancestorIds;
-      }
-      if (oldDest && oldDest.sectionId) resolveAncestors(oldDest.sectionId).forEach(function(id) { sectionIdsToRead.add(id); });
-      if (newDest && newDest.sectionId) resolveAncestors(newDest.sectionId).forEach(function(id) { sectionIdsToRead.add(id); });
-      for (const id of sectionIdsToRead) {
-        if (!sectionDocs[id]) {
-          const snap = await tx.get(getDocumentSectionRef(id));
-          if (snap.exists()) sectionDocs[id] = snap.data();
-        }
-      }
-
-      const sourceIdsToRead = new Set();
-      if (oldDest && oldDest.sourceId) sourceIdsToRead.add(oldDest.sourceId);
-      if (newDest && newDest.sourceId) sourceIdsToRead.add(newDest.sourceId);
-      const sourceDocs = {};
-      for (const id of sourceIdsToRead) {
-        const snap = await tx.get(getDocumentSourceRef(id));
-        if (snap.exists()) sourceDocs[id] = snap.data();
-      }
-
-      const delta = computeClassificationDelta(oldDest, newDest, function(sectionId) { return ancestorIdsByLeaf[sectionId] || []; });
-
-      const questionPayload = { documentSourceId: (newDest && newDest.sourceId) || null, documentSectionId: (newDest && newDest.sectionId) || null, classificationVersion: (question.classificationVersion || 0) + 1, updatedAt: nowIso() };
-      if (extraFields && extraFields.functionalCode) questionPayload.functionalCode = extraFields.functionalCode;
-      tx.update(questionRef, questionPayload);
-
-      Object.keys(delta.sourceDeltas).forEach(function(id) {
-        const current = (sourceDocs[id] && sourceDocs[id].questionCount) || 0;
-        const clamped = clampNonNegative(current + delta.sourceDeltas[id]);
-        if (clamped.wasClamped) inconsistencies.push('Le compteur de la source "' + id + '" serait devenu négatif (corrigé à 0) — réconciliation recommandée.');
-        tx.update(getDocumentSourceRef(id), { questionCount: clamped.value });
-      });
-      Object.keys(delta.sectionDeltas).forEach(function(id) {
-        const currentDirect = (sectionDocs[id] && sectionDocs[id].directQuestionCount) || 0;
-        const currentTotal = (sectionDocs[id] && sectionDocs[id].totalQuestionCount) || 0;
-        const clampedDirect = clampNonNegative(currentDirect + delta.sectionDeltas[id].direct);
-        const clampedTotal = clampNonNegative(currentTotal + delta.sectionDeltas[id].total);
-        if (clampedDirect.wasClamped || clampedTotal.wasClamped) inconsistencies.push('Le compteur de la section "' + id + '" serait devenu négatif (corrigé à 0) — réconciliation recommandée.');
-        tx.update(getDocumentSectionRef(id), { directQuestionCount: clampedDirect.value, totalQuestionCount: clampedTotal.value });
-      });
-
-      return { noop: false, questionPayload: questionPayload };
-    });
-
-    if (result.noop) {
-      return { status: 'success', message: 'Aucune modification nécessaire (destination identique).', inconsistencies: [] };
-    }
-
-    if (inconsistencies.length > 0) {
-      logAction({
-        adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email, targetUid: null, targetEmail: null,
-        actionType: 'document_count_inconsistency_detected',
-        oldValue: pedagogicalId, newValue: inconsistencies.join(' | '),
-      }).catch(function() {});
-    }
-    logAction({
-      adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email, targetUid: null, targetEmail: null,
-      actionType: 'document_counts_updated', oldValue: pedagogicalId, newValue: JSON.stringify(result.questionPayload),
-    }).catch(function() {});
-
-    return { status: 'success', message: 'Question et compteurs mis à jour de façon cohérente.', inconsistencies: inconsistencies };
+    const res = await callClassificationApi('/api/document-classification/apply-single', { pedagogicalId, newDest, extraFields });
+    if (!res) return { status: 'error', message: 'Vous devez être connecté.', inconsistencies: [] };
+    return await res.json();
   } catch (err) {
     console.error('[document-count-service] échec de applyClassificationDelta pour ' + pedagogicalId, err);
     return { status: 'error', message: 'La mise à jour transactionnelle a échoué (' + (err && err.message) + ').', inconsistencies: [] };
@@ -373,11 +277,10 @@ export async function applyBulkClassificationDeltas(toApply, newDest, aggregated
     const chunk = toApply.slice(i, i + APPLY_CHUNK_SIZE);
     const results = await Promise.all(chunk.map(async function(item) {
       try {
-        const result = await updateQuestionFields(item.pedagogicalId, {
+        const result = await updateQuestionClassification(item.pedagogicalId, {
           documentSourceId: (newDest && newDest.sourceId) || null,
           documentSectionId: (newDest && newDest.sectionId) || null,
           classificationVersion: (item.classificationVersion || 0) + 1,
-          updatedAt: nowIso(),
         });
         return { pedagogicalId: item.pedagogicalId, ok: result.success };
       } catch (err) {
@@ -406,56 +309,15 @@ export async function applyBulkClassificationDeltas(toApply, newDest, aggregated
  * @returns {Promise<Array<string>>}
  */
 export async function applyAggregatedCounterDeltas(aggregated) {
-  const inconsistencies = [];
-  const ctx = getCurrentUserContext();
-
-  for (const sourceId of Object.keys(aggregated.sourceDeltas)) {
-    const delta = aggregated.sourceDeltas[sourceId];
-    if (delta === 0) continue;
-    try {
-      await runTransaction(db, async function(tx) {
-        const ref = getDocumentSourceRef(sourceId);
-        const snap = await tx.get(ref);
-        const current = snap.exists() ? (snap.data().questionCount || 0) : 0;
-        const clamped = clampNonNegative(current + delta);
-        if (clamped.wasClamped) inconsistencies.push('Le compteur de la source "' + sourceId + '" serait devenu négatif (corrigé à 0) — réconciliation recommandée.');
-        tx.update(ref, { questionCount: clamped.value });
-      });
-    } catch (err) {
-      console.error('[document-count-service] échec de mise à jour du compteur de la source ' + sourceId, err);
-      inconsistencies.push('Impossible de mettre à jour le compteur de la source "' + sourceId + '" — réconciliation recommandée.');
-    }
+  try {
+    const res = await callClassificationApi('/api/document-classification/apply-aggregated-counters', { aggregated });
+    if (!res) return ['Vous devez être connecté.'];
+    const body = await res.json();
+    return body.inconsistencies || [];
+  } catch (err) {
+    console.error('[document-count-service] échec de l\'application des deltas agrégés', err);
+    return ['Impossible de mettre à jour les compteurs agrégés — réconciliation recommandée.'];
   }
-
-  for (const sectionId of Object.keys(aggregated.sectionDeltas)) {
-    const d = aggregated.sectionDeltas[sectionId];
-    if (d.direct === 0 && d.total === 0) continue;
-    try {
-      await runTransaction(db, async function(tx) {
-        const ref = getDocumentSectionRef(sectionId);
-        const snap = await tx.get(ref);
-        const currentDirect = snap.exists() ? (snap.data().directQuestionCount || 0) : 0;
-        const currentTotal = snap.exists() ? (snap.data().totalQuestionCount || 0) : 0;
-        const clampedDirect = clampNonNegative(currentDirect + d.direct);
-        const clampedTotal = clampNonNegative(currentTotal + d.total);
-        if (clampedDirect.wasClamped || clampedTotal.wasClamped) inconsistencies.push('Le compteur de la section "' + sectionId + '" serait devenu négatif (corrigé à 0) — réconciliation recommandée.');
-        tx.update(ref, { directQuestionCount: clampedDirect.value, totalQuestionCount: clampedTotal.value });
-      });
-    } catch (err) {
-      console.error('[document-count-service] échec de mise à jour du compteur de la section ' + sectionId, err);
-      inconsistencies.push('Impossible de mettre à jour le compteur de la section "' + sectionId + '" — réconciliation recommandée.');
-    }
-  }
-
-  if (inconsistencies.length > 0) {
-    logAction({
-      adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email, targetUid: null, targetEmail: null,
-      actionType: 'document_count_inconsistency_detected',
-      oldValue: 'application de deltas agrégés', newValue: inconsistencies.join(' | '),
-    }).catch(function() {});
-  }
-
-  return inconsistencies;
 }
 
 // ---------------------------------------------------------------------------
