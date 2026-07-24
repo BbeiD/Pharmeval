@@ -7,10 +7,7 @@
 // qui lui est deja fourni construit et valide, meme principe que tous les
 // autres `*-catalog-service.js` du projet.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  doc, setDoc, updateDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
 async function fetchSessionApi(path) {
@@ -23,8 +20,6 @@ async function fetchSessionApi(path) {
   return await res.json();
 }
 
-const SESSION_COLLECTION = 'evaluation_sessions';
-
 function logCatalogError(context, err) {
   console.error('[evaluation-session-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
 }
@@ -36,8 +31,18 @@ function logCatalogError(context, err) {
  */
 export async function createSessionDocument(sessionDocument) {
   try {
-    await setDoc(doc(db, SESSION_COLLECTION, sessionDocument.id), sessionDocument);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/sessions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionDocument),
+    });
+    if (!res.ok) {
+      logCatalogError('création de la session ' + sessionDocument.id + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création de la session ' + sessionDocument.id, err);
     return { success: false, error: true };
@@ -179,8 +184,18 @@ export async function countPreviousFreeTrainingAttempts(userId) {
  */
 export async function updateSessionFields(sessionId, fields) {
   try {
-    await updateDoc(doc(db, SESSION_COLLECTION, sessionId), fields);
-    return { success: true, error: false };
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      logCatalogError('mise à jour de la session ' + sessionId + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('mise à jour de la session ' + sessionId, err);
     return { success: false, error: true };

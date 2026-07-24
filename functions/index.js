@@ -824,6 +824,89 @@ app.get("/api/sessions/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend createSessionDocument() de js/services/evaluation-session-catalog-
+// service.js. Meme regle "create" que firestore.rules : uniquement en son
+// propre nom, identifiant du document == champ `id` du document,
+// TOUJOURS au statut 'in_progress' (jamais une creation directe
+// "submitted"/"abandoned" - ces transitions passent par PATCH ci-dessous).
+// "Cree une nouvelle session (jamais pour une mise a jour)" (doc source) :
+// refuse explicitement si un document existe deja a cet identifiant,
+// plutot que de l'ecraser silencieusement (le SDK Admin ignore sinon la
+// distinction create/update de firestore.rules).
+app.post("/api/sessions", requireAuth, async (req, res) => {
+  const sessionDocument = req.body || {};
+  if (
+    sessionDocument.userId !== req.user.uid ||
+    !sessionDocument.id ||
+    sessionDocument.status !== "in_progress"
+  ) {
+    return res.status(403).json({ success: false, error: true });
+  }
+  try {
+    const ref = admin.firestore().collection(EVALUATION_SESSIONS_COLLECTION).doc(sessionDocument.id);
+    const existing = await ref.get();
+    if (existing.exists) {
+      return res.status(409).json({ success: false, error: true });
+    }
+    await ref.set(sessionDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[sessions:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend updateSessionFields() de js/services/evaluation-session-catalog-
+// service.js. Reproduit EXACTEMENT les 3 branches de mise a jour de
+// firestore.rules (autosave / soumission / abandon), le SDK Admin
+// contournant firestore.rules - cette verification doit donc etre refaite
+// ici a l'identique, champ par champ.
+const SESSION_UPDATE_ALLOWED_KEYS = {
+  in_progress: ["answers", "currentQuestionIndex", "updatedAt", "events"],
+  submitted: ["answers", "currentQuestionIndex", "status", "submittedAt", "updatedAt", "events"],
+  abandoned: ["status", "updatedAt", "events"],
+};
+
+app.patch("/api/sessions/:id", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  try {
+    const ref = admin.firestore().collection(EVALUATION_SESSIONS_COLLECTION).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ success: false, error: true });
+    const current = snap.data();
+
+    if (current.userId !== req.user.uid || current.status !== "in_progress") {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if ("userId" in fields && fields.userId !== current.userId) {
+      return res.status(403).json({ success: false, error: true });
+    }
+
+    const newStatus = "status" in fields ? fields.status : current.status;
+    const allowedKeys = SESSION_UPDATE_ALLOWED_KEYS[newStatus];
+    if (!allowedKeys) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    if (newStatus === "submitted" && fields.submittedAt == null) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    // Notation pointee Firestore ("answers.q123") pour une mise a jour
+    // partielle d'une map imbriquee (voir saveAnswer(), evaluation-session-
+    // service.js) : seul le segment avant le premier "." compte comme champ
+    // affecte, exactement comme affectedKeys() dans firestore.rules.
+    const topLevelKeys = Object.keys(fields).map((k) => k.split(".")[0]);
+    if (!topLevelKeys.every((k) => allowedKeys.includes(k))) {
+      return res.status(403).json({ success: false, error: true });
+    }
+
+    await ref.update(fields);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[sessions/:id:patch]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
 const PENDING_INVITES_COLLECTION = "pending_user_invites";
 
 // Reprend listPendingInvites() de js/services/user-invite-service.js
