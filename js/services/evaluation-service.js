@@ -13,14 +13,8 @@ import { db } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import {
   doc,
-  getDoc,
   setDoc,
   serverTimestamp,
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const APP_VERSION = '1.5.0';
@@ -253,28 +247,6 @@ export async function recordCompletedEvaluation(rawData) {
 }
 
 /**
- * Verifie si une evaluation donnee existe deja dans Firestore (utilise en
- * complement de l'ecriture idempotente de trySyncEvaluation - celle-ci
- * suffit deja a eviter les doublons, cette fonction reste utile pour des
- * verifications explicites, ex. avant un futur affichage d'historique).
- *
- * @param {string} evaluationId
- * @returns {Promise<boolean>}
- */
-export async function evaluationExists(evaluationId) {
-  const ctx = getCurrentUserContext();
-  if (!ctx || !ctx.uid) return false;
-  try {
-    const ref = doc(db, 'users', ctx.uid, 'evaluations', evaluationId);
-    const snap = await getDoc(ref);
-    return snap.exists();
-  } catch (err) {
-    logSyncError('verification d\'existence d\'une evaluation', err);
-    return false;
-  }
-}
-
-/**
  * Tente de synchroniser toutes les evaluations locales encore "pending",
  * pour tous les profils connus. A appeler a l'ouverture de l'application ou
  * juste apres une connexion reussie (voir js/auth.js). Un seul passage par
@@ -302,32 +274,6 @@ export async function syncPendingEvaluations() {
     console.info('[evaluation-service] synchronisation des evaluations en attente : ' + synced + '/' + attempted + ' reussies.');
   }
   return { attempted, synced };
-}
-
-/**
- * Lit les dernieres evaluations de l'utilisateur connecte depuis Firestore,
- * triees par date de fin. Prevue pour etre utilisee par le Sprint 5 (aucune
- * interface d'historique n'est construite dans ce sprint).
- *
- * @param {{limit?:number, order?:'asc'|'desc'}} options
- * @returns {Promise<Array<object>>}
- */
-export async function getUserEvaluations(options) {
-  const opts = options || {};
-  const maxResults = opts.limit || 20;
-  const ctx = getCurrentUserContext();
-  if (!ctx || !ctx.uid) return [];
-  try {
-    const colRef = collection(db, 'users', ctx.uid, 'evaluations');
-    const q = query(colRef, orderBy('completedAt', opts.order === 'asc' ? 'asc' : 'desc'), limit(maxResults));
-    const snap = await getDocs(q);
-    const out = [];
-    snap.forEach(function(docSnap) { out.push(docSnap.data()); });
-    return out;
-  } catch (err) {
-    logSyncError('lecture de l\'historique des evaluations', err);
-    return [];
-  }
 }
 
 // ---------------------------------------------------------------------------
