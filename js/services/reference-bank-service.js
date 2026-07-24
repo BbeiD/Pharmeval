@@ -28,10 +28,19 @@ import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { db, auth } from "../firebase-config.js";
 import {
-  doc, setDoc, updateDoc, deleteDoc,
-  collection, addDoc, query, where, orderBy, limit, startAfter, getDocs,
+  collection, query, where, orderBy, limit, startAfter, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
+
+async function callReferenceBankApi(path, options) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options && options.headers) },
+  });
+  return res;
+}
 
 export const REFERENCE_BANK_STATUSES = Object.freeze({
   DRAFT: 'draft',
@@ -124,16 +133,19 @@ export function createReferenceBankService(config) {
   async function logAction(entityId, actionType, oldValue, newValue) {
     const ctx = getCurrentUserContext();
     try {
-      await addDoc(collection(db, AUDIT_COLLECTION), {
-        date: new Date().toISOString(),
-        bankType: bankType,
-        entityId: entityId,
-        adminUid: (ctx && ctx.uid) || null,
-        adminEmail: (ctx && ctx.email) || '',
-        actionType: actionType,
-        oldValue: (oldValue !== undefined && oldValue !== null) ? String(oldValue) : '',
-        newValue: (newValue !== undefined && newValue !== null) ? String(newValue) : '',
+      const res = await callReferenceBankApi('/api/reference-bank-audit-logs', {
+        method: 'POST',
+        body: JSON.stringify({
+          bankType: bankType,
+          entityId: entityId,
+          adminUid: (ctx && ctx.uid) || null,
+          adminEmail: (ctx && ctx.email) || '',
+          actionType: actionType,
+          oldValue: (oldValue !== undefined && oldValue !== null) ? String(oldValue) : '',
+          newValue: (newValue !== undefined && newValue !== null) ? String(newValue) : '',
+        }),
       });
+      if (!res || !res.ok) logCatalogError('journalisation de l\'action "' + actionType + '" (API ' + (res ? res.status : 'hors-ligne') + ')', null);
     } catch (err) {
       logCatalogError('journalisation de l\'action "' + actionType + '"', err);
     }
@@ -258,7 +270,8 @@ export function createReferenceBankService(config) {
     if (!validation.valid) return { status: 'error', message: validation.errors.join(' ') };
 
     try {
-      await setDoc(doc(db, collectionName, metadata.id), metadata);
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}`, { method: 'POST', body: JSON.stringify(metadata) });
+      if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
     } catch (err) {
       logCatalogError('création', err);
       return { status: 'error', message: 'La création a échoué. Veuillez réessayer.' };
@@ -286,7 +299,8 @@ export function createReferenceBankService(config) {
     payload.updatedAt = new Date().toISOString();
 
     try {
-      await updateDoc(doc(db, collectionName, item.id), payload);
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/${item.id}/fields`, { method: 'PATCH', body: JSON.stringify(payload) });
+      if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
     } catch (err) {
       logCatalogError('édition', err);
       return { status: 'error', message: 'L\'enregistrement a échoué. Veuillez réessayer.' };
@@ -307,7 +321,8 @@ export function createReferenceBankService(config) {
       return { status: 'denied', message: 'Cette action n\'est pas disponible depuis le statut actuel.' };
     }
     try {
-      await updateDoc(doc(db, collectionName, item.id), { status: newStatus, updatedAt: new Date().toISOString() });
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) });
+      if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
     } catch (err) {
       logCatalogError('changement de statut', err);
       return { status: 'error', message: 'La mise à jour du statut a échoué. Veuillez réessayer.' };
@@ -340,7 +355,8 @@ export function createReferenceBankService(config) {
       return { status: 'denied', message: 'Seul un élément à la corbeille peut être supprimé définitivement.' };
     }
     try {
-      await deleteDoc(doc(db, collectionName, item.id));
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/${item.id}`, { method: 'DELETE' });
+      if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
     } catch (err) {
       logCatalogError('suppression définitive', err);
       return { status: 'error', message: 'La suppression a échoué. Veuillez réessayer.' };

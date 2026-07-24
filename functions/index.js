@@ -2030,6 +2030,123 @@ app.get("/api/reference-bank/:bankType", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend create()/edit()/publish()/archive()/revertToDraft()/moveToTrash()/
+// restoreFromTrash()/permanentlyDelete() de la factory js/services/
+// reference-bank-service.js. UNE seule implementation parametree par
+// :bankType (organization/profile/group -> organizations/profiles/groups),
+// les 3 collections etant structurellement identiques cote firestore.rules
+// (isRequesterAdmin(), memes 3 regles de mise a jour, meme suppression
+// securisee - voir le commentaire de firestore.rules juste avant match
+// /organizations/{orgId}).
+app.post("/api/reference-bank/:bankType", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ status: "error" });
+  const metadata = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ status: "denied" });
+    if (!metadata.id || metadata.status !== "draft") return res.status(403).json({ status: "error" });
+    const ref = admin.firestore().collection(collectionName).doc(metadata.id);
+    if ((await ref.get()).exists) return res.status(409).json({ status: "error" });
+    await ref.set(metadata);
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[reference-bank:post]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Reprend edit() : id ET statut inchanges (meme regle "update n°1" que
+// competencies/parcours), aucune autre restriction de champ (pas de
+// hasOnly cote firestore.rules pour cette branche).
+app.patch("/api/reference-bank/:bankType/:id/fields", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ status: "error" });
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ status: "denied" });
+    const ref = admin.firestore().collection(collectionName).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ status: "error" });
+    if ("status" in fields && fields.status !== snap.data().status) return res.status(403).json({ status: "error" });
+    await ref.update({ ...fields, updatedAt: new Date().toISOString() });
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[reference-bank/:bankType/:id/fields]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Reprend publish()/archive()/revertToDraft() (transitions generales) +
+// moveToTrash()/restoreFromTrash() (Archive<->Corbeille) - meme combinaison
+// que /api/competencies/:id/status.
+const REFERENCE_BANK_STATUS_GENERAL_TARGETS = ["draft", "published", "archived"];
+app.patch("/api/reference-bank/:bankType/:id/status", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ status: "error" });
+  const newStatus = req.body && req.body.status;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ status: "denied" });
+    const ref = admin.firestore().collection(collectionName).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ status: "error" });
+    const oldStatus = snap.data().status;
+    const generalOk = oldStatus !== "trash" && REFERENCE_BANK_STATUS_GENERAL_TARGETS.includes(newStatus);
+    const trashOk = (oldStatus === "archived" && newStatus === "trash") || (oldStatus === "trash" && newStatus === "archived");
+    if (!generalOk && !trashOk) return res.status(403).json({ status: "error" });
+    await ref.update({ status: newStatus, updatedAt: new Date().toISOString() });
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[reference-bank/:bankType/:id/status]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Reprend permanentlyDelete(). Meme regle "delete" : isRequesterAdmin(),
+// uniquement depuis la corbeille (la permission purgePermission dediee
+// reste un controle client-side, voir reference-bank-service.js#checkAccess -
+// meme principe que PURGE_QUESTIONS ailleurs dans le projet).
+app.delete("/api/reference-bank/:bankType/:id", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ status: "error" });
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ status: "denied" });
+    const ref = admin.firestore().collection(collectionName).doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.json({ status: "success" });
+    if (snap.data().status !== "trash") return res.status(403).json({ status: "error" });
+    await ref.delete();
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[reference-bank/:bankType/:id:delete]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Reprend logAction() (interne a la factory) - journal PARTAGE des 3
+// banques. Meme regle que firestore.rules (match /reference_bank_audit_logs/{logId}) :
+// isRequesterAdmin(), adminUid == demandeur.
+app.post("/api/reference-bank-audit-logs", requireAuth, async (req, res) => {
+  const entry = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false });
+    if (entry.adminUid !== req.user.uid) return res.status(403).json({ success: false });
+    await admin.firestore().collection("reference_bank_audit_logs").add({
+      date: new Date().toISOString(),
+      bankType: entry.bankType || null,
+      entityId: entry.entityId || null,
+      adminUid: entry.adminUid || null,
+      adminEmail: entry.adminEmail || "",
+      actionType: entry.actionType || "unknown",
+      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[reference-bank-audit-logs:post]", err && err.code, err);
+    res.status(500).json({ success: false });
+  }
+});
+
 const QUESTION_REPORTS_COLLECTION = "question_reports";
 
 // Reprend getOpenReportCounts() de js/services/question-report-service.js
