@@ -11,13 +11,23 @@
 // relire/publier - "supprimer une attribution" (SPRINT15) est une
 // suppression Firestore reelle et immediate.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, deleteDoc,
   collection, query, where, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const ASSIGNMENT_COLLECTION = 'assignments';
+
+async function callAssignmentApi(path, options) {
+  if (!auth.currentUser) return null;
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options && options.headers) },
+  });
+  return res;
+}
 
 function logCatalogError(context, err) {
   console.error('[assignment-catalog-service] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
@@ -30,8 +40,12 @@ function logCatalogError(context, err) {
  */
 export async function createAssignmentDocument(assignmentDocument) {
   try {
-    await setDoc(doc(db, ASSIGNMENT_COLLECTION, assignmentDocument.id), assignmentDocument);
-    return { success: true, error: false };
+    const res = await callAssignmentApi('/api/assignments', { method: 'POST', body: JSON.stringify(assignmentDocument) });
+    if (!res || !res.ok) {
+      logCatalogError('création de l\'attribution ' + assignmentDocument.id + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('création de l\'attribution ' + assignmentDocument.id, err);
     return { success: false, error: true };
@@ -47,8 +61,12 @@ export async function createAssignmentDocument(assignmentDocument) {
  */
 export async function deleteAssignmentDocument(assignmentId) {
   try {
-    await deleteDoc(doc(db, ASSIGNMENT_COLLECTION, assignmentId));
-    return { success: true, error: false };
+    const res = await callAssignmentApi(`/api/assignments/${assignmentId}`, { method: 'DELETE' });
+    if (!res || !res.ok) {
+      logCatalogError('suppression de l\'attribution ' + assignmentId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { success: false, error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('suppression de l\'attribution ' + assignmentId, err);
     return { success: false, error: true };

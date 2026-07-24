@@ -329,6 +329,44 @@ app.get("/api/evaluations/for-statistics", requireAuth, async (req, res) => {
 const ASSIGNMENTS_COLLECTION = "assignments";
 const PARCOURS_COLLECTION = "parcours";
 
+// Reprend createAssignmentDocument() de js/services/assignment-catalog-
+// service.js. Meme regle "create" que firestore.rules : isRequesterAdmin(),
+// id == identifiant du document, parcoursId est une chaine, type parmi
+// user/group/profile.
+app.post("/api/assignments", requireAuth, async (req, res) => {
+  const assignmentDocument = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    if (
+      !assignmentDocument.id ||
+      typeof assignmentDocument.parcoursId !== "string" ||
+      !["user", "group", "profile"].includes(assignmentDocument.type)
+    ) {
+      return res.status(403).json({ success: false, error: true });
+    }
+    await admin.firestore().collection(ASSIGNMENTS_COLLECTION).doc(assignmentDocument.id).set(assignmentDocument);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[assignments:post]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
+// Reprend deleteAssignmentDocument() de js/services/assignment-catalog-
+// service.js. Meme regle "delete" que firestore.rules : isRequesterAdmin()
+// uniquement - pas de workflow de suppression securisee ici (une
+// attribution est un simple lien, suppression reelle et immediate).
+app.delete("/api/assignments/:id", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false, error: true });
+    await admin.firestore().collection(ASSIGNMENTS_COLLECTION).doc(req.params.id).delete();
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[assignments/:id:delete]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
 async function listAssignmentsByTarget(type, targetId) {
   if (!targetId) return [];
   const snap = await admin
