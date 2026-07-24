@@ -25,7 +25,6 @@
 import { db, auth } from "../firebase-config.js";
 import {
   doc,
-  getDoc,
   writeBatch,
   collection,
   query,
@@ -98,9 +97,9 @@ function logCatalogError(context, err) {
  */
 export async function getExistingQuestionByPedagogicalId(pedagogicalId) {
   try {
-    const ref = doc(db, QUESTIONS_COLLECTION, pedagogicalId);
-    const snap = await getDoc(ref);
-    return snap.exists() ? snap.data() : null;
+    const result = await getExistingQuestionsByPedagogicalIds([pedagogicalId]);
+    if (result.error) return null;
+    return result.map.get(pedagogicalId) || null;
   } catch (err) {
     logCatalogError('lecture de la question ' + pedagogicalId, err);
     return null;
@@ -122,29 +121,30 @@ export async function getExistingQuestionByPedagogicalId(pedagogicalId) {
  * moindre erreur individuelle fait echouer l'ENSEMBLE de l'operation
  * (error:true), jamais un resultat partiel presente comme fiable.
  *
- * Note de performance (documentee, pas cachee) : effectue un appel
- * getDoc() par identifiant plutot qu'une requete groupee unique
- * (`where(documentId(), 'in', [...])`, limitee a 30 elements par requete
- * selon les versions du SDK Firestore) - plus simple et correct pour les
- * volumes realistes d'un import genere par Claude (voir RAPPORT_SPRINT10.md,
- * "Limites connues" pour une piste d'optimisation si les fichiers
- * importes devenaient tres volumineux).
+ * Passe desormais par l'API (Cloud Function, meme regle de visibilite que
+ * firestore.rules), en un seul appel HTTP pour tout le lot plutot qu'une
+ * lecture Firestore par identifiant - la garantie "erreur individuelle =
+ * echec de tout le lot" ci-dessus reste inchangee (toute erreur de l'appel
+ * remonte au catch englobant).
  *
  * @param {Array<string>} pedagogicalIds
  * @returns {Promise<{map:Map<string,object>, error:boolean}>}
  */
 export async function getExistingQuestionsByPedagogicalIds(pedagogicalIds) {
+  const unique = Array.from(new Set((pedagogicalIds || []).filter(Boolean)));
+  if (unique.length === 0) return { map: new Map(), error: false };
   try {
-    const results = await Promise.all(pedagogicalIds.map(async function(id) {
-      const ref = doc(db, QUESTIONS_COLLECTION, id);
-      const snap = await getDoc(ref); // toute erreur ici remonte au catch englobant, jamais avalee silencieusement
-      return { id: id, data: snap.exists() ? snap.data() : null };
-    }));
-    const map = new Map();
-    results.forEach(function(r) {
-      if (r.data) map.set(r.id, r.data);
+    if (!auth.currentUser) return { map: new Map(), error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/questions-by-ids?ids=${unique.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    return { map: map, error: false };
+    if (!res.ok) {
+      logCatalogError('lecture groupee des questions existantes (API ' + res.status + ')', null);
+      return { map: new Map(), error: true };
+    }
+    const body = await res.json();
+    return { map: new Map(Object.entries(body)), error: false };
   } catch (err) {
     logCatalogError('lecture groupee des questions existantes', err);
     return { map: new Map(), error: true };

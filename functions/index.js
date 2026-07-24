@@ -945,4 +945,130 @@ app.get("/api/content-audit-logs/:logType", requireAuth, async (req, res) => {
   }
 });
 
+const IMPORT_LOGS_COLLECTION = "importLogs";
+const DEFAULT_IMPORT_LOGS_LIMIT = 50;
+
+// Reprend getRecentImportLogs() de js/services/import-log-service.js.
+// Reservee aux administrateurs (meme regle que firestore.rules).
+app.get("/api/import-logs", requireAuth, async (req, res) => {
+  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_IMPORT_LOGS_LIMIT;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(IMPORT_LOGS_COLLECTION)
+      .orderBy("date", "desc")
+      .limit(max)
+      .get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[import-logs]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
+const MIGRATION_JOBS_COLLECTION = "document_migration_jobs";
+
+// Reprend getMigrationJobById() de js/services/document-migration-job-service.js.
+// Reservee aux administrateurs du catalogue (meme regle que firestore.rules).
+app.get("/api/migration-jobs/:id", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ data: null, error: "Accès refusé" });
+    }
+    const snap = await admin.firestore().collection(MIGRATION_JOBS_COLLECTION).doc(req.params.id).get();
+    res.json({ data: snap.exists ? snap.data() : null, error: false });
+  } catch (err) {
+    console.error("[migration-jobs/:id]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend getDocumentSourceById()/getDocumentSourcesByIds() de
+// document-source-catalog-service.js. Meme regle que firestore.rules
+// (match /document_sources/{sourceId}) : verifiee document par document
+// (un lot peut melanger actif/brouillon).
+async function getVisibleDocumentSource(sourceId, requesterUid, adminCache) {
+  const snap = await admin.firestore().collection(DOCUMENT_SOURCES_COLLECTION).doc(sourceId).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (data.status === "active") return data;
+  if (adminCache.value === null) adminCache.value = await isRequesterCatalogAdmin(requesterUid);
+  return adminCache.value ? data : null;
+}
+
+app.get("/api/document-sources-by-ids", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  try {
+    const adminCache = { value: null };
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(uniqueIds.map((id) => getVisibleDocumentSource(id, req.user.uid, adminCache)));
+    const map = {};
+    uniqueIds.forEach((id, i) => { if (results[i]) map[id] = results[i]; });
+    res.json(map);
+  } catch (err) {
+    console.error("[document-sources-by-ids]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
+// Reprend getDocumentSectionById()/getDocumentSectionsByIds() de
+// document-section-catalog-service.js. Meme principe que ci-dessus.
+async function getVisibleDocumentSection(sectionId, requesterUid, adminCache) {
+  const snap = await admin.firestore().collection(DOCUMENT_SECTIONS_COLLECTION).doc(sectionId).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (data.status === "active") return data;
+  if (adminCache.value === null) adminCache.value = await isRequesterCatalogAdmin(requesterUid);
+  return adminCache.value ? data : null;
+}
+
+app.get("/api/document-sections-by-ids", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  try {
+    const adminCache = { value: null };
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(uniqueIds.map((id) => getVisibleDocumentSection(id, req.user.uid, adminCache)));
+    const map = {};
+    uniqueIds.forEach((id, i) => { if (results[i]) map[id] = results[i]; });
+    res.json(map);
+  } catch (err) {
+    console.error("[document-sections-by-ids]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
+// Reprend getExistingQuestionByPedagogicalId()/getExistingQuestionsByPedagogicalIds()
+// de question-catalog-service.js. Meme regle que firestore.rules (match
+// /questions/{pedagogicalId}) : publiee = tout utilisateur authentifie,
+// sinon isRequesterAdmin() - verifiee document par document.
+async function getVisibleQuestion(pedagogicalId, requesterUid, adminCache) {
+  const snap = await admin.firestore().collection(QUESTIONS_COLLECTION).doc(pedagogicalId).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (data.status === "published") return data;
+  if (adminCache.value === null) adminCache.value = await isRequesterAdmin(requesterUid);
+  return adminCache.value ? data : null;
+}
+
+app.get("/api/questions-by-ids", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  try {
+    const adminCache = { value: null };
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(uniqueIds.map((id) => getVisibleQuestion(id, req.user.uid, adminCache)));
+    const map = {};
+    uniqueIds.forEach((id, i) => { if (results[i]) map[id] = results[i]; });
+    res.json(map);
+  } catch (err) {
+    console.error("[questions-by-ids]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
 exports.api = onRequest(app);

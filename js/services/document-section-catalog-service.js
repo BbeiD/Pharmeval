@@ -5,7 +5,7 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, increment,
+  doc, setDoc, updateDoc, increment,
   collection, query, where, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
@@ -52,8 +52,8 @@ export async function createDocumentSectionDoc(sectionDocument) {
 /** @param {string} sectionId @returns {Promise<object|null>} */
 export async function getDocumentSectionById(sectionId) {
   try {
-    const snap = await getDoc(doc(db, SECTION_COLLECTION, sectionId));
-    return snap.exists() ? snap.data() : null;
+    const map = await getDocumentSectionsByIds([sectionId]);
+    return map.get(sectionId) || null;
   } catch (err) {
     logCatalogError('lecture de la section ' + sectionId, err);
     return null;
@@ -66,10 +66,23 @@ export async function getDocumentSectionById(sectionId) {
  */
 export async function getDocumentSectionsByIds(sectionIds) {
   const unique = Array.from(new Set((sectionIds || []).filter(Boolean)));
-  const results = await Promise.all(unique.map(getDocumentSectionById));
-  const map = new Map();
-  unique.forEach(function(id, i) { if (results[i]) map.set(id, results[i]); });
-  return map;
+  if (unique.length === 0) return new Map();
+  try {
+    if (!auth.currentUser) return new Map();
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sections-by-ids?ids=${unique.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture groupée des sections (API ' + res.status + ')', null);
+      return new Map();
+    }
+    const body = await res.json();
+    return new Map(Object.entries(body));
+  } catch (err) {
+    logCatalogError('lecture groupée des sections', err);
+    return new Map();
+  }
 }
 
 /**

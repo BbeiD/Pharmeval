@@ -12,15 +12,12 @@
 // Meme pattern que js/services/audit-service.js (Sprint 8) : ecriture
 // "best effort", jamais bloquante pour l'import lui-meme.
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
   collection,
   addDoc,
-  query,
-  orderBy,
-  limit,
-  getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 const IMPORT_LOGS_COLLECTION = 'importLogs';
 const DEFAULT_READ_LIMIT = 50;
@@ -85,12 +82,16 @@ export async function logImport(entry) {
 export async function getRecentImportLogs(options) {
   const max = (options && options.limit) || DEFAULT_READ_LIMIT;
   try {
-    const colRef = collection(db, IMPORT_LOGS_COLLECTION);
-    const q = query(colRef, orderBy('date', 'desc'), limit(max));
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/import-logs?limit=${max}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logImportLogError('lecture du journal des imports (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logImportLogError('lecture du journal des imports', err);
     return { items: [], error: true };

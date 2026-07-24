@@ -6,7 +6,7 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, increment, writeBatch,
+  doc, setDoc, updateDoc, increment, writeBatch,
   collection, query, where, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
@@ -61,8 +61,8 @@ export async function createDocumentSourceDoc(sourceDocument) {
 /** @param {string} sourceId @returns {Promise<object|null>} */
 export async function getDocumentSourceById(sourceId) {
   try {
-    const snap = await getDoc(doc(db, SOURCE_COLLECTION, sourceId));
-    return snap.exists() ? snap.data() : null;
+    const map = await getDocumentSourcesByIds([sourceId]);
+    return map.get(sourceId) || null;
   } catch (err) {
     logCatalogError('lecture de la source ' + sourceId, err);
     return null;
@@ -77,10 +77,23 @@ export async function getDocumentSourceById(sourceId) {
  */
 export async function getDocumentSourcesByIds(sourceIds) {
   const unique = Array.from(new Set((sourceIds || []).filter(Boolean)));
-  const results = await Promise.all(unique.map(getDocumentSourceById));
-  const map = new Map();
-  unique.forEach(function(id, i) { if (results[i]) map.set(id, results[i]); });
-  return map;
+  if (unique.length === 0) return new Map();
+  try {
+    if (!auth.currentUser) return new Map();
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/document-sources-by-ids?ids=${unique.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logCatalogError('lecture groupée des sources (API ' + res.status + ')', null);
+      return new Map();
+    }
+    const body = await res.json();
+    return new Map(Object.entries(body));
+  } catch (err) {
+    logCatalogError('lecture groupée des sources', err);
+    return new Map();
+  }
 }
 
 /**

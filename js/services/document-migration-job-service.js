@@ -8,9 +8,10 @@
 // détourner aurait mélangé deux domaines distincts. Décision documentée
 // dans RAPPORT_CORRECTIF_SPRINT20.md.
 
-import { db } from "../firebase-config.js";
-import { doc, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { db, auth } from "../firebase-config.js";
+import { doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { getCurrentUserContext } from "./app-context.js";
+import { API_BASE_URL } from "../config.js";
 
 const JOB_COLLECTION = 'document_migration_jobs';
 
@@ -104,8 +105,14 @@ export async function failMigrationJob(jobId, errorMessage) {
  */
 export async function getMigrationJobById(jobId) {
   try {
-    const snap = await getDoc(doc(db, JOB_COLLECTION, jobId));
-    return snap.exists() ? snap.data() : null;
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/migration-jobs/${jobId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body.data;
   } catch (err) {
     console.error('[document-migration-job-service] échec de lecture du job ' + jobId, err);
     return null;
