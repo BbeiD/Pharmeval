@@ -26,11 +26,12 @@
 
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  doc, setDoc, updateDoc, deleteDoc,
   collection, addDoc, query, where, orderBy, limit, startAfter, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 export const REFERENCE_BANK_STATUSES = Object.freeze({
   DRAFT: 'draft',
@@ -140,8 +141,8 @@ export function createReferenceBankService(config) {
 
   async function getById(id) {
     try {
-      const snap = await getDoc(doc(db, collectionName, id));
-      return snap.exists() ? snap.data() : null;
+      const map = await getByIds([id]);
+      return map[id] || null;
     } catch (err) {
       logCatalogError('lecture de ' + id, err);
       return null;
@@ -150,10 +151,22 @@ export function createReferenceBankService(config) {
 
   async function getByIds(ids) {
     const unique = Array.from(new Set((ids || []).filter(Boolean)));
-    const results = await Promise.all(unique.map(getById));
-    const map = {};
-    unique.forEach(function(id, i) { if (results[i]) map[id] = results[i]; });
-    return map;
+    if (unique.length === 0) return {};
+    try {
+      if (!auth.currentUser) return {};
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch(`${API_BASE_URL}/api/reference-bank/${bankType}?ids=${unique.map(encodeURIComponent).join(',')}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        logCatalogError('lecture groupée (API ' + res.status + ')', null);
+        return {};
+      }
+      return await res.json();
+    } catch (err) {
+      logCatalogError('lecture groupée', err);
+      return {};
+    }
   }
 
   function buildFilterClauses(filters) {

@@ -808,4 +808,44 @@ app.get("/api/pending-invites/:email", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend getById()/getByIds() de js/services/reference-bank-service.js
+// (createReferenceBankService), pour les 3 banques concretes (groups-,
+// profiles-, organizations-bank-service.js). Collection resolue via un
+// allowlist explicite (jamais le parametre directement) - aucun autre nom
+// de collection ne doit etre atteignable par cette route. Reservee aux
+// administrateurs (meme regle que firestore.rules : les 3 collections
+// n'ont aucune exception "publie", contrairement a questions/parcours/
+// competencies).
+const REFERENCE_BANK_COLLECTIONS = {
+  group: "groups",
+  profile: "profiles",
+  organization: "organizations",
+};
+
+app.get("/api/reference-bank/:bankType", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({});
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({});
+    }
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(
+      uniqueIds.map((id) => admin.firestore().collection(collectionName).doc(id).get())
+    );
+    const map = {};
+    uniqueIds.forEach((id, i) => {
+      if (results[i].exists) map[id] = results[i].data();
+    });
+    res.json(map);
+  } catch (err) {
+    console.error("[reference-bank]", req.params.bankType, err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
 exports.api = onRequest(app);
