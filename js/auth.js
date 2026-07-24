@@ -18,7 +18,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
-import { syncPendingEvaluations } from "./services/evaluation-service.js";
 import { startOnboarding } from "./onboarding.js";
 import { openAdminZone } from "./admin.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
@@ -218,14 +217,6 @@ onAuthStateChanged(auth, async function(user) {
     // statut et le profil depuis ce contexte plutot que de relire
     // Firestore chacun de leur cote.
     setCurrentUserContext(user, userData);
-
-    // Sprint 4 : tentative (non bloquante) de synchronisation des evaluations
-    // enregistrees localement en attente (voir js/services/evaluation-
-    // service.js). Volontairement non "attendue" (pas de await) : la
-    // synchronisation ne doit jamais retarder l'affichage de l'application.
-    syncPendingEvaluations().catch(function(err) {
-      console.error('Synchronisation des evaluations en attente impossible :', err);
-    });
 
     if (userData && userData.profileCompleted === false) {
       if (loadingEl) loadingEl.style.display = 'none';
