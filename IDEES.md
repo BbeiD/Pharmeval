@@ -12,3 +12,4 @@ Claude Code, elle est ajoutée ici automatiquement.
 
 - Ajouter des filtres (source, date de publication) à la Banque de questions — pas seulement des champs de recherche.
 - Revoir la règle de sélection du pool de l'Entraînement libre (biais constaté : sur-représentation d'un sujet, ex. "asthme").
+- Permettre de cibler un thème précis pour le Défi/série de questions selon un calendrier ou une actualité (ex. "lundi = législation", ou pousser des questions sur la vaccination pendant la campagne vaccinale).
