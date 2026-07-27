@@ -143,25 +143,29 @@ async function loadHomeStats() {
   const tiles = [
     {
       icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue',
-      value: String(inProgressCount), label: 'Parcours en cours',
+      value: String(inProgressCount), label: 'Parcours en cours', href: 'mes-parcours.html',
     },
     {
       icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange',
-      value: String(overview.count), label: 'Évaluations réalisées',
+      value: String(overview.count), label: 'Évaluations réalisées', href: 'index.html?history=1',
     },
     {
       icon: icon('highlight-star-filled', { size: 20 }), iconCls: 'stat-card-icon-green',
-      value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen',
+      value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen', href: 'index.html?history=1',
     },
   ];
 
+  // AJOUT (demande directe de David, 28/07/2026) : chaque tuile renvoie
+  // vers l'ecran correspondant (Mes parcours / Mes evaluations), meme
+  // logique de navigation que les liens deja presents ailleurs (voir
+  // js/mon-profil.js, renderMenu()).
   gridEl.innerHTML = tiles.map(function(t) {
     return (
-      '<div class="stat-card">' +
+      '<a class="stat-card stat-card-link" href="' + escapeHtml(t.href) + '">' +
         '<div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
         '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
         '<div class="stat-card-label">' + escapeHtml(t.label) + '</div>' +
-      '</div>'
+      '</a>'
     );
   }).join('');
 }
