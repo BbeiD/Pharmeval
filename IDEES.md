@@ -17,3 +17,4 @@ Claude Code, elle est ajoutée ici automatiquement.
   - Journées/mois thématiques : Octobre Rose (cancer du sein), Movember (santé masculine), Journée mondiale du diabète (14 novembre), Journée mondiale du cœur, Mois sans tabac, Journée mondiale Alzheimer.
   - Exemple de calendrier jour par jour : 14 février → santé sexuelle · 20 mars → printemps/allergies · 7 avril → journée mondiale de la santé · début mai → soleil/photoprotection · juin → médecine des voyageurs · septembre → vaccination/rentrée · octobre → Octobre Rose · novembre → diabète/antibiotiques/Movember · décembre → grippe/RSV/conseils hivernaux.
   - **Défi Flash** : alerte ponctuelle liée à une actualité réelle (ex. "Le CBIP publie un Folia aujourd'hui" → 🚨 Défi Flash CBIP, 5 questions, disponible 48h, badge exclusif).
+- Sur "Mes évaluations" : possibilité d'imprimer un certificat Pharmeval (attestation de complétion/score).
