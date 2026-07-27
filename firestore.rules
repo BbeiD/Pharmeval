@@ -429,13 +429,11 @@ service cloud.firestore {
     // modification de champ, suppression) depuis la Banque de questions.
     // Meme logique d'immuabilite que les autres journaux.
     match /question_audit_logs/{logId} {
-      allow read: if isRequesterAdmin();
-
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.adminUid == request.auth.uid;
-
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/question)
+      // ET ecriture (/api/question-audit-logs) entierement migrees vers les
+      // Cloud Functions (SDK Admin, qui contourne ces regles de toute facon)
+      // - plus aucun acces client direct necessaire ni autorise.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -527,13 +525,10 @@ service cloud.firestore {
     // Journal des actions de gestion des parcours - meme logique
     // d'immuabilite que question_audit_logs/ ci-dessus.
     match /parcours_audit_logs/{logId} {
-      allow read: if isRequesterAdmin();
-
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.adminUid == request.auth.uid;
-
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/parcours)
+      // ET ecriture (/api/parcours-audit-logs) entierement migrees vers les
+      // Cloud Functions - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -595,13 +590,10 @@ service cloud.firestore {
     // Journal des actions de gestion de la banque des compétences - meme
     // logique d'immuabilite que les autres journaux d'audit du projet.
     match /competency_audit_logs/{logId} {
-      allow read: if isRequesterAdmin();
-
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.adminUid == request.auth.uid;
-
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/competency)
+      // ET ecriture (/api/competency-audit-logs) entierement migrees vers les
+      // Cloud Functions - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -788,62 +780,12 @@ service cloud.firestore {
     // d'autre - integrite de l'evaluation avant tout, choix deliberement
     // plus strict que le reste de l'application.
     match /evaluation_sessions/{sessionId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.userId == request.auth.uid);
-
-      // Creation : uniquement en son propre nom, uniquement au statut
-      // `in_progress` (jamais une session creee directement "submitted" ou
-      // "abandoned" - ces transitions passent obligatoirement par les
-      // regles de mise a jour dediees ci-dessous), identifiant de document
-      // conforme au champ `id` du document lui-meme.
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.id == sessionId
-                    && request.resource.data.status == 'in_progress';
-
-      // --- Mise a jour n°1 : autosave / navigation, UNIQUEMENT pendant
-      // que la session est encore in_progress, UNIQUEMENT les champs
-      // reellement modifies par ces actions (reponses, question courante,
-      // horodatage, journal d'evenements embarque - voir evaluation-
-      // session-service.js) - jamais l'identite, jamais les references au
-      // parcours/a la competence, jamais le statut "au passage". ---
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && resource.data.status == 'in_progress'
-                    && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.status == 'in_progress'
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answers', 'currentQuestionIndex', 'updatedAt', 'events']);
-
-      // --- Mise a jour n°2 : soumission definitive (in_progress ->
-      // submitted UNIQUEMENT) - autorise egalement un dernier flux de
-      // reponses/position dans le MEME appel (soumission apres une
-      // derniere reponse, sans exiger deux ecritures separees). ---
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && resource.data.status == 'in_progress'
-                    && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.status == 'submitted'
-                    && request.resource.data.submittedAt != null
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answers', 'currentQuestionIndex', 'status', 'submittedAt', 'updatedAt', 'events']);
-
-      // --- Mise a jour n°3 : abandon (in_progress -> abandoned
-      // UNIQUEMENT, voir "Recommencer" dans evaluation-session-service.js)
-      // - le modele prevoit ce statut sans interface complete dediee,
-      // comme demande explicitement (SPRINT17, section 3). ---
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && resource.data.status == 'in_progress'
-                    && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.status == 'abandoned'
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'events']);
-
-      // Une session `submitted` ou `abandoned` n'est plus modifiable par
-      // PERSONNE (aucune des 3 regles ci-dessus ne s'applique plus - toute
-      // tentative de mise a jour supplementaire echoue silencieusement,
-      // conformement a "empecher toute modification ulterieure").
-      // Aucune suppression (immuabilite totale, meme principe que les
-      // journaux d'audit du projet).
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (creation,
+      // les 3 transitions, immuabilite) entierement migrees vers les Cloud
+      // Functions (POST/PATCH/GET /api/sessions...) - plus aucun acces
+      // client direct. Voir git history pour le detail des 3 branches de
+      // mise a jour, reproduites fidelement cote serveur (functions/index.js).
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -927,20 +869,10 @@ service cloud.firestore {
     // l'exactitude arithmetique de l'agregation (moyenne, tendance,
     // niveau, score de confiance) elle-meme.
     match /competency_progress/{progressId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.userId == request.auth.uid);
-
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && progressId == (request.auth.uid + '_' + request.resource.data.competencyId);
-
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.competencyId == resource.data.competencyId
-                    && progressId == (request.auth.uid + '_' + request.resource.data.competencyId);
-
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/competency-progress...) -
+      // plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -1056,20 +988,10 @@ service cloud.firestore {
     // de quelqu'un d'autre ou avec un identifiant incoherent, mais ne
     // verifient pas l'exactitude du comptage lui-meme.
     match /question_progress/{progressId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.userId == request.auth.uid);
-
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && progressId == (request.auth.uid + '_' + request.resource.data.pedagogicalId);
-
-      allow update: if request.auth != null
-                    && resource.data.userId == request.auth.uid
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && progressId == (request.auth.uid + '_' + request.resource.data.pedagogicalId);
-
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (transaction
+      // d'idempotence incluse) entierement migrees vers les Cloud Functions
+      // (/api/question-progress...) - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
@@ -1110,18 +1032,10 @@ service cloud.firestore {
     // verifiee via get() sur evaluation_results/ — aucune mise a jour
     // possible (marqueur immuable, meme principe que evaluation_results/).
     match /question_progress_applied_results/{resultId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null
-                      && exists(/databases/$(database)/documents/evaluation_results/$(resultId))
-                      && get(/databases/$(database)/documents/evaluation_results/$(resultId)).data.userId == request.auth.uid);
-
-      allow create: if request.auth != null
-                    && request.resource.data.resultId == resultId
-                    && exists(/databases/$(database)/documents/evaluation_results/$(resultId))
-                    && get(/databases/$(database)/documents/evaluation_results/$(resultId)).data.userId == request.auth.uid;
-
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : marqueur d'idempotence pose
+      // exclusivement par la transaction serveur (/api/question-progress/apply)
+      // - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -1146,8 +1060,10 @@ service cloud.firestore {
     // le fichier Excel editorial. Operation strictement administrative,
     // meme restriction que document_code_counters/ (Sprint 20).
     match /pedagogical_id_counters/{counterId} {
-      allow read: if isRequesterCatalogAdmin();
-      allow write: if isRequesterCatalogAdmin();
+      // VERROUILLE (Etape 13, 24/07/2026) : allocation exclusivement via la
+      // transaction serveur /api/catalog-sync/pedagogical-id - plus aucun
+      // acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -1164,19 +1080,10 @@ service cloud.firestore {
     // verifient pas l'exactitude arithmetique de la serie elle-meme (voir
     // js/services/daily-challenge-logic.js#computeDailyChallengeStreak).
     match /daily_challenge_progress/{uid} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && request.auth.uid == uid);
-
-      allow create: if request.auth != null
-                    && request.auth.uid == uid
-                    && request.resource.data.userId == uid;
-
-      allow update: if request.auth != null
-                    && request.auth.uid == uid
-                    && resource.data.userId == uid
-                    && request.resource.data.userId == uid;
-
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/daily-challenge/:uid) - plus
+      // aucun acces client direct.
+      allow read, write: if false;
     }
 
   }
