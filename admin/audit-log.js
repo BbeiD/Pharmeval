@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
-import { formatDateFr } from "../js/services/date-utils.js";
+import { formatDateFr, toMillis } from "../js/services/date-utils.js";
 import { getRecentAuditEntries } from "../js/services/audit-service.js";
 import { getRecentQuestionAuditLogs } from "../js/services/question-audit-service.js";
 import { getRecentParcoursAuditLogs } from "../js/services/parcours-audit-service.js";
@@ -217,7 +217,13 @@ async function loadTab(tabKey) {
     emptyEl.textContent = 'Impossible de charger ce journal pour le moment. Réessayez plus tard.';
     return;
   }
-  state.items = (result.items || []).slice().sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
+  // CORRECTIF : `date` n'est pas toujours une chaine ISO - certaines
+  // entrees anciennes de audit_logs (ecrites avant la migration vers les
+  // Cloud Functions) stockent un Timestamp Firestore brut
+  // ({seconds, nanoseconds}), qui n'a pas de methode localeCompare().
+  // toMillis() (date-utils.js) gere deja tous ces formats de façon
+  // uniforme - jamais un tri qui plante sur une donnee heritee.
+  state.items = (result.items || []).slice().sort(function(a, b) { return toMillis(b.date) - toMillis(a.date); });
   renderList();
 }
 
