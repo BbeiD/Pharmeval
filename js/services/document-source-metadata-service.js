@@ -187,7 +187,7 @@ export function completeDocumentSourceMetadata(partial) {
   };
 }
 
-const MIN_NAME_LENGTH = 2;
+export const MIN_NAME_LENGTH = 2;
 
 /**
  * Valide une source documentaire. Ne leve jamais d'exception.

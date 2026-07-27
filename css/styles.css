@@ -1599,7 +1599,9 @@
     padding: 22px; max-height: 78vh; overflow-y: auto;
   }
   .bank-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .bank-detail-header h3 { margin: 0; font-family: monospace; font-size: 16px; }
+  .bank-detail-header h3 { margin: 0; font-size: 16px; }
+  .ds-name-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .ds-name-row input { flex: 1; min-width: 0; font-family: inherit; }
   .bank-detail-tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
   .bank-chip {
     display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px;

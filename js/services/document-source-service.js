@@ -24,7 +24,7 @@ import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { logAction } from "./audit-service.js";
 import {
-  DOCUMENT_SOURCE_STATUSES, completeDocumentSourceMetadata, validateDocumentSource,
+  DOCUMENT_SOURCE_STATUSES, completeDocumentSourceMetadata, validateDocumentSource, MIN_NAME_LENGTH,
 } from "./document-source-metadata-service.js";
 import {
   createDocumentSourceDoc, getDocumentSourceById, getDocumentSourcesByIds,
@@ -154,6 +154,41 @@ export async function setSourceDisplayIcon(source, icon) {
   }).catch(function() {});
 
   return success(icon ? 'Icône enregistrée.' : 'Icône réinitialisée (icône par défaut du type de source).');
+}
+
+/**
+ * Renomme une source documentaire - CHAMP DEDIE (name), ecriture directe,
+ * JAMAIS via editDocumentSource() : meme raison que setSourceDisplayIcon()
+ * ci-dessus (une source heritee d'un import ancien peut avoir un shortCode
+ * deja invalide, ce qui ferait echouer une revalidation complete de la
+ * fiche pour un simple changement de nom sans rapport).
+ * @param {object} source
+ * @param {string} newName
+ * @returns {Promise<object>}
+ */
+export async function renameDocumentSource(source, newName) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!source || !source.id) return errorResult('Source cible introuvable.');
+
+  const trimmed = (newName || '').toString().trim();
+  if (trimmed.length < MIN_NAME_LENGTH) return errorResult('Le nom doit contenir au moins ' + MIN_NAME_LENGTH + ' caractères.');
+  if (trimmed === source.name) return denied('Le nom est identique, rien à enregistrer.');
+
+  const ctx = getCurrentUserContext();
+  const result = await updateDocumentSourceFields(source.id, {
+    name: trimmed,
+    updatedAt: nowIso(), updatedBy: (ctx && ctx.email) || null,
+  });
+  if (!result.success) return errorResult('Le renommage a échoué. Veuillez réessayer.');
+
+  logAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    targetUid: null, targetEmail: null,
+    actionType: 'document_source_renamed', oldValue: source.name, newValue: trimmed,
+  }).catch(function() {});
+
+  return success('Source renommée avec succès.', { newName: trimmed });
 }
 
 /** @param {string} sourceId @returns {Promise<object|null>} */

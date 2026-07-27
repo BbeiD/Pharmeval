@@ -24,7 +24,7 @@ import {
 } from "../js/services/document-source-metadata-service.js";
 import {
   browseDocumentSources, changeDocumentSourceStatus, deleteDocumentSource, activateAllDraftSources,
-  setSourceHiddenFromFreeTraining, setSourceDisplayIcon,
+  setSourceHiddenFromFreeTraining, setSourceDisplayIcon, renameDocumentSource,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
@@ -167,7 +167,17 @@ export async function selectSource(sourceId) {
 function sourceDetailHtml(s, sections) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
   let html = '<div class="bank-detail-card">';
-  html += '<div class="bank-detail-header"><h3>' + escapeHtml(s.name) + '</h3>' + badgeHtml(badge) + '</div>';
+  html += '<div class="bank-detail-header">';
+  html += '<div class="ds-name-row" id="ds-name-display">';
+  html += '<h3>' + escapeHtml(s.name) + '</h3>';
+  html += '<button type="button" class="btn-secondary" onclick="toggleRenameSource()">Renommer</button>';
+  html += '</div>';
+  html += '<div class="ds-name-row" id="ds-name-edit" style="display:none;">';
+  html += '<input type="text" id="ds-name-input" value="' + escapeHtml(s.name) + '">';
+  html += '<button type="button" class="btn-primary" onclick="saveSourceName()">Enregistrer</button>';
+  html += '<button type="button" class="btn-secondary" onclick="toggleRenameSource()">Annuler</button>';
+  html += '</div>';
+  html += badgeHtml(badge) + '</div>';
   html += '<div class="bank-detail-tags-row"><span class="bank-chip">' + escapeHtml(DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType) + '</span>';
   if (s.version) html += '<span class="bank-chip">Version ' + escapeHtml(s.version) + '</span>';
   if (s.academicYear) html += '<span class="bank-chip">' + escapeHtml(s.academicYear) + '</span>';
@@ -312,6 +322,29 @@ export async function saveSourceIcon() {
   }
 }
 
+export function toggleRenameSource() {
+  const displayEl = qs('ds-name-display');
+  const editEl = qs('ds-name-edit');
+  if (!displayEl || !editEl) return;
+  const editing = editEl.style.display !== 'none';
+  displayEl.style.display = editing ? 'flex' : 'none';
+  editEl.style.display = editing ? 'none' : 'flex';
+  if (!editing) qs('ds-name-input').focus();
+}
+
+export async function saveSourceName() {
+  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
+  if (!source) return;
+  const newName = qs('ds-name-input').value;
+
+  const result = await renameDocumentSource(source, newName);
+  showMessage(result.status, result.message);
+  if (result.status === 'success') {
+    source.name = result.newName;
+    await selectSource(state.selectedSourceId);
+  }
+}
+
 export async function toggleSourceFreeTrainingVisibility(hidden) {
   const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
   if (!source) return;
@@ -363,6 +396,8 @@ window.requestSourceStatus = requestSourceStatus;
 window.requestDeleteSource = requestDeleteSource;
 window.requestBulkActivateSources = requestBulkActivateSources;
 window.toggleSourceFreeTrainingVisibility = toggleSourceFreeTrainingVisibility;
+window.toggleRenameSource = toggleRenameSource;
+window.saveSourceName = saveSourceName;
 window.saveSourceIcon = saveSourceIcon;
 window.toggleIconPicker = toggleIconPicker;
 window.pickSourceIcon = pickSourceIcon;
