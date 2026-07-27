@@ -791,14 +791,22 @@ export async function confirmCompetencyPicker() {
   if (!p || competencyPickerSelection.size === 0) return;
 
   const ids = Array.from(competencyPickerSelection);
-  const addedCompetencyNames = {};
+  // CORRECTIF : `bankCompetencyId` (banque) et l'identifiant LOCAL de la
+  // competence au sein de ce parcours (`localId`, genere par
+  // completeCompetency()) sont deux valeurs DISTINCTES - les questions
+  // sont taguees avec le premier (question.competencyId), mais
+  // linkQuestionToCompetency() n'accepte que le second (voir
+  // parcours-service.js:869, `c.id === competencyId`). Bug initial :
+  // confondait les deux, chaque appel echouait silencieusement
+  // ("Compétence introuvable"), 0 question jamais reellement liee.
+  const addedCompetencies = {}; // bankCompetencyId -> { name, localId }
   let lastResult = null;
-  for (const competencyId of ids) {
-    lastResult = await addCompetencyFromBank(p, competencyId);
+  for (const bankCompetencyId of ids) {
+    lastResult = await addCompetencyFromBank(p, bankCompetencyId);
     if (lastResult.status === 'success') {
       p.competencies = lastResult.competencies;
-      const added = lastResult.competencies.find(function(c) { return c.competencyId === competencyId; });
-      addedCompetencyNames[competencyId] = added ? added.name : competencyId;
+      const added = lastResult.competencies.find(function(c) { return c.competencyId === bankCompetencyId; });
+      if (added) addedCompetencies[bankCompetencyId] = { name: added.name, localId: added.id };
     }
   }
 
@@ -809,29 +817,29 @@ export async function confirmCompetencyPicker() {
   // AJOUT (demande directe de David, 27/07/2026) : propose les questions
   // publiees deja taguees avec chaque competence ajoutee, pour validation
   // avant liaison - jamais silencieusement, voir openSuggestedQuestionsPanel().
-  await openSuggestedQuestionsPanel(p.id, addedCompetencyNames);
+  await openSuggestedQuestionsPanel(addedCompetencies);
 }
 
 // ---------------------------------------------------------------------------
 // Questions suggerees (heritage depuis la Banque de competences)
 // ---------------------------------------------------------------------------
 
-async function openSuggestedQuestionsPanel(parcoursId, competencyNamesById) {
-  const competencyIds = Object.keys(competencyNamesById || {});
-  if (competencyIds.length === 0) return;
+async function openSuggestedQuestionsPanel(addedCompetencies) {
+  const bankCompetencyIds = Object.keys(addedCompetencies || {});
+  if (bankCompetencyIds.length === 0) return;
 
-  const perCompetency = await Promise.all(competencyIds.map(function(competencyId) {
-    return searchQuestionsForLinking({ filters: { status: 'published', competencyId: competencyId } })
-      .then(function(result) { return { competencyId: competencyId, result: result }; });
+  const perCompetency = await Promise.all(bankCompetencyIds.map(function(bankCompetencyId) {
+    return searchQuestionsForLinking({ filters: { status: 'published', competencyId: bankCompetencyId } })
+      .then(function(result) { return { entry: addedCompetencies[bankCompetencyId], result: result }; });
   }));
 
   suggestedQuestionsItems = [];
-  perCompetency.forEach(function(entry) {
-    if (!entry.result.authorized || entry.result.error) return;
-    entry.result.items.forEach(function(q) {
+  perCompetency.forEach(function(row) {
+    if (!row.result.authorized || row.result.error) return;
+    row.result.items.forEach(function(q) {
       suggestedQuestionsItems.push({
-        competencyId: entry.competencyId,
-        competencyName: competencyNamesById[entry.competencyId],
+        competencyLocalId: row.entry.localId, // voir linkQuestionToCompetency()
+        competencyName: row.entry.name,
         pedagogicalId: q.pedagogicalId,
         question: q.question,
         checked: true,
@@ -849,13 +857,13 @@ function renderSuggestedQuestionsPanel() {
   const container = document.getElementById('parcours-suggested-questions-results');
   const byCompetency = new Map();
   suggestedQuestionsItems.forEach(function(item, index) {
-    if (!byCompetency.has(item.competencyId)) byCompetency.set(item.competencyId, []);
-    byCompetency.get(item.competencyId).push(Object.assign({ index: index }, item));
+    if (!byCompetency.has(item.competencyLocalId)) byCompetency.set(item.competencyLocalId, []);
+    byCompetency.get(item.competencyLocalId).push(Object.assign({ index: index }, item));
   });
 
   let html = '';
-  byCompetency.forEach(function(items, competencyId) {
-    html += '<p style="margin:10px 0 4px;"><strong>' + escapeHtml(items[0].competencyName || competencyId) + '</strong> (' + items.length + ' question(s))</p>';
+  byCompetency.forEach(function(items, competencyLocalId) {
+    html += '<p style="margin:10px 0 4px;"><strong>' + escapeHtml(items[0].competencyName || competencyLocalId) + '</strong> (' + items.length + ' question(s))</p>';
     html += items.map(function(item) {
       return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
         '<input type="checkbox" onchange="toggleSuggestedQuestion(' + item.index + ')"' + (item.checked ? ' checked' : '') + '>' +
@@ -883,11 +891,22 @@ export async function confirmSuggestedQuestions() {
   suggestedQuestionsItems = [];
   if (!p || toLink.length === 0) return;
 
-  let lastResult = null;
+  // CORRECTIF : le message affiche desormais le compte REEL de succes
+  // (jamais "N liee(s)" quand certaines/toutes ont en realite echoue -
+  // meme principe que partout ailleurs dans ce fichier, ne jamais
+  // presenter un succes non confirme).
+  let successCount = 0;
+  let lastFailure = null;
   for (const item of toLink) {
-    lastResult = await linkQuestionToCompetency(p, item.competencyId, item.pedagogicalId);
+    const result = await linkQuestionToCompetency(p, item.competencyLocalId, item.pedagogicalId);
+    if (result.status === 'success') successCount += 1;
+    else lastFailure = result;
   }
-  showParcoursMessage(lastResult ? lastResult.status : 'error', toLink.length + ' question(s) liée(s).');
+  const status = successCount === toLink.length ? 'success' : (successCount > 0 ? 'success' : (lastFailure ? lastFailure.status : 'error'));
+  const message = successCount === toLink.length
+    ? successCount + ' question(s) liée(s) avec succès.'
+    : successCount + ' question(s) liée(s) sur ' + toLink.length + ' (' + (lastFailure ? lastFailure.message : 'échecs') + ')';
+  showParcoursMessage(status, message);
   await selectParcours(p.id);
 }
 
