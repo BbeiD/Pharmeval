@@ -22,18 +22,8 @@
 // js/services/question-bank-service.js, seul appelant legitime de ces
 // nouvelles fonctions.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { MAX_QUESTIONS_PER_IMPORT } from "./question-import-validator.js";
-import { buildFilterDescriptors } from "./question-filter-utils.js";
 import { API_BASE_URL } from "../config.js";
 
 async function callQuestionsApi(path, options) {
@@ -45,8 +35,6 @@ async function callQuestionsApi(path, options) {
   });
   return res;
 }
-
-const QUESTIONS_COLLECTION = 'questions';
 
 // Sprint 11 : taille de page par defaut pour la navigation paginee de la
 // Banque de questions (voir js/services/question-bank-service.js).
@@ -213,18 +201,6 @@ function isIndexMissingError(err) {
 const INDEX_MISSING_MESSAGE = 'Cette fonctionnalité nécessite un index Firestore qui n\'est pas encore déployé (voir firestore.indexes.json et la procédure de déploiement). Contactez l\'administrateur technique.';
 
 /**
- * Traduit les descripteurs purs (voir question-filter-utils.js, seule
- * source de verite pour LA LOGIQUE de filtrage) en clauses reelles du
- * SDK Firestore (`where(...)`). Aucune logique de filtrage ici, jamais
- * dupliquee - uniquement la traduction descripteur -> appel SDK.
- * @param {object} filters
- * @returns {Array} clauses Firestore pretes a etre passees a query(...)
- */
-export function buildFilterClauses(filters) {
-  return buildFilterDescriptors(filters).map(function(d) { return where(d.field, d.op, d.value); });
-}
-
-/**
  * Charge UNE PAGE de questions, filtree et triee cote SERVEUR (vraie
  * pagination Firestore par curseur - jamais un chargement de toute la
  * collection). Utilisee pour la navigation normale (sans recherche
@@ -246,17 +222,20 @@ export async function queryQuestionsPage(options) {
   const opts = options || {};
   const pageSize = opts.pageSize || DEFAULT_BANK_PAGE_SIZE;
   try {
-    const colRef = collection(db, QUESTIONS_COLLECTION);
-    const clauses = buildFilterClauses(opts.filters);
-    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-    clauses.push(limit(pageSize));
-    if (opts.cursorDoc) clauses.push(startAfter(opts.cursorDoc));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const items = [];
-    let lastRawDoc = null;
-    snap.forEach(function(d) { items.push(d.data()); lastRawDoc = d; });
-    return { items: items, lastDoc: lastRawDoc, hasMore: items.length === pageSize, error: false };
+    const params = new URLSearchParams({
+      pageSize: String(pageSize),
+      sortField: opts.sortField || 'createdAt',
+      sortDirection: opts.sortDirection || 'desc',
+    });
+    if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+    if (opts.cursorDoc) params.set('cursor', opts.cursorDoc);
+    const res = await callQuestionsApi(`/api/questions?${params.toString()}`, { method: 'GET' });
+    if (!res || !res.ok) {
+      logCatalogError('chargement d\'une page de questions (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { items: [], lastDoc: null, hasMore: false, error: true };
+    }
+    const body = await res.json();
+    return { items: body.items, lastDoc: body.lastCursor, hasMore: body.hasMore, error: false, message: body.message };
   } catch (err) {
     logCatalogError('chargement d\'une page de questions', err);
     return { items: [], lastDoc: null, hasMore: false, error: true, message: isIndexMissingError(err) ? INDEX_MISSING_MESSAGE : null };
@@ -444,20 +423,17 @@ export async function archiveQuestionsBySource(documentSourceId) {
 export async function getPublishedQuestionIdsBySourceIds(sourceIds) {
   const unique = Array.from(new Set((sourceIds || []).filter(Boolean)));
   if (unique.length === 0) return [];
-
-  const CHUNK_SIZE = 30;
-  const ids = [];
   try {
-    for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
-      const chunk = unique.slice(i, i + CHUNK_SIZE);
-      const snap = await getDocs(query(
-        collection(db, QUESTIONS_COLLECTION),
-        where('status', '==', 'published'),
-        where('documentSourceId', 'in', chunk),
-      ));
-      snap.forEach(function(d) { ids.push(d.id); });
+    const res = await callQuestionsApi('/api/questions/published-ids-by-sources', {
+      method: 'POST',
+      body: JSON.stringify({ sourceIds: unique }),
+    });
+    if (!res || !res.ok) {
+      logCatalogError('resolution des questions publiees pour ' + unique.length + ' source(s) (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return [];
     }
-    return ids;
+    const body = await res.json();
+    return body.ids || [];
   } catch (err) {
     logCatalogError('resolution des questions publiees pour ' + unique.length + ' source(s)', err);
     return [];

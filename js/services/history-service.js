@@ -11,16 +11,8 @@
 //   competencyId           → selection.theme   (proxy pour les stats par competence)
 //   competencyResults[].questionResults[]  → questions[]
 
-import { db, auth } from "../firebase-config.js";
+import { auth } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { API_BASE_URL } from "../config.js";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -124,16 +116,17 @@ export async function getRecentEvaluationsForUid(uid, options) {
   const max = (options && options.limit) || 20;
   if (!uid) return { items: [], error: false };
   try {
-    const colRef = collection(db, 'evaluation_results');
-    const q = query(colRef, where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(max));
-    const snap = await getDocs(q);
-    const rawAll = [];
-    snap.forEach(function(d) {
-      const data = d.data();
-      if (!data.id) data.id = d.id;
-      rawAll.push(data);
+    if (!auth.currentUser) return { items: [], error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/evaluation-results/for-user/${uid}?limit=${max}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    return { items: rawAll.map(normalizeResult), error: false };
+    if (!res.ok) {
+      logHistoryError('chargement des évaluations d\'un utilisateur (fiche admin) (API ' + res.status + ')', null);
+      return { items: [], error: true };
+    }
+    const body = await res.json();
+    return { items: (body.items || []).map(normalizeResult), error: false };
   } catch (err) {
     logHistoryError('chargement des évaluations d\'un utilisateur (fiche admin)', err);
     return { items: [], error: true };

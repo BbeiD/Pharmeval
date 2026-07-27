@@ -14,16 +14,7 @@
 // lui donne deja construit et valide. Miroir exact de la responsabilite de
 // question-catalog-service.js, applique a un type de contenu different.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
 async function callParcoursApi(path, options) {
@@ -36,7 +27,6 @@ async function callParcoursApi(path, options) {
   return res;
 }
 
-const PARCOURS_COLLECTION = 'parcours';
 
 export const DEFAULT_PARCOURS_PAGE_SIZE = 25;
 
@@ -106,13 +96,6 @@ export async function getParcoursById(parcoursId) {
   }
 }
 
-function buildFilterClauses(filters) {
-  const clauses = [];
-  const f = filters || {};
-  if (f.status) clauses.push(where('status', '==', f.status));
-  if (f.author) clauses.push(where('author', '==', f.author));
-  return clauses;
-}
 
 /**
  * Charge UNE PAGE de parcours, filtree et triee cote SERVEUR (vraie
@@ -127,17 +110,20 @@ export async function queryParcoursPage(options) {
   const opts = options || {};
   const pageSize = opts.pageSize || DEFAULT_PARCOURS_PAGE_SIZE;
   try {
-    const colRef = collection(db, PARCOURS_COLLECTION);
-    const clauses = buildFilterClauses(opts.filters);
-    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-    clauses.push(limit(pageSize));
-    if (opts.cursorDoc) clauses.push(startAfter(opts.cursorDoc));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const items = [];
-    let lastRawDoc = null;
-    snap.forEach(function(d) { items.push(d.data()); lastRawDoc = d; });
-    return { items: items, lastDoc: lastRawDoc, hasMore: items.length === pageSize, error: false };
+    const params = new URLSearchParams({
+      pageSize: String(pageSize),
+      sortField: opts.sortField || 'createdAt',
+      sortDirection: opts.sortDirection || 'desc',
+    });
+    if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+    if (opts.cursorDoc) params.set('cursor', opts.cursorDoc); // opaque, deja encode par l'appel precedent
+    const res = await callParcoursApi(`/api/parcours?${params.toString()}`, { method: 'GET' });
+    if (!res || !res.ok) {
+      logCatalogError('chargement d\'une page de parcours (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { items: [], lastDoc: null, hasMore: false, error: true };
+    }
+    const body = await res.json();
+    return { items: body.items, lastDoc: body.lastCursor, hasMore: body.hasMore, error: false };
   } catch (err) {
     logCatalogError('chargement d\'une page de parcours', err);
     return { items: [], lastDoc: null, hasMore: false, error: true };
@@ -156,16 +142,18 @@ export async function searchParcoursBounded(options) {
   const opts = options || {};
   const scanLimit = (typeof opts.maxScan === 'number' && opts.maxScan > 0) ? opts.maxScan : defaultParcoursSearchScanLimit;
   try {
-    const colRef = collection(db, PARCOURS_COLLECTION);
-    const clauses = buildFilterClauses(opts.filters);
-    clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-    clauses.push(limit(scanLimit + 1));
-    const q = query(colRef, ...clauses);
-    const snap = await getDocs(q);
-    const all = [];
-    snap.forEach(function(d) { all.push(d.data()); });
-    const truncated = all.length > scanLimit;
-    return { items: all.slice(0, scanLimit), truncated: truncated, error: false, scanLimit: scanLimit };
+    const params = new URLSearchParams({
+      maxScan: String(scanLimit),
+      sortField: opts.sortField || 'createdAt',
+      sortDirection: opts.sortDirection || 'desc',
+    });
+    if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+    const res = await callParcoursApi(`/api/parcours/search-bounded?${params.toString()}`, { method: 'GET' });
+    if (!res || !res.ok) {
+      logCatalogError('balayage de recherche des parcours (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { items: [], truncated: false, error: true, scanLimit: scanLimit };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('balayage de recherche des parcours', err);
     return { items: [], truncated: false, error: true, scanLimit: scanLimit };

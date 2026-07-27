@@ -15,15 +15,10 @@
 // que ce service lira seront LE MEME document, sans migration, sans
 // renommage, sans transformation.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  doc, getDoc,
-  collection, query, orderBy, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { normalizeForDedup } from "./normalization-utils.js";
 import { API_BASE_URL } from "../config.js";
 
-const TAGS_COLLECTION = 'tags';
 const DEFAULT_PAGE_SIZE = 200; // suffisant pour peupler un selecteur de filtre - voir listAllTags()
 
 function logTagError(context, err) {
@@ -114,14 +109,20 @@ export async function getTagById(tagId) {
  * @returns {Promise<{map:Map<string,object>, error:boolean}>}
  */
 export async function getTagsByIds(tagIds) {
+  const unique = Array.from(new Set((tagIds || []).filter(Boolean)));
+  if (unique.length === 0) return { map: new Map(), error: false };
   try {
-    const results = await Promise.all(tagIds.map(async function(id) {
-      const snap = await getDoc(doc(db, TAGS_COLLECTION, id));
-      return { id: id, data: snap.exists() ? snap.data() : null };
-    }));
-    const map = new Map();
-    results.forEach(function(r) { if (r.data) map.set(r.id, r.data); });
-    return { map: map, error: false };
+    if (!auth.currentUser) return { map: new Map(), error: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/tags/by-ids?ids=${unique.map(encodeURIComponent).join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logTagError('lecture groupee des tags (API ' + res.status + ')', null);
+      return { map: new Map(), error: true };
+    }
+    const body = await res.json();
+    return { map: new Map(Object.entries(body)), error: false };
   } catch (err) {
     logTagError('lecture groupee des tags', err);
     return { map: new Map(), error: true };

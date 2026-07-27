@@ -3,8 +3,7 @@
 // collection GLOBALE `document_sections`. Aucune regle de validation ici
 // (voir document-section-metadata-service.js).
 
-import { db, auth } from "../firebase-config.js";
-import { doc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
 async function fetchDocumentSections(documentSourceId, status) {
@@ -17,18 +16,6 @@ async function fetchDocumentSections(documentSourceId, status) {
   });
   if (!res.ok) return { items: [], error: true };
   return await res.json();
-}
-
-const SECTION_COLLECTION = 'document_sections';
-
-/**
- * CORRECTIF (fiabilisation des compteurs) : voir getDocumentSourceRef()
- * dans document-source-catalog-service.js pour la justification complete.
- * @param {string} sectionId
- * @returns {import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js").DocumentReference}
- */
-export function getDocumentSectionRef(sectionId) {
-  return doc(db, SECTION_COLLECTION, sectionId);
 }
 
 function logCatalogError(context, err) {

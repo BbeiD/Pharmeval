@@ -4,24 +4,9 @@
 // (voir document-source-metadata-service.js) - ce fichier ne fait que
 // lire/ecrire ce qui lui est deja fourni construit et valide.
 
-import { db, auth } from "../firebase-config.js";
-import { doc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
-const SOURCE_COLLECTION = 'document_sources';
-
-/**
- * CORRECTIF (fiabilisation des compteurs) : expose une reference de
- * document Firestore brute, pour permettre a document-count-service.js
- * de construire ses propres transactions (`runTransaction`) sans dupliquer
- * le nom de la collection ni contourner ce fichier - seul point du projet
- * a connaitre le nom reel de la collection `document_sources`.
- * @param {string} sourceId
- * @returns {import("https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js").DocumentReference}
- */
-export function getDocumentSourceRef(sourceId) {
-  return doc(db, SOURCE_COLLECTION, sourceId);
-}
 const DEFAULT_PAGE_SIZE = 50;
 
 function logCatalogError(context, err) {

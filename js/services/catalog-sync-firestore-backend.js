@@ -22,10 +22,7 @@
 // dont le succes est confirme (voir la modification de l'engine, section
 // "Sprint 22" du fichier).
 
-import { db, auth } from "../firebase-config.js";
-import {
-  getDocs, collection, query, where, limit,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
 import { normalizeForDedup } from "./normalization-utils.js";
@@ -51,8 +48,6 @@ import {
   computeCounterDeltasForSuccessfulCreations,
 } from "./catalog-sync-resolution-logic.js";
 
-const QUESTIONS_COLLECTION = 'questions';
-
 function nowIso() { return new Date().toISOString(); }
 function logSyncError(context, err) {
   console.error('[catalog-sync-firestore-backend] ' + context + ' : ' + ((err && err.code) || 'erreur-inconnue'), err);
@@ -70,15 +65,13 @@ function logSyncError(context, err) {
  */
 export async function resolveQuestionIdentity(externalId) {
   try {
-    const q = query(
-      collection(db, QUESTIONS_COLLECTION),
-      where('externalIds.editorialCatalog', '==', externalId),
-      limit(1)
-    );
-    const snap = await getDocs(q);
-    if (snap.empty) return { found: false, pedagogicalId: null, existingDoc: null };
-    const d = snap.docs[0];
-    return { found: true, pedagogicalId: d.id, existingDoc: d.data() };
+    if (!auth.currentUser) return { found: false, pedagogicalId: null, existingDoc: null, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/questions/resolve-identity?externalId=${encodeURIComponent(externalId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { found: false, pedagogicalId: null, existingDoc: null, error: true };
+    return await res.json();
   } catch (err) {
     logSyncError('résolution de l\'identité de la question "' + externalId + '"', err);
     // Repli PRUDENT : en cas de panne de lecture, on ne peut pas garantir
@@ -99,16 +92,15 @@ export async function resolveQuestionIdentity(externalId) {
 export async function listExistingEditorialCatalogIds() {
   const ids = new Set();
   try {
-    // Bornage volontaire (meme principe que searchQuestionsBounded) : une
-    // synchronisation realiste porte sur quelques centaines/milliers de
-    // questions, jamais des dizaines de milliers - 5000 est un plafond
-    // de securite, pas une limite attendue en usage normal.
-    const snap = await getDocs(query(collection(db, QUESTIONS_COLLECTION), where('fromEditorialCatalog', '==', true), limit(5000)));
-    snap.forEach(function(d) {
-      const data = d.data();
-      const id = data.externalIds && data.externalIds.editorialCatalog;
-      if (id) ids.add(id);
+    if (!auth.currentUser) return ids;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/questions/existing-editorial-ids`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+    if (res.ok) {
+      const body = await res.json();
+      (body.ids || []).forEach(function(id) { ids.add(id); });
+    }
   } catch (err) {
     logSyncError('liste des identifiants éditoriaux existants', err);
   }

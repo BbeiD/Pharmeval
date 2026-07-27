@@ -8,15 +8,9 @@
 // statut) doit passer par logAction() ci-dessous - voir
 // js/services/admin-service.js, seul appelant legitime de ce service.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
-const AUDIT_COLLECTION = 'audit_logs';
 const DEFAULT_READ_LIMIT = 50;
 
 function logAuditError(context, err) {
@@ -38,18 +32,18 @@ function logAuditError(context, err) {
  */
 export async function logAction(entry) {
   try {
-    const colRef = collection(db, AUDIT_COLLECTION);
-    await addDoc(colRef, {
-      date: serverTimestamp(),
-      adminUid: entry.adminUid || null,
-      adminEmail: entry.adminEmail || '',
-      targetUid: entry.targetUid || null,
-      targetEmail: entry.targetEmail || '',
-      actionType: entry.actionType || 'unknown',
-      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : '',
-      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : '',
+    if (!auth.currentUser) return { success: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/audit-logs`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
     });
-    return { success: true };
+    if (!res.ok) {
+      logAuditError('enregistrement d\'une action dans le journal d\'audit (API ' + res.status + ')', null);
+      return { success: false };
+    }
+    return await res.json();
   } catch (err) {
     logAuditError('enregistrement d\'une action dans le journal d\'audit', err);
     return { success: false };

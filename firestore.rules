@@ -258,24 +258,10 @@ service cloud.firestore {
 
     // --- NOUVEAU (Sprint 8) : journal d'audit des actions administrateur ---
     match /audit_logs/{logId} {
-      // Lecture reservee aux administrateurs (le journal peut contenir des
-      // informations sur n'importe quel utilisateur - jamais accessible a
-      // un utilisateur standard, meme sur ses propres entrees).
-      allow read: if isRequesterAdmin();
-
-      // Creation reservee aux administrateurs, et uniquement en s'auto-
-      // identifiant correctement comme auteur de l'action (empeche un
-      // administrateur d'usurper l'identite d'un autre administrateur dans
-      // le journal).
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.adminUid == request.auth.uid;
-
-      // Le journal d'audit est immuable une fois ecrit : ni modification,
-      // ni suppression, pour quiconque, y compris un administrateur. C'est
-      // une garantie d'integrite du journal, pas seulement une regle
-      // d'acces.
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/audit-logs) ET
+      // ecriture (/api/audit-logs) entierement migrees vers les Cloud
+      // Functions - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -314,110 +300,12 @@ service cloud.firestore {
     // explicite de ce sprint ("Sprint 18 : corriger et calculer les
     // résultats").
     match /questions/{pedagogicalId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.status == 'published');
-
-      // Creation (Sprint 10, inchangee) : l'identifiant du document DOIT
-      // correspondre exactement au pedagogicalId contenu dans le document
-      // lui-meme ; le statut ecrit doit toujours etre "draft".
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.pedagogicalId == pedagogicalId
-                    && request.resource.data.status == 'draft';
-
-      // --- Mise a jour n°1 (Sprint 10, INCHANGEE) : reecriture complete
-      // par l'IMPORTEUR ---
-      // Un reimport (js/services/question-parser.js) reconstruit
-      // l'integralite du document (contenu, metadonnees, version) et force
-      // TOUJOURS le statut a "draft", quel que soit le statut precedent -
-      // regle de securite non negociable du Sprint 10, non modifiee ici.
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && request.resource.data.status == 'draft';
-
-      // --- Mise a jour n°2 (Sprint 11) : transition de statut depuis la
-      // Banque de questions (draft/review/published/archived UNIQUEMENT -
-      // CORRECTIF : "trash" est retiree de cette liste generale et geree
-      // par une regle dediee ci-dessous, plus contrainte) ---
-      // Publier / Archiver / Remettre en brouillon (voir js/services/
-      // question-bank-service.js) ne modifient JAMAIS que le champ
-      // `status` (et `updatedAt`) - jamais le contenu, jamais les
-      // metadonnees. `hasOnly` garantit qu'aucun autre champ ne peut etre
-      // modifie "au passage" d'un changement de statut.
-      //
-      // CORRECTIF CRITIQUE (detecte par les tests avant publication) :
-      // cette regle verifiait uniquement le NOUVEAU statut demande, jamais
-      // l'ANCIEN - une question DEJA A LA CORBEILLE aurait donc pu sauter
-      // directement vers "published" (ou tout autre statut de la liste),
-      // contournant entierement l'obligation de repasser par "archived"
-      // (restauration) avant toute autre transition. La condition
-      // `resource.data.status != 'trash'` ci-dessous ferme cette bascule :
-      // une question a la corbeille ne peut JAMAIS emprunter cette regle
-      // generale, uniquement la regle dediee n°2b ci-dessous (qui ne
-      // permet que le retour vers "archived").
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'review', 'published', 'archived'];
-
-      // --- Mise a jour n°2b (CORRECTIF, suppression securisee) :
-      // transition Archivee <-> Corbeille UNIQUEMENT ---
-      // Workflow impose : Question -> Archivee -> Corbeille -> Suppression
-      // definitive. Cette regle n'autorise QUE les deux sens de cette
-      // transition precise (archived -> trash pour la mise a la corbeille,
-      // trash -> archived pour la restauration) - jamais un saut direct
-      // depuis draft/review/published vers "trash", ni l'inverse.
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-
-      // --- Mise a jour n°3 (Sprint 11) : edition limitee ---
-      // "Aucune edition complete" (Sprint 11) : seuls explanation/tags/
-      // source (+ updatedAt) peuvent etre modifies par cette voie, et le
-      // STATUT DOIT RESTER INCHANGE - une simple correction de source ou
-      // de tags ne doit jamais republier ou depublier une question par
-      // effet de bord.
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['explanation', 'tags', 'source', 'updatedAt'])
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && request.resource.data.status == resource.data.status;
-
-      // --- Mise a jour n°4 (Sprint 20 / Correctif 20.2) : classification
-      // documentaire ---
-      // "La question ne doit pas porter elle-meme toute la classification
-      // documentaire... elle doit principalement referencer une source et
-      // une section." Seuls documentSourceId/documentSectionId/
-      // functionalCode/classificationVersion (+ updatedAt) peuvent etre
-      // modifies par cette voie - jamais le contenu, jamais le statut
-      // "au passage" (meme discipline que la regle n°3 ci-dessus). Utilisee
-      // par js/services/question-classification-service.js (rattachement
-      // individuel ET migration par lots).
-      //
-      // CORRECTIF (Sprint 20.2) : isRequesterCatalogAdmin() remplace
-      // isRequesterAdmin() - classer une question dans le catalogue
-      // documentaire GLOBAL est une action de "catalogue global"
-      // (cadrage 20.2), distincte de l'édition du contenu de la question
-      // elle-même (qui reste sous isRequesterAdmin(), voir les règles
-      // ci-dessus - MANAGE_QUESTIONS).
-      allow update: if isRequesterCatalogAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['documentSourceId', 'documentSectionId', 'functionalCode', 'classificationVersion', 'updatedAt'])
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && request.resource.data.status == resource.data.status;
-
-      // --- Suppression (CORRECTIF, suppression securisee) ---
-      // Le Sprint 10 interdisait toute suppression ("allow delete: if
-      // false"). Le Sprint 11 l'avait ensuite ouverte a tout administrateur
-      // depuis n'importe quel statut - CE CORRECTIF LA RESSERRE : la
-      // suppression definitive n'est desormais possible QUE si la question
-      // est DEJA a la corbeille (dernier maillon du workflow Question ->
-      // Archivee -> Corbeille -> Suppression definitive), jamais en
-      // contournant les etapes precedentes. Defense en profondeur : cette
-      // contrainte s'applique meme si l'application cliente (js/services/
-      // question-bank-service.js, permanentlyDeleteQuestion()) etait
-      // elle-meme contournee.
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (import par
+      // lots, transitions de statut, classification documentaire,
+      // suppression securisee - les 5 regles historiques ci-dessus,
+      // conservees dans git history) entierement migrees vers les Cloud
+      // Functions (/api/questions...) - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -477,49 +365,10 @@ service cloud.firestore {
     // d'afficher quoi que ce soit) - pas au niveau de cette regle, qui ne
     // protege que la CONFIDENTIALITE du contenu non publie.
     match /parcours/{parcoursId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.status == 'published');
-
-      // Creation : l'identifiant du document DOIT correspondre exactement
-      // a l'identifiant contenu dans le document lui-meme ; le statut ecrit
-      // doit toujours etre "draft" (jamais publie automatiquement, meme
-      // principe que les questions).
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.id == parcoursId
-                    && request.resource.data.status == 'draft';
-
-      // --- Mise a jour n°1 : edition complete (nom, description, public
-      // cible, couleur, icone, competences) ---
-      // Contrairement aux questions (reecrites uniquement par l'importeur),
-      // un parcours peut etre edite librement par son proprietaire
-      // administrateur - MAIS jamais l'identifiant, et jamais le statut
-      // "au passage" d'une simple edition (voir regle n°2 pour les
-      // transitions de statut, separee et dediee).
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.id == resource.data.id
-                    && request.resource.data.status == resource.data.status;
-
-      // --- Mise a jour n°2 : transition de statut (draft/review/published/
-      // archived UNIQUEMENT - "trash" gere par une regle dediee ci-dessous,
-      // meme principe que questions/, correctif Sprint 11) ---
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'review', 'published', 'archived'];
-
-      // --- Mise a jour n°2b : transition Archive <-> Corbeille UNIQUEMENT ---
-      // Memes garanties que questions/ (correctif Sprint 11) : jamais un
-      // saut direct depuis/vers "trash" en dehors de ce chemin precis.
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-
-      // --- Suppression : contrainte au statut "trash" uniquement (workflow
-      // identique aux questions) ---
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (edition,
+      // transitions, suppression securisee) entierement migrees vers les
+      // Cloud Functions (/api/parcours...) - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // Journal des actions de gestion des parcours - meme logique
@@ -551,40 +400,11 @@ service cloud.firestore {
     // parcours consulte, jamais pour une fiche encore en brouillon/
     // archivee/a la corbeille).
     match /competencies/{competencyId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.status == 'published');
-
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.id == competencyId
-                    && request.resource.data.status == 'draft';
-
-      // --- Mise a jour n°1 : edition complete (nom, description, couleur,
-      // categorie, mots-cles, niveau conseille, et les champs "prepares
-      // pour le futur" - questionIds/resources/levels/badges/
-      // recommendations) - jamais l'identifiant, jamais le statut "au
-      // passage" d'une simple edition (transitions gerees separement
-      // ci-dessous, meme principe que parcours/). ---
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.id == resource.data.id
-                    && request.resource.data.status == resource.data.status;
-
-      // --- Mise a jour n°2 : transition de statut (draft/published/archived
-      // UNIQUEMENT - "trash" gere par une regle dediee ci-dessous) ---
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'published', 'archived'];
-
-      // --- Mise a jour n°2b : transition Archivee <-> Corbeille UNIQUEMENT ---
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-
-      // --- Suppression : contrainte au statut "trash" uniquement ---
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (edition,
+      // transitions, suppression securisee) entierement migrees vers les
+      // Cloud Functions (/api/competencies...) - plus aucun acces client
+      // direct.
+      allow read, write: if false;
     }
 
     // Journal des actions de gestion de la banque des compétences - meme
@@ -608,66 +428,23 @@ service cloud.firestore {
     // etablie. Un seul bloc par collection est neanmoins necessaire (le
     // langage des regles Firestore ne permet pas de factoriser un `match`
     // sur plusieurs noms de collection a la fois).
+    // VERROUILLE (Etape 13, 24/07/2026) : les 3 banques de reference et
+    // leur journal d'audit partage sont entierement migres vers les Cloud
+    // Functions (/api/reference-bank/...) - plus aucun acces client direct.
     match /organizations/{orgId} {
-      allow read: if isRequesterAdmin();
-      allow create: if isRequesterAdmin() && request.resource.data.id == orgId && request.resource.data.status == 'draft';
-      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'published', 'archived'];
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      allow read, write: if false;
     }
 
     match /profiles/{profileId} {
-      allow read: if isRequesterAdmin();
-      allow create: if isRequesterAdmin() && request.resource.data.id == profileId && request.resource.data.status == 'draft';
-      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'published', 'archived'];
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      allow read, write: if false;
     }
 
     match /groups/{groupId} {
-      allow read: if isRequesterAdmin();
-      allow create: if isRequesterAdmin() && request.resource.data.id == groupId && request.resource.data.status == 'draft';
-      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id && request.resource.data.status == resource.data.status;
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && resource.data.status != 'trash'
-                    && request.resource.data.status in ['draft', 'published', 'archived'];
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.id == resource.data.id
-                    && ((resource.data.status == 'archived' && request.resource.data.status == 'trash')
-                        || (resource.data.status == 'trash' && request.resource.data.status == 'archived'));
-      allow delete: if isRequesterAdmin() && resource.data.status == 'trash';
+      allow read, write: if false;
     }
 
-    // Journal d'audit PARTAGE des trois banques ci-dessus (champ `bankType`
-    // distinguant organization/profile/group + `entityId`) - factorisation
-    // deliberee plutot que trois collections d'audit quasi vides, voir
-    // reference-bank-service.js.
     match /reference_bank_audit_logs/{logId} {
-      allow read: if isRequesterAdmin();
-      allow create: if isRequesterAdmin() && request.resource.data.adminUid == request.auth.uid;
-      allow update: if false;
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -730,30 +507,10 @@ service cloud.firestore {
     // "supprimer une attribution" est une suppression Firestore réelle et
     // immédiate, jamais un statut intermédiaire).
     match /assignments/{assignmentId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null
-                      && resource.data.type == 'user'
-                      && resource.data.targetId == request.auth.uid)
-                  || (request.auth != null
-                      && resource.data.type == 'profile'
-                      && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-                      && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profileId == resource.data.targetId)
-                  || (request.auth != null
-                      && resource.data.type == 'group'
-                      && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-                      && resource.data.targetId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupIds);
-
-      allow create: if isRequesterAdmin()
-                    && request.resource.data.id == assignmentId
-                    && request.resource.data.parcoursId is string
-                    && request.resource.data.type in ['user', 'group', 'profile'];
-
-      // Pas de restriction fine par champ ce sprint (pas de workflow de
-      // contenu à protéger, contrairement aux banques Sprint 12-14) - les
-      // champs "préparés pour le futur" (priorité, échéance, obligatoire,
-      // statut) pourront être modifiés sans devoir rouvrir cette règle.
-      allow update: if isRequesterAdmin() && request.resource.data.id == resource.data.id;
-      allow delete: if isRequesterAdmin();
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/assignments...,
+      // /api/assigned-parcours) - plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -824,21 +581,10 @@ service cloud.firestore {
     // une fonction serveur de correction (Cloud Function), hors perimetre
     // explicite de ce sprint.
     match /evaluation_results/{resultId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.userId == request.auth.uid);
-
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.id == resultId
-                    && request.resource.data.sessionId == resultId
-                    && exists(/databases/$(database)/documents/evaluation_sessions/$(resultId))
-                    && get(/databases/$(database)/documents/evaluation_sessions/$(resultId)).data.userId == request.auth.uid
-                    && get(/databases/$(database)/documents/evaluation_sessions/$(resultId)).data.status == 'submitted';
-
-      // Ecriture unique : aucune mise a jour, aucune suppression, meme
-      // par un administrateur (integrite du resultat deja rendu).
-      allow update: if false;
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/evaluation-results...) -
+      // plus aucun acces client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -899,33 +645,15 @@ service cloud.firestore {
     // (aujourd'hui confondus avec "administrateur du catalogue global",
     // voir isRequesterCatalogAdmin() ci-dessus) le peuvent.
     match /document_sources/{sourceId} {
-      allow read: if isRequesterCatalogAdmin()
-                  || (request.auth != null && resource.data.status == 'active');
-
-      allow create: if isRequesterCatalogAdmin()
-                    && request.resource.data.id == sourceId
-                    && request.resource.data.status == 'draft';
-
-      allow update: if isRequesterCatalogAdmin() && request.resource.data.id == resource.data.id;
-
-      // Jamais de suppression ("Ne pas supprimer une source contenant des
-      // questions. Utiliser l'archivage.", cadrage) - vrai meme pour une
-      // source vide, par simplicite et coherence (une seule regle, jamais
-      // de cas particulier a verifier cote regles).
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/document-sources...) - plus
+      // aucun acces client direct.
+      allow read, write: if false;
     }
 
     match /document_sections/{sectionId} {
-      allow read: if isRequesterCatalogAdmin()
-                  || (request.auth != null && resource.data.status == 'active');
-
-      allow create: if isRequesterCatalogAdmin() && request.resource.data.id == sectionId;
-
-      allow update: if isRequesterCatalogAdmin()
-                    && request.resource.data.id == resource.data.id
-                    && request.resource.data.documentSourceId == resource.data.documentSourceId;
-
-      allow delete: if false;
+      // VERROUILLE (Etape 13, 24/07/2026) : idem document_sources.
+      allow read, write: if false;
     }
 
     // Compteurs sequentiels des identifiants fonctionnels (voir
@@ -1047,8 +775,10 @@ service cloud.firestore {
     // isRequesterCatalogAdmin(). Lecture ouverte a tout utilisateur authentifie
     // pour alimenter les filtres de l'Entrainement libre (Phase B1).
     match /tags/{tagId} {
-      allow read: if request.auth != null;
-      allow write: if isRequesterCatalogAdmin();
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/tags/...) - plus aucun acces
+      // client direct.
+      allow read, write: if false;
     }
 
     // =========================================================================

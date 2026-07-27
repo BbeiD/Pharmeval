@@ -26,10 +26,7 @@
 
 import { PERMISSIONS, hasPermission } from "./authorization-service.js";
 import { getCurrentUserContext } from "./app-context.js";
-import { db, auth } from "../firebase-config.js";
-import {
-  collection, query, where, orderBy, limit, startAfter, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 
 async function callReferenceBankApi(path, options) {
@@ -49,7 +46,6 @@ export const REFERENCE_BANK_STATUSES = Object.freeze({
   TRASH: 'trash',
 });
 
-const AUDIT_COLLECTION = 'reference_bank_audit_logs';
 const DEFAULT_PAGE_SIZE = 25;
 
 function randomIdSuffix() {
@@ -181,25 +177,24 @@ export function createReferenceBankService(config) {
     }
   }
 
-  function buildFilterClauses(filters) {
-    const clauses = [];
-    const f = filters || {};
-    if (f.status) clauses.push(where('status', '==', f.status));
-    return clauses;
-  }
-
   async function queryPage(options) {
     const opts = options || {};
     const pageSize = opts.pageSize || DEFAULT_PAGE_SIZE;
     try {
-      const clauses = buildFilterClauses(opts.filters);
-      clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-      clauses.push(limit(pageSize));
-      if (opts.cursorDoc) clauses.push(startAfter(opts.cursorDoc));
-      const snap = await getDocs(query(collection(db, collectionName), ...clauses));
-      const items = []; let lastDoc = null;
-      snap.forEach(function(d) { items.push(d.data()); lastDoc = d; });
-      return { items: items, lastDoc: lastDoc, hasMore: items.length === pageSize, error: false };
+      const params = new URLSearchParams({
+        pageSize: String(pageSize),
+        sortField: opts.sortField || 'createdAt',
+        sortDirection: opts.sortDirection || 'desc',
+      });
+      if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+      if (opts.cursorDoc) params.set('cursor', opts.cursorDoc);
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/page?${params.toString()}`, { method: 'GET' });
+      if (!res || !res.ok) {
+        logCatalogError('chargement d\'une page (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+        return { items: [], lastDoc: null, hasMore: false, error: true };
+      }
+      const body = await res.json();
+      return { items: body.items, lastDoc: body.lastCursor, hasMore: body.hasMore, error: false };
     } catch (err) {
       logCatalogError('chargement d\'une page', err);
       return { items: [], lastDoc: null, hasMore: false, error: true };
@@ -210,12 +205,18 @@ export function createReferenceBankService(config) {
     const opts = options || {};
     const scanLimit = opts.maxScan || 500;
     try {
-      const clauses = buildFilterClauses(opts.filters);
-      clauses.push(orderBy(opts.sortField || 'createdAt', opts.sortDirection || 'desc'));
-      clauses.push(limit(scanLimit + 1));
-      const snap = await getDocs(query(collection(db, collectionName), ...clauses));
-      const all = []; snap.forEach(function(d) { all.push(d.data()); });
-      return { items: all.slice(0, scanLimit), truncated: all.length > scanLimit, error: false };
+      const params = new URLSearchParams({
+        maxScan: String(scanLimit),
+        sortField: opts.sortField || 'createdAt',
+        sortDirection: opts.sortDirection || 'desc',
+      });
+      if (opts.filters) params.set('filters', JSON.stringify(opts.filters));
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/search-bounded?${params.toString()}`, { method: 'GET' });
+      if (!res || !res.ok) {
+        logCatalogError('recherche (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+        return { items: [], truncated: false, error: true };
+      }
+      return await res.json();
     } catch (err) {
       logCatalogError('recherche', err);
       return { items: [], truncated: false, error: true };
@@ -372,13 +373,10 @@ export function createReferenceBankService(config) {
     const items = [];
     if (item.createdAt) items.push({ date: item.createdAt, label: 'Création', adminEmail: item.author || null });
     try {
-      const snap = await getDocs(query(
-        collection(db, AUDIT_COLLECTION),
-        where('bankType', '==', bankType), where('entityId', '==', item.id),
-        orderBy('date', 'desc'), limit(100)
-      ));
-      snap.forEach(function(d) {
-        const e = d.data();
+      const res = await callReferenceBankApi(`/api/reference-bank/${bankType}/timeline/${item.id}`, { method: 'GET' });
+      if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
+      const body = await res.json();
+      (body.items || []).forEach(function(e) {
         if (e.actionType === 'creation') return;
         items.push({ date: e.date, label: describeAction(e), adminEmail: e.adminEmail || null });
       });

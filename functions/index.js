@@ -74,6 +74,24 @@ app.get("/api/tags/most-used", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend getTagsByIds() de js/services/tag-catalog-service.js. Meme regle
+// que firestore.rules : tout utilisateur authentifie. Enregistree AVANT
+// /api/tags/:tagId (sinon "by-ids" y serait intercepte comme un identifiant).
+app.get("/api/tags/by-ids", requireAuth, async (req, res) => {
+  const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  try {
+    const uniqueIds = Array.from(new Set(ids));
+    const results = await Promise.all(uniqueIds.map((id) => admin.firestore().collection(TAGS_COLLECTION).doc(id).get()));
+    const map = {};
+    uniqueIds.forEach((id, i) => { if (results[i].exists) map[id] = results[i].data(); });
+    res.json(map);
+  } catch (err) {
+    console.error("[tags/by-ids]", err && err.code, err);
+    res.status(500).json({});
+  }
+});
+
 // Reprend getTagById() de js/services/tag-catalog-service.js. Meme regle
 // que firestore.rules (match /tags/{tagId}) : tout utilisateur authentifie.
 app.get("/api/tags/:tagId", requireAuth, async (req, res) => {
@@ -436,6 +454,50 @@ app.delete("/api/assignments/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend listAssignmentsByParcours() de js/services/assignment-catalog-
+// service.js (ecran d'administration, section "Attributions" d'un
+// parcours). Reservee aux administrateurs (voir assignment-service.js,
+// MANAGE_PARCOURS) - la regle Firestore d'origine n'aurait de toute facon
+// jamais pu autoriser cette requete pour un non-admin (aucun filtre par
+// cible, resultat potentiellement mixte user/group/profile).
+app.get("/api/assignments/by-parcours/:parcoursId", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ items: [], error: true });
+    const snap = await admin
+      .firestore()
+      .collection(ASSIGNMENTS_COLLECTION)
+      .where("parcoursId", "==", req.params.parcoursId)
+      .orderBy("assignedAt", "desc")
+      .limit(200)
+      .get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[assignments/by-parcours]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend assignmentExists() de js/services/assignment-catalog-service.js
+// (verification de doublon avant creation). Meme regle (admin uniquement).
+app.get("/api/assignments/exists", requireAuth, async (req, res) => {
+  const { parcoursId, type, targetId } = req.query;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ exists: false, error: true });
+    const snap = await admin
+      .firestore()
+      .collection(ASSIGNMENTS_COLLECTION)
+      .where("parcoursId", "==", parcoursId)
+      .where("type", "==", type)
+      .where("targetId", "==", targetId)
+      .limit(1)
+      .get();
+    res.json({ exists: !snap.empty, error: false });
+  } catch (err) {
+    console.error("[assignments/exists]", err && err.code, err);
+    res.status(500).json({ exists: false, error: true });
+  }
+});
+
 async function listAssignmentsByTarget(type, targetId) {
   if (!targetId) return [];
   const snap = await admin
@@ -539,6 +601,116 @@ function parseFiltersParam(raw) {
     return {};
   }
 }
+
+// Reprend resolveQuestionIdentity() de js/services/catalog-sync-firestore-
+// backend.js (dedoublonnage par externalId avant import). Reservee aux
+// administrateurs, meme principe que existing-editorial-ids ci-dessus.
+app.get("/api/questions/resolve-identity", requireAuth, async (req, res) => {
+  const externalId = req.query.externalId;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ found: false, pedagogicalId: null, existingDoc: null, error: true });
+    const snap = await admin
+      .firestore()
+      .collection(QUESTIONS_COLLECTION)
+      .where("externalIds.editorialCatalog", "==", externalId)
+      .limit(1)
+      .get();
+    if (snap.empty) return res.json({ found: false, pedagogicalId: null, existingDoc: null, error: false });
+    const d = snap.docs[0];
+    res.json({ found: true, pedagogicalId: d.id, existingDoc: d.data(), error: false });
+  } catch (err) {
+    console.error("[questions/resolve-identity]", err && err.code, err);
+    res.status(500).json({ found: false, pedagogicalId: null, existingDoc: null, error: true });
+  }
+});
+
+// Reprend listExistingEditorialCatalogIds() de js/services/catalog-sync-
+// firestore-backend.js (moteur de synchronisation, detection de doublons
+// avant import). Reservee aux administrateurs (toutes questions, tout
+// statut confondu, jamais uniquement les publiees).
+app.get("/api/questions/existing-editorial-ids", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ ids: [], error: true });
+    const snap = await admin
+      .firestore()
+      .collection(QUESTIONS_COLLECTION)
+      .where("fromEditorialCatalog", "==", true)
+      .limit(5000)
+      .get();
+    const ids = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      const id = data.externalIds && data.externalIds.editorialCatalog;
+      if (id) ids.push(id);
+    });
+    res.json({ ids, error: false });
+  } catch (err) {
+    console.error("[questions/existing-editorial-ids]", err && err.code, err);
+    res.status(500).json({ ids: [], error: true });
+  }
+});
+
+// Reprend fetchAllQuestionsOfSource() de js/services/document-count-
+// service.js (reconciliation des compteurs, admin/document-sources.js).
+// Retourne TOUTES les questions d'une source quel que soit leur statut
+// (necessaire pour un comptage reel) - reservee aux administrateurs du
+// catalogue, contrairement aux lectures normales limitees aux publiees.
+app.get("/api/questions/all-for-source/:sourceId", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: true });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(QUESTIONS_COLLECTION)
+      .where("documentSourceId", "==", req.params.sourceId)
+      .limit(2000)
+      .get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[questions/all-for-source]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
+// Reprend queryQuestionsPage() de js/services/question-catalog-service.js
+// (Banque de questions, admin). Meme regle que firestore.rules : un filtre
+// status=='published' est ouvert a tout utilisateur authentifie, tout AUTRE
+// cas exige isRequesterAdmin() - jamais de fuite d'une question non publiee
+// via un filtre absent ou un autre statut. Enregistree AVANT /search-bounded
+// (methode GET distincte de toute facon, mais gardee ici pour la lisibilite).
+app.get("/api/questions", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], lastDoc: null, hasMore: false, error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(QUESTIONS_COLLECTION);
+    buildQuestionFilterDescriptors(filters).forEach((d) => { q = q.where(d.field, d.op, d.value); });
+    q = q.orderBy(sortField, sortDirection).limit(pageSize + 1);
+    if (req.query.cursor) {
+      try { q = q.startAfter(JSON.parse(req.query.cursor)); } catch { /* curseur invalide, ignore */ }
+    }
+    const snap = await q.get();
+    const docs = snap.docs.slice(0, pageSize);
+    res.json({
+      items: docs.map((d) => d.data()),
+      lastCursor: docs.length ? JSON.stringify(docs[docs.length - 1].data()[sortField]) : null,
+      hasMore: snap.docs.length > pageSize,
+      error: false,
+    });
+  } catch (err) {
+    console.error("[questions]", err && err.code, err);
+    const isIndexMissing = /index/i.test((err && err.message) || "");
+    res.status(500).json({
+      items: [], lastDoc: null, hasMore: false, error: true,
+      message: isIndexMissing ? "Cette fonctionnalité nécessite un index Firestore qui n'est pas encore déployé." : null,
+    });
+  }
+});
 
 // Reprend searchQuestionsBounded() de js/services/question-catalog-service.js
 // (composition du pool "Entrainement libre", question-search-provider.js).
@@ -1333,6 +1505,68 @@ app.get("/api/competencies", requireAuth, async (req, res) => {
   }
 });
 
+function buildCompetenciesFilterClauses(query, filters) {
+  const f = filters || {};
+  let q = query;
+  if (f.status) q = q.where("status", "==", f.status);
+  if (f.category) q = q.where("category", "==", f.category);
+  if (f.author) q = q.where("author", "==", f.author);
+  return q;
+}
+
+// Reprend queryCompetenciesPage() de js/services/competency-catalog-
+// service.js (Banque des competences, admin). Meme regle que ci-dessus :
+// filtre status=='published' ouvert a tout utilisateur authentifie, tout
+// autre cas exige isRequesterAdmin().
+app.get("/api/competencies/page", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], lastDoc: null, hasMore: false, error: "Accès refusé" });
+    }
+    let q = buildCompetenciesFilterClauses(admin.firestore().collection(COMPETENCIES_COLLECTION), filters);
+    q = q.orderBy(sortField, sortDirection).limit(pageSize + 1);
+    if (req.query.cursor) {
+      try { q = q.startAfter(JSON.parse(req.query.cursor)); } catch { /* curseur invalide, ignore */ }
+    }
+    const snap = await q.get();
+    const docs = snap.docs.slice(0, pageSize);
+    res.json({
+      items: docs.map((d) => d.data()),
+      lastCursor: docs.length ? JSON.stringify(docs[docs.length - 1].data()[sortField]) : null,
+      hasMore: snap.docs.length > pageSize,
+      error: false,
+    });
+  } catch (err) {
+    console.error("[competencies/page]", err && err.code, err);
+    res.status(500).json({ items: [], lastDoc: null, hasMore: false, error: true });
+  }
+});
+
+// Reprend searchCompetenciesBounded(). Meme regle que ci-dessus.
+app.get("/api/competencies/search-bounded", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], truncated: false, error: "Accès refusé" });
+    }
+    let q = buildCompetenciesFilterClauses(admin.firestore().collection(COMPETENCIES_COLLECTION), filters);
+    q = q.orderBy(sortField, sortDirection).limit(scanLimit + 1);
+    const snap = await q.get();
+    const all = snap.docs.map((d) => d.data());
+    res.json({ items: all.slice(0, scanLimit), truncated: all.length > scanLimit, error: false, scanLimit });
+  } catch (err) {
+    console.error("[competencies/search-bounded]", err && err.code, err);
+    res.status(500).json({ items: [], truncated: false, error: true, scanLimit });
+  }
+});
+
 // Reprend createCompetencyDocument() de js/services/competency-catalog-
 // service.js. Meme regle "create" que firestore.rules : isRequesterAdmin(),
 // id == identifiant du document, statut TOUJOURS 'draft'.
@@ -1455,6 +1689,74 @@ app.post("/api/competency-audit-logs", requireAuth, async (req, res) => {
 });
 
 const PARCOURS_COLLECTION_FOR_GETBYID = "parcours";
+
+function buildParcoursFilterClauses(query, filters) {
+  const f = filters || {};
+  let q = query;
+  if (f.status) q = q.where("status", "==", f.status);
+  if (f.author) q = q.where("author", "==", f.author);
+  return q;
+}
+
+// Reprend queryParcoursPage() de js/services/parcours-catalog-service.js
+// (Banque de parcours, admin). Meme regle que firestore.rules : un filtre
+// status=='published' est ouvert a tout utilisateur authentifie, tout
+// AUTRE cas (pas de filtre, ou un statut non-publie) exige isRequesterAdmin() -
+// jamais de fuite d'un parcours non publie via un filtre absent.
+app.get("/api/parcours", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], lastDoc: null, hasMore: false, error: "Accès refusé" });
+    }
+    let q = buildParcoursFilterClauses(admin.firestore().collection(PARCOURS_COLLECTION_FOR_GETBYID), filters);
+    q = q.orderBy(sortField, sortDirection).limit(pageSize + 1);
+    if (req.query.cursor) {
+      // Curseur = valeur brute du champ de tri sur le dernier document de la
+      // page precedente (ex. une chaine ISO pour createdAt - jamais un
+      // Timestamp Firestore ici, contrairement a evaluation_sessions/
+      // evaluation_results : parcours/competencies stockent createdAt en
+      // ISO string, voir parcours-service.js). Encodee en JSON pour
+      // preserver le type exact (nombre, chaine...) a travers l'URL.
+      try { q = q.startAfter(JSON.parse(req.query.cursor)); } catch { /* curseur invalide, ignore */ }
+    }
+    const snap = await q.get();
+    const docs = snap.docs.slice(0, pageSize);
+    res.json({
+      items: docs.map((d) => d.data()),
+      lastCursor: docs.length ? JSON.stringify(docs[docs.length - 1].data()[sortField]) : null,
+      hasMore: snap.docs.length > pageSize,
+      error: false,
+    });
+  } catch (err) {
+    console.error("[parcours]", err && err.code, err);
+    res.status(500).json({ items: [], lastDoc: null, hasMore: false, error: true });
+  }
+});
+
+// Reprend searchParcoursBounded(). Meme regle que ci-dessus.
+app.get("/api/parcours/search-bounded", requireAuth, async (req, res) => {
+  const filters = parseFiltersParam(req.query.filters);
+  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], truncated: false, error: "Accès refusé" });
+    }
+    let q = buildParcoursFilterClauses(admin.firestore().collection(PARCOURS_COLLECTION_FOR_GETBYID), filters);
+    q = q.orderBy(sortField, sortDirection).limit(scanLimit + 1);
+    const snap = await q.get();
+    const all = snap.docs.map((d) => d.data());
+    res.json({ items: all.slice(0, scanLimit), truncated: all.length > scanLimit, error: false, scanLimit });
+  } catch (err) {
+    console.error("[parcours/search-bounded]", err && err.code, err);
+    res.status(500).json({ items: [], truncated: false, error: true, scanLimit });
+  }
+});
 
 // Reprend getParcoursById() de js/services/parcours-catalog-service.js
 // (evaluation.js/evaluation-result.js, resolution d'affichage lors d'une
@@ -1619,18 +1921,35 @@ app.get("/api/users", requireAuth, async (req, res) => {
 // encore ecrit, ce qui aurait pu laisser la plateforme sans administrateur.
 // =========================================================================
 
-async function writeAuditLog(entry) {
-  await admin.firestore().collection("audit_logs").add({
-    date: new Date().toISOString(),
-    adminUid: entry.adminUid || null,
-    adminEmail: entry.adminEmail || "",
-    targetUid: entry.targetUid || null,
-    targetEmail: entry.targetEmail || null,
-    actionType: entry.actionType || "unknown",
-    oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
-    newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
-  });
-}
+// Reprend logAction() de js/services/audit-service.js. Meme regle que
+// firestore.rules (match /audit_logs/{logId}) : isRequesterAdmin(),
+// adminUid == demandeur. Appelee SEPAREMENT par le client apres chaque
+// action sensible (role/statut/champs metier) - jamais automatiquement
+// par les routes ci-dessous, pour eviter une double journalisation (une
+// version anterieure de ce fichier journalisait ICI ET le client
+// journalisait aussi de son cote ; corrige au profit d'un point unique,
+// comme pour question/parcours/competency-audit-logs).
+app.post("/api/audit-logs", requireAuth, async (req, res) => {
+  const entry = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ success: false });
+    if (entry.adminUid !== req.user.uid) return res.status(403).json({ success: false });
+    await admin.firestore().collection("audit_logs").add({
+      date: new Date().toISOString(),
+      adminUid: entry.adminUid || null,
+      adminEmail: entry.adminEmail || "",
+      targetUid: entry.targetUid || null,
+      targetEmail: entry.targetEmail || "",
+      actionType: entry.actionType || "unknown",
+      oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+      newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[audit-logs:post]", err && err.code, err);
+    res.status(500).json({ success: false });
+  }
+});
 
 app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
   const targetUid = req.params.uid;
@@ -1646,15 +1965,12 @@ app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
       return res.status(403).json({ status: "denied", message: "Cette action est réservée aux administrateurs." });
     }
     const usersCol = admin.firestore().collection("users");
-    let oldRole = null;
-    let targetEmail = null;
     try {
       await admin.firestore().runTransaction(async (tx) => {
         const targetSnap = await tx.get(usersCol.doc(targetUid));
         if (!targetSnap.exists) throw new Error("TARGET_NOT_FOUND");
         const target = targetSnap.data();
-        oldRole = target.role || "user";
-        targetEmail = target.email || null;
+        const oldRole = target.role || "user";
         if (oldRole === newRole) throw new Error("SAME_ROLE");
 
         if (oldRole === "admin" && newRole !== "admin") {
@@ -1672,10 +1988,6 @@ app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
       throw txErr;
     }
 
-    await writeAuditLog({
-      adminUid: req.user.uid, adminEmail: req.user.email || "",
-      targetUid, targetEmail, actionType: "role_change", oldValue: oldRole, newValue: newRole,
-    });
     res.json({ status: "success" });
   } catch (err) {
     console.error("[users/:uid/role]", err && err.code, err);
@@ -1697,15 +2009,12 @@ app.patch("/api/users/:uid/status", requireAuth, async (req, res) => {
       return res.status(403).json({ status: "denied", message: "Cette action est réservée aux administrateurs." });
     }
     const usersCol = admin.firestore().collection("users");
-    let oldStatus = null;
-    let targetEmail = null;
     try {
       await admin.firestore().runTransaction(async (tx) => {
         const targetSnap = await tx.get(usersCol.doc(targetUid));
         if (!targetSnap.exists) throw new Error("TARGET_NOT_FOUND");
         const target = targetSnap.data();
-        oldStatus = target.status || "active";
-        targetEmail = target.email || null;
+        const oldStatus = target.status || "active";
         if (oldStatus === newStatus) throw new Error("SAME_STATUS");
 
         const targetRole = target.role || "user";
@@ -1724,10 +2033,6 @@ app.patch("/api/users/:uid/status", requireAuth, async (req, res) => {
       throw txErr;
     }
 
-    await writeAuditLog({
-      adminUid: req.user.uid, adminEmail: req.user.email || "",
-      targetUid, targetEmail, actionType: "status_change", oldValue: oldStatus, newValue: newStatus,
-    });
     res.json({ status: "success" });
   } catch (err) {
     console.error("[users/:uid/status]", err && err.code, err);
@@ -1753,16 +2058,7 @@ app.patch("/api/users/:uid/business-fields", requireAuth, async (req, res) => {
     const ref = admin.firestore().collection("users").doc(targetUid);
     const snap = await ref.get();
     if (!snap.exists) return res.status(404).json({ status: "error", message: "Utilisateur cible introuvable." });
-    const target = snap.data();
     await ref.update(fields);
-
-    for (const key of Object.keys(fields)) {
-      await writeAuditLog({
-        adminUid: req.user.uid, adminEmail: req.user.email || "",
-        targetUid, targetEmail: target.email || null,
-        actionType: "business_profile_edit_" + key, oldValue: target[key], newValue: fields[key],
-      });
-    }
     res.json({ status: "success" });
   } catch (err) {
     console.error("[users/:uid/business-fields]", err && err.code, err);
@@ -1949,6 +2245,31 @@ app.get("/api/evaluation-results/:id", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[evaluation-results/:id]", err && err.code, err);
     res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend getRecentEvaluationsForUid() de js/services/history-service.js
+// (fiche detaillee admin/users.js). Reservee aux administrateurs - meme
+// regle que firestore.rules (isRequesterAdmin() peut lire n'importe quel
+// document evaluation_results).
+app.get("/api/evaluation-results/for-user/:uid", requireAuth, async (req, res) => {
+  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : 20;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_RESULTS_COLLECTION)
+      .where("userId", "==", req.params.uid)
+      .orderBy("createdAt", "desc")
+      .limit(max)
+      .get();
+    const items = snap.docs.map((d) => { const data = d.data(); if (!data.id) data.id = d.id; return data; });
+    res.json({ items, error: false });
+  } catch (err) {
+    console.error("[evaluation-results/for-user]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
   }
 });
 
@@ -2265,6 +2586,85 @@ app.get("/api/reference-bank/:bankType", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend queryPage() de la factory js/services/reference-bank-service.js
+// (ecran d'administration des 3 banques). Meme regle que firestore.rules :
+// isRequesterAdmin() TOUJOURS (contrairement a questions/parcours/
+// competencies, aucun cas "publie = ouvert a tous" ici).
+app.get("/api/reference-bank/:bankType/page", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ items: [], lastDoc: null, hasMore: false, error: true });
+  const filters = parseFiltersParam(req.query.filters);
+  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], lastDoc: null, hasMore: false, error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(collectionName);
+    if (filters.status) q = q.where("status", "==", filters.status);
+    q = q.orderBy(sortField, sortDirection).limit(pageSize + 1);
+    if (req.query.cursor) {
+      try { q = q.startAfter(JSON.parse(req.query.cursor)); } catch { /* curseur invalide, ignore */ }
+    }
+    const snap = await q.get();
+    const docs = snap.docs.slice(0, pageSize);
+    res.json({
+      items: docs.map((d) => d.data()),
+      lastCursor: docs.length ? JSON.stringify(docs[docs.length - 1].data()[sortField]) : null,
+      hasMore: snap.docs.length > pageSize,
+      error: false,
+    });
+  } catch (err) {
+    console.error("[reference-bank/page]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ items: [], lastDoc: null, hasMore: false, error: true });
+  }
+});
+
+// Reprend searchBounded(). Meme regle que ci-dessus.
+app.get("/api/reference-bank/:bankType/search-bounded", requireAuth, async (req, res) => {
+  const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
+  if (!collectionName) return res.status(400).json({ items: [], truncated: false, error: true });
+  const filters = parseFiltersParam(req.query.filters);
+  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const sortField = req.query.sortField || "createdAt";
+  const sortDirection = req.query.sortDirection || "desc";
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], truncated: false, error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection(collectionName);
+    if (filters.status) q = q.where("status", "==", filters.status);
+    q = q.orderBy(sortField, sortDirection).limit(scanLimit + 1);
+    const snap = await q.get();
+    const all = snap.docs.map((d) => d.data());
+    res.json({ items: all.slice(0, scanLimit), truncated: all.length > scanLimit, error: false });
+  } catch (err) {
+    console.error("[reference-bank/search-bounded]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ items: [], truncated: false, error: true });
+  }
+});
+
+// Reprend getTimeline() (lecture de reference_bank_audit_logs pour UN
+// element). Meme regle : isRequesterAdmin().
+app.get("/api/reference-bank/:bankType/timeline/:entityId", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ items: [], error: true });
+    const snap = await admin
+      .firestore()
+      .collection("reference_bank_audit_logs")
+      .where("bankType", "==", req.params.bankType)
+      .where("entityId", "==", req.params.entityId)
+      .orderBy("date", "desc")
+      .limit(100)
+      .get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[reference-bank/timeline]", req.params.bankType, err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 // Reprend create()/edit()/publish()/archive()/revertToDraft()/moveToTrash()/
 // restoreFromTrash()/permanentlyDelete() de la factory js/services/
 // reference-bank-service.js. UNE seule implementation parametree par
@@ -2532,6 +2932,34 @@ async function getVisibleDocumentSource(sourceId, requesterUid, adminCache) {
   if (adminCache.value === null) adminCache.value = await isRequesterCatalogAdmin(requesterUid);
   return adminCache.value ? data : null;
 }
+
+// Reprend getPublishedQuestionIdsBySourceIds() de js/services/question-
+// catalog-service.js (pool d'evaluation de parcours mixte, calcul de
+// progression). Filtre status=='published' toujours applique - ouvert a
+// tout utilisateur authentifie, meme regle que firestore.rules.
+app.post("/api/questions/published-ids-by-sources", requireAuth, async (req, res) => {
+  const sourceIds = (req.body && req.body.sourceIds) || [];
+  const unique = Array.from(new Set(sourceIds.filter(Boolean)));
+  if (unique.length === 0) return res.json({ ids: [] });
+  const CHUNK_SIZE = 30;
+  try {
+    const ids = [];
+    for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
+      const chunk = unique.slice(i, i + CHUNK_SIZE);
+      const snap = await admin
+        .firestore()
+        .collection(QUESTIONS_COLLECTION)
+        .where("status", "==", "published")
+        .where("documentSourceId", "in", chunk)
+        .get();
+      snap.forEach((d) => ids.push(d.id));
+    }
+    res.json({ ids });
+  } catch (err) {
+    console.error("[questions/published-ids-by-sources]", err && err.code, err);
+    res.status(500).json({ ids: [] });
+  }
+});
 
 app.get("/api/document-sources-by-ids", requireAuth, async (req, res) => {
   const ids = String(req.query.ids || "").split(",").map((s) => s.trim()).filter(Boolean);

@@ -11,13 +11,8 @@
 // relire/publier - "supprimer une attribution" (SPRINT15) est une
 // suppression Firestore reelle et immediate.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection, query, where, orderBy, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
-
-const ASSIGNMENT_COLLECTION = 'assignments';
 
 async function callAssignmentApi(path, options) {
   if (!auth.currentUser) return null;
@@ -81,69 +76,14 @@ export async function deleteAssignmentDocument(assignmentId) {
  */
 export async function listAssignmentsByParcours(parcoursId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, ASSIGNMENT_COLLECTION),
-      where('parcoursId', '==', parcoursId),
-      orderBy('assignedAt', 'desc'),
-      limit(200)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
+    const res = await callAssignmentApi(`/api/assignments/by-parcours/${parcoursId}`, { method: 'GET' });
+    if (!res || !res.ok) {
+      logCatalogError('lecture des attributions du parcours ' + parcoursId + ' (API ' + (res ? res.status : 'hors-ligne') + ')', null);
+      return { items: [], error: true };
+    }
+    return await res.json();
   } catch (err) {
     logCatalogError('lecture des attributions du parcours ' + parcoursId, err);
-    return { items: [], error: true };
-  }
-}
-
-/**
- * Liste les attributions correspondant EXACTEMENT a un type + une cible
- * (ex. toutes les attributions directes d'un utilisateur, ou toutes les
- * attributions d'un groupe precis). Brique de base de la resolution
- * "Mes parcours" (voir assignment-service.js, getAssignedParcoursForUser).
- * @param {string} type - une valeur de ASSIGNMENT_TARGET_TYPES
- * @param {string} targetId
- * @returns {Promise<{items:Array<object>, error:boolean}>}
- */
-export async function listAssignmentsByTarget(type, targetId) {
-  if (!targetId) return { items: [], error: false };
-  try {
-    const snap = await getDocs(query(
-      collection(db, ASSIGNMENT_COLLECTION),
-      where('type', '==', type),
-      where('targetId', '==', targetId),
-      limit(200)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
-  } catch (err) {
-    logCatalogError('lecture des attributions (' + type + ' / ' + targetId + ')', err);
-    return { items: [], error: true };
-  }
-}
-
-/**
- * Variante de listAssignmentsByTarget() pour une LISTE de cibles du meme
- * type (ex. tous les groupes d'un utilisateur en une seule requete via
- * l'operateur Firestore `in`, limite native a 30 valeurs - largement
- * suffisant pour un nombre de groupes realiste par utilisateur).
- * @param {string} type
- * @param {Array<string>} targetIds
- * @returns {Promise<{items:Array<object>, error:boolean}>}
- */
-export async function listAssignmentsByTargetIn(type, targetIds) {
-  const ids = (targetIds || []).filter(Boolean).slice(0, 30);
-  if (ids.length === 0) return { items: [], error: false };
-  try {
-    const snap = await getDocs(query(
-      collection(db, ASSIGNMENT_COLLECTION),
-      where('type', '==', type),
-      where('targetId', 'in', ids),
-      limit(200)
-    ));
-    const items = []; snap.forEach(function(d) { items.push(d.data()); });
-    return { items: items, error: false };
-  } catch (err) {
-    logCatalogError('lecture des attributions (' + type + ' / lot)', err);
     return { items: [], error: true };
   }
 }
@@ -160,14 +100,11 @@ export async function listAssignmentsByTargetIn(type, targetIds) {
  */
 export async function assignmentExists(parcoursId, type, targetId) {
   try {
-    const snap = await getDocs(query(
-      collection(db, ASSIGNMENT_COLLECTION),
-      where('parcoursId', '==', parcoursId),
-      where('type', '==', type),
-      where('targetId', '==', targetId),
-      limit(1)
-    ));
-    return !snap.empty;
+    const params = new URLSearchParams({ parcoursId, type, targetId });
+    const res = await callAssignmentApi(`/api/assignments/exists?${params.toString()}`, { method: 'GET' });
+    if (!res || !res.ok) return false; // fail-open volontaire, meme principe qu'avant
+    const body = await res.json();
+    return !!body.exists;
   } catch (err) {
     logCatalogError('vérification de doublon d\'attribution', err);
     return false; // fail-open volontaire : mieux vaut laisser assignment-service.js retenter que bloquer une attribution legitime sur une panne de lecture

@@ -24,10 +24,7 @@
 // existantes - HORS PÉRIMÈTRE de ce correctif, qui ne porte que sur les
 // compteurs DE QUESTIONS.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  query, collection, where, limit, getDocs,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { API_BASE_URL } from "../config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { logAction } from "./audit-service.js";
@@ -327,10 +324,14 @@ export async function applyAggregatedCounterDeltas(aggregated) {
 const RECONCILE_SCAN_LIMIT = 2000; // largement suffisant pour ~900 questions - voir RAPPORT_CORRECTIF_SPRINT20.md, "Limites connues"
 
 async function fetchAllQuestionsOfSource(sourceId) {
-  const snap = await getDocs(query(collection(db, 'questions'), where('documentSourceId', '==', sourceId), limit(RECONCILE_SCAN_LIMIT)));
-  const items = [];
-  snap.forEach(function(d) { items.push(d.data()); });
-  return items;
+  if (!auth.currentUser) return [];
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(`${API_BASE_URL}/api/questions/all-for-source/${sourceId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  const body = await res.json();
+  return body.items || [];
 }
 
 /**
