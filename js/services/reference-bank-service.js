@@ -39,6 +39,30 @@ async function callReferenceBankApi(path, options) {
   return res;
 }
 
+/**
+ * AJOUT (page "Journal d'audit" consolidee, demande directe de David,
+ * 27/07/2026) : flux global recent (toutes organisations/profils/groupes
+ * confondus, ou filtre sur UN bankType), independant de toute banque
+ * concrete - contrairement a getTimeline() (dans createReferenceBankService()
+ * ci-dessous), qui exige un element precis.
+ * @param {{bankType?:string, limit?:number}} [options]
+ * @returns {Promise<{items:Array<object>, error:boolean}>}
+ */
+export async function getRecentReferenceBankAuditEntries(options) {
+  const opts = options || {};
+  try {
+    const params = new URLSearchParams();
+    if (opts.bankType) params.set('bankType', opts.bankType);
+    if (opts.limit) params.set('limit', String(opts.limit));
+    const res = await callReferenceBankApi(`/api/reference-bank-audit-logs?${params.toString()}`, { method: 'GET' });
+    if (!res || !res.ok) throw new Error('API ' + (res ? res.status : 'hors-ligne'));
+    return await res.json();
+  } catch (err) {
+    console.error('[reference-bank-service] lecture du journal d\'audit global :', (err && err.code) || 'erreur-inconnue', err);
+    return { items: [], error: true };
+  }
+}
+
 export const REFERENCE_BANK_STATUSES = Object.freeze({
   DRAFT: 'draft',
   PUBLISHED: 'published',

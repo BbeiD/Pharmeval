@@ -2914,6 +2914,31 @@ app.post("/api/reference-bank-audit-logs", requireAuth, async (req, res) => {
   }
 });
 
+// AJOUT (page "Journal d'audit" consolidee, demande directe de David,
+// 27/07/2026) : flux global recent (toutes organisations/profils/groupes
+// confondus, ou filtre sur UN bankType) - la route existante
+// (/timeline/:entityId ci-dessus) exige un element precis, aucune ne
+// permettait jusqu'ici "les N dernieres actions, tous elements confondus"
+// comme pour audit_logs/question_audit_logs/parcours_audit_logs/
+// competency_audit_logs.
+app.get("/api/reference-bank-audit-logs", requireAuth, async (req, res) => {
+  const max = boundedNumberParam(req.query.limit, DEFAULT_CONTENT_AUDIT_LIMIT, 500);
+  const { bankType } = req.query;
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ items: [], error: "Accès refusé" });
+    }
+    let q = admin.firestore().collection("reference_bank_audit_logs");
+    if (bankType) q = q.where("bankType", "==", bankType);
+    q = q.orderBy("date", "desc").limit(max);
+    const snap = await q.get();
+    res.json({ items: snap.docs.map((d) => d.data()), error: false });
+  } catch (err) {
+    console.error("[reference-bank-audit-logs]", err && err.code, err);
+    res.status(500).json({ items: [], error: true });
+  }
+});
+
 const QUESTION_REPORTS_COLLECTION = "question_reports";
 
 // Reprend getOpenReportCounts() de js/services/question-report-service.js
