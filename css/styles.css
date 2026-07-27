@@ -280,7 +280,12 @@
      l'ancienne barre horizontale, qui masquait deja les libelles). */
   @media (max-width: 780px) {
     :root { --sidebar-width: var(--sidebar-width-collapsed); }
-    .sh-nav-label, .sh-app-tagline, .sh-account-inline, .sh-streak-text { display: none; }
+    /* CORRECTIF (retour mobile, 27/07/2026) : .sh-app-tagline etait deja
+       masque, mais pas .sh-app-name ("Pharmeval") - le nom entier restait
+       affiche a cote de l'icone dans une colonne de 76px, et se retrouvait
+       tronque a "Ph" (texte coupe par overflow, jamais redimensionne). Le
+       logo (icone seule) suffit une fois la barre reduite. */
+    .sh-nav-label, .sh-app-tagline, .sh-app-name, .sh-account-inline, .sh-streak-text { display: none; }
     .sh-logo-link { justify-content: center; }
     .sh-nav-link { justify-content: center; padding: 10px; }
     .sh-avatar-btn { justify-content: center; }
@@ -288,6 +293,17 @@
   }
 
   .container { max-width: 820px; margin: 0 auto; padding: 28px 20px; }
+
+  /* CORRECTIF (retour mobile, 27/07/2026) : la rangee "Progression globale
+     / Defi du jour / Activite recente" (index.html) etait en 3 colonnes
+     figees par un style EN LIGNE (jamais adaptee au mobile, contrairement
+     au reste du site) - chaque carte se retrouvait ecrasee sur ~100px de
+     large sur un telephone. Regle deplacee ici pour pouvoir la surcharger
+     proprement en media query. */
+  .home-triple-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-4); }
+  @media (max-width: 700px) {
+    .home-triple-grid { grid-template-columns: 1fr; }
+  }
 
   /* VIEWS */
   #home-view { display: block; }
