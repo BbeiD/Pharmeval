@@ -895,12 +895,25 @@ export async function confirmSuggestedQuestions() {
   // (jamais "N liee(s)" quand certaines/toutes ont en realite echoue -
   // meme principe que partout ailleurs dans ce fichier, ne jamais
   // presenter un succes non confirme).
+  //
+  // CORRECTIF 2 (bug distinct, meme session) : `p.competencies` DOIT etre
+  // rafraichi apres CHAQUE appel reussi - linkQuestionToCompetency() lit
+  // l'etat COMPLET de `parcours.competencies` recu en argument et
+  // reecrit le tableau entier (jamais une fusion partielle cote serveur).
+  // Sans ce rafraichissement, les 4 appels partaient tous du meme etat
+  // "avant tout lien" et s'ecrasaient mutuellement - seul le DERNIER lien
+  // survivait reellement en base, malgre "4 liee(s) avec succes" affiche
+  // (chaque appel individuel reussissait bel et bien, isolement).
   let successCount = 0;
   let lastFailure = null;
   for (const item of toLink) {
     const result = await linkQuestionToCompetency(p, item.competencyLocalId, item.pedagogicalId);
-    if (result.status === 'success') successCount += 1;
-    else lastFailure = result;
+    if (result.status === 'success') {
+      successCount += 1;
+      p.competencies = result.competencies;
+    } else {
+      lastFailure = result;
+    }
   }
   const status = successCount === toLink.length ? 'success' : (successCount > 0 ? 'success' : (lastFailure ? lastFailure.status : 'error'));
   const message = successCount === toLink.length
