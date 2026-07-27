@@ -1539,6 +1539,172 @@ app.get("/api/users", requireAuth, async (req, res) => {
   }
 });
 
+// =========================================================================
+// Reprend js/services/admin-service.js (changeRole/changeUserStatus) +
+// js/services/user-management-service.js (updateUserRole/updateUserStatus/
+// countActiveAdmins). MEME regle "update n°2" que firestore.rules
+// (isRequesterAdmin(), jamais sur soi-meme, hasOnly(['role','status'])) -
+// mais AJOUTE ICI la protection "toujours au moins un administrateur actif"
+// de facon reellement ATOMIQUE (transaction Firestore), ce que le
+// commentaire d'origine de admin-service.js signalait explicitement comme
+// une limite connue ("protection appliquee UNIQUEMENT au niveau
+// applicatif... une protection serveur plus robuste devra etre mise en
+// place ulterieurement") : deux requetes concurrentes ne peuvent plus
+// toutes les deux passer le controle de comptage avant qu'aucune n'ait
+// encore ecrit, ce qui aurait pu laisser la plateforme sans administrateur.
+// =========================================================================
+
+async function writeAuditLog(entry) {
+  await admin.firestore().collection("audit_logs").add({
+    date: new Date().toISOString(),
+    adminUid: entry.adminUid || null,
+    adminEmail: entry.adminEmail || "",
+    targetUid: entry.targetUid || null,
+    targetEmail: entry.targetEmail || null,
+    actionType: entry.actionType || "unknown",
+    oldValue: (entry.oldValue !== undefined && entry.oldValue !== null) ? String(entry.oldValue) : "",
+    newValue: (entry.newValue !== undefined && entry.newValue !== null) ? String(entry.newValue) : "",
+  });
+}
+
+app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
+  const targetUid = req.params.uid;
+  const newRole = req.body && req.body.newRole;
+  if (targetUid === req.user.uid) {
+    return res.status(403).json({ status: "denied", message: "Vous ne pouvez pas modifier votre propre rôle." });
+  }
+  if (!["user", "admin"].includes(newRole)) {
+    return res.status(400).json({ status: "error", message: "Rôle demandé invalide." });
+  }
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ status: "denied", message: "Cette action est réservée aux administrateurs." });
+    }
+    const usersCol = admin.firestore().collection("users");
+    let oldRole = null;
+    let targetEmail = null;
+    try {
+      await admin.firestore().runTransaction(async (tx) => {
+        const targetSnap = await tx.get(usersCol.doc(targetUid));
+        if (!targetSnap.exists) throw new Error("TARGET_NOT_FOUND");
+        const target = targetSnap.data();
+        oldRole = target.role || "user";
+        targetEmail = target.email || null;
+        if (oldRole === newRole) throw new Error("SAME_ROLE");
+
+        if (oldRole === "admin" && newRole !== "admin") {
+          const activeAdminsSnap = await tx.get(usersCol.where("role", "==", "admin").where("status", "==", "active"));
+          if (activeAdminsSnap.size <= 1) throw new Error("LAST_ADMIN");
+        }
+        tx.update(targetSnap.ref, { role: newRole });
+      });
+    } catch (txErr) {
+      if (txErr.message === "TARGET_NOT_FOUND") return res.status(404).json({ status: "error", message: "Utilisateur cible introuvable." });
+      if (txErr.message === "SAME_ROLE") return res.status(409).json({ status: "denied", message: "Cet utilisateur possède déjà ce rôle." });
+      if (txErr.message === "LAST_ADMIN") {
+        return res.status(409).json({ status: "denied", message: "Impossible de retirer ce rôle : il s'agit du dernier administrateur actif de la plateforme. Désignez d'abord un autre administrateur." });
+      }
+      throw txErr;
+    }
+
+    await writeAuditLog({
+      adminUid: req.user.uid, adminEmail: req.user.email || "",
+      targetUid, targetEmail, actionType: "role_change", oldValue: oldRole, newValue: newRole,
+    });
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[users/:uid/role]", err && err.code, err);
+    res.status(500).json({ status: "error", message: "La mise à jour du rôle a échoué. Veuillez réessayer." });
+  }
+});
+
+app.patch("/api/users/:uid/status", requireAuth, async (req, res) => {
+  const targetUid = req.params.uid;
+  const newStatus = req.body && req.body.newStatus;
+  if (targetUid === req.user.uid) {
+    return res.status(403).json({ status: "denied", message: "Vous ne pouvez pas modifier votre propre statut." });
+  }
+  if (!["pending", "active", "suspended"].includes(newStatus)) {
+    return res.status(400).json({ status: "error", message: "Statut demandé invalide." });
+  }
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ status: "denied", message: "Cette action est réservée aux administrateurs." });
+    }
+    const usersCol = admin.firestore().collection("users");
+    let oldStatus = null;
+    let targetEmail = null;
+    try {
+      await admin.firestore().runTransaction(async (tx) => {
+        const targetSnap = await tx.get(usersCol.doc(targetUid));
+        if (!targetSnap.exists) throw new Error("TARGET_NOT_FOUND");
+        const target = targetSnap.data();
+        oldStatus = target.status || "active";
+        targetEmail = target.email || null;
+        if (oldStatus === newStatus) throw new Error("SAME_STATUS");
+
+        const targetRole = target.role || "user";
+        if (targetRole === "admin" && oldStatus === "active" && newStatus === "suspended") {
+          const activeAdminsSnap = await tx.get(usersCol.where("role", "==", "admin").where("status", "==", "active"));
+          if (activeAdminsSnap.size <= 1) throw new Error("LAST_ADMIN");
+        }
+        tx.update(targetSnap.ref, { status: newStatus });
+      });
+    } catch (txErr) {
+      if (txErr.message === "TARGET_NOT_FOUND") return res.status(404).json({ status: "error", message: "Utilisateur cible introuvable." });
+      if (txErr.message === "SAME_STATUS") return res.status(409).json({ status: "denied", message: "Cet utilisateur possède déjà ce statut." });
+      if (txErr.message === "LAST_ADMIN") {
+        return res.status(409).json({ status: "denied", message: "Impossible de suspendre ce compte : il s'agit du dernier administrateur actif de la plateforme. Désignez d'abord un autre administrateur." });
+      }
+      throw txErr;
+    }
+
+    await writeAuditLog({
+      adminUid: req.user.uid, adminEmail: req.user.email || "",
+      targetUid, targetEmail, actionType: "status_change", oldValue: oldStatus, newValue: newStatus,
+    });
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[users/:uid/status]", err && err.code, err);
+    res.status(500).json({ status: "error", message: "La mise à jour du statut a échoué. Veuillez réessayer." });
+  }
+});
+
+// Reprend updateUserBusinessFields() (champs metier Sprint 14). Meme regle
+// "update n°3" que firestore.rules : isRequesterAdmin(), hasOnly sur ces 5
+// champs uniquement, autorise sur N'IMPORTE QUEL document (y compris le
+// sien - aucune incidence sur les permissions).
+const USER_BUSINESS_FIELD_KEYS = ["firstName", "lastName", "organizationId", "profileId", "groupIds"];
+app.patch("/api/users/:uid/business-fields", requireAuth, async (req, res) => {
+  const targetUid = req.params.uid;
+  const fields = req.body || {};
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ status: "denied", message: "Cette action est réservée aux administrateurs." });
+    }
+    if (!Object.keys(fields).every((k) => USER_BUSINESS_FIELD_KEYS.includes(k))) {
+      return res.status(403).json({ status: "error", message: "Champ non autorisé." });
+    }
+    const ref = admin.firestore().collection("users").doc(targetUid);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ status: "error", message: "Utilisateur cible introuvable." });
+    const target = snap.data();
+    await ref.update(fields);
+
+    for (const key of Object.keys(fields)) {
+      await writeAuditLog({
+        adminUid: req.user.uid, adminEmail: req.user.email || "",
+        targetUid, targetEmail: target.email || null,
+        actionType: "business_profile_edit_" + key, oldValue: target[key], newValue: fields[key],
+      });
+    }
+    res.json({ status: "success" });
+  } catch (err) {
+    console.error("[users/:uid/business-fields]", err && err.code, err);
+    res.status(500).json({ status: "error", message: "L'enregistrement des modifications a échoué. Veuillez réessayer." });
+  }
+});
+
 const AUDIT_LOGS_COLLECTION = "audit_logs";
 const DEFAULT_AUDIT_READ_LIMIT = 50;
 

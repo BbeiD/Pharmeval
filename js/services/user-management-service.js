@@ -19,7 +19,6 @@ import { ROLES, STATUSES } from "./authorization-service.js";
 import {
   doc,
   getDoc,
-  updateDoc,
   collection,
   query,
   where,
@@ -98,8 +97,18 @@ export async function getUserByUid(uid) {
  */
 export async function updateUserRole(uid, newRole) {
   try {
-    const ref = doc(db, 'users', uid);
-    await updateDoc(ref, { role: newRole });
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/users/${uid}/role`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newRole }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      logUserManagementError('mise a jour du role de l\'utilisateur ' + uid + ' (API ' + res.status + ')', null);
+      return { success: false, error: true, message: body.message };
+    }
     return { success: true, error: false };
   } catch (err) {
     logUserManagementError('mise a jour du role de l\'utilisateur ' + uid, err);
@@ -117,8 +126,18 @@ export async function updateUserRole(uid, newRole) {
  */
 export async function updateUserStatus(uid, newStatus) {
   try {
-    const ref = doc(db, 'users', uid);
-    await updateDoc(ref, { status: newStatus });
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/users/${uid}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStatus }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      logUserManagementError('mise a jour du statut de l\'utilisateur ' + uid + ' (API ' + res.status + ')', null);
+      return { success: false, error: true, message: body.message };
+    }
     return { success: true, error: false };
   } catch (err) {
     logUserManagementError('mise a jour du statut de l\'utilisateur ' + uid, err);
@@ -182,8 +201,17 @@ export async function updateUserBusinessFields(uid, fields) {
   });
   if (Object.keys(payload).length === 0) return { success: false, error: false };
   try {
-    const ref = doc(db, 'users', uid);
-    await updateDoc(ref, payload);
+    if (!auth.currentUser) return { success: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/users/${uid}/business-fields`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      logUserManagementError('mise à jour des champs métier de l\'utilisateur ' + uid + ' (API ' + res.status + ')', null);
+      return { success: false, error: true };
+    }
     return { success: true, error: false };
   } catch (err) {
     logUserManagementError('mise à jour des champs métier de l\'utilisateur ' + uid, err);

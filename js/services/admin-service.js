@@ -136,7 +136,12 @@ async function changeRole(targetUser, newRole) {
 
   const result = await updateUserRole(targetUser.uid, newRole);
   if (!result.success) {
-    return errorResult('La mise à jour du rôle a échoué. Veuillez réessayer.');
+    // Le serveur reevalue toutes les regles de facon atomique (voir
+    // functions/index.js) - son message (ex. "dernier administrateur
+    // actif") est plus precis que le controle prealable ci-dessus en cas
+    // de situation concurrente (deux administrateurs agissant en meme
+    // temps), d'ou la priorite donnee a result.message quand disponible.
+    return errorResult(result.message || 'La mise à jour du rôle a échoué. Veuillez réessayer.');
   }
 
   const admin = getRequestingAdminIdentity();
@@ -214,7 +219,7 @@ export async function changeUserStatus(targetUser, newStatus) {
 
   const result = await updateUserStatus(targetUser.uid, newStatus);
   if (!result.success) {
-    return errorResult('La mise à jour du statut a échoué. Veuillez réessayer.');
+    return errorResult(result.message || 'La mise à jour du statut a échoué. Veuillez réessayer.');
   }
 
   const admin = getRequestingAdminIdentity();
