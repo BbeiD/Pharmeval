@@ -45,6 +45,22 @@
       <div class="bank-detail-row"><strong>Membre depuis :</strong> <span id="mp-member-since"></span></div>
     </div>
   </div>
+
+  <!-- AJOUT (refonte visuelle, phase 3 - mockup mobile ideal fourni par
+       David, 27/07/2026) : donnees REELLES deja calculees ailleurs
+       (js/home.js, meme services) - jamais un chiffre invente pour
+       remplir la tuile. -->
+  <div class="stat-card-grid" id="mp-stats-grid" style="max-width:640px;margin-top:var(--space-4);"></div>
+
+  <!-- AJOUT : "Mon profil" devient le point d'acces pour tout ce qui n'a
+       plus sa place dans la barre de navigation (reduite a 5 icones,
+       voir js/site-header.js) - UNIQUEMENT des destinations REELLES et
+       deja fonctionnelles (jamais de ligne "Favoris"/"Paramètres" qui ne
+       menerait nulle part - meme principe que la version minimale
+       ci-dessus, deja documente). -->
+  <div class="card" id="mp-menu-card" style="max-width:640px;margin-top:var(--space-4);">
+    <div id="mp-menu-list"></div>
+  </div>
 </div>
 
 <script type="module" src="js/mon-profil.js"></script>

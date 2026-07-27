@@ -25,6 +25,7 @@ export const ICONS = Object.freeze({
   'action-confirm-validate-publish': '<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
   'action-delete': '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 14h8l1-14"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
   'action-error': '<circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.7"/>',
+  'action-chevron-right': '<polyline points="9,5 16,12 9,19"/>',
   'action-reorder-down': '<line x1="12" y1="4" x2="12" y2="19"/><polyline points="6,13 12,19 18,13"/>',
   'action-reorder-up': '<line x1="12" y1="20" x2="12" y2="5"/><polyline points="6,11 12,5 18,11"/>',
   'action-restore': '<path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3,4 3,9 8,9"/>',

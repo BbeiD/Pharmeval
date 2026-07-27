@@ -48,14 +48,20 @@ const PROFESSION_LABEL_BY_VALUE = new Map(PROFESSION_OPTIONS.map(function(o) { r
 // le lien reste un href classique ("index.html?admin=1"/"?history=1"),
 // meme convention deja utilisee par les liens "Retour a l'administration"
 // des pages admin/*.html (voir js/auth.js#revealApp).
+// CORRECTIF (refonte visuelle, phase 3 - mockup mobile ideal fourni par
+// David, 27/07/2026) : 5 entrees au lieu de 7, pour une barre de
+// navigation (mobile ET desktop, meme source unique) moins chargee - "Mes
+// compétences", "Mes évaluations" et "Administration" restent
+// entierement fonctionnelles, simplement accessibles depuis la page
+// "Mon profil" (mon-profil.html) plutot que depuis la barre elle-meme -
+// voir js/mon-profil.js, qui reprend EXACTEMENT les memes cibles
+// (href + viewToggle) que les entrees retirees ici.
 const NAV_ITEMS = [
   { key: 'accueil', href: 'index.html', icon: 'nav-home', label: 'Accueil', viewToggle: 'goHome' },
   { key: 'mes-parcours', href: 'mes-parcours.html', icon: 'nav-paths-formations', label: 'Mes parcours' },
-  { key: 'mes-competences', href: 'mes-competences.html', icon: 'nav-skills', label: 'Mes compétences' },
-  { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: 'nav-free-training', label: 'Entraînement libre' },
   { key: 'defi', href: 'defi.html', icon: 'feedback-success-achievement', label: 'Défi' },
-  { key: 'mes-evaluations', href: 'index.html?history=1', icon: 'nav-evaluations-stats', label: 'Mes évaluations', viewToggle: 'openHistoryView' },
-  { key: 'administration', href: 'index.html?admin=1', icon: 'nav-administration', label: 'Administration', adminOnly: true, viewToggle: 'openAdminZone' },
+  { key: 'entrainement-libre', href: 'entrainement-libre.html', icon: 'nav-free-training', label: 'Entraînement libre' },
+  { key: 'mon-profil', href: 'mon-profil.html', icon: 'nav-profile', label: 'Profil' },
 ];
 
 function escapeHtml(str) {
