@@ -78,8 +78,19 @@ self.addEventListener('fetch', function(event) {
   const request = event.request;
   if (!isSameOriginStaticRequest(request)) return; // jamais de respondWith - le navigateur gere nativement
 
+  // CORRECTIF (constate en verifiant ce meme correctif en direct, 27/07/2026) :
+  // fetch(request) SANS option respecte le cache HTTP habituel du
+  // navigateur - une reponse encore "fraiche" au sens des en-tetes
+  // Cache-Control pouvait donc etre servie SANS jamais recontacter le
+  // serveur, malgre le nom "network-first" de cette strategie. { cache:
+  // 'no-cache' } force une REVALIDATION reseau systematique (ETag/
+  // Last-Modified - toujours rapide via un 304 si le fichier n'a pas
+  // change, jamais une simple lecture locale aveugle). Necessaire ici
+  // puisque ce projet redeploie plusieurs fois par session de travail.
+  const revalidatedRequest = new Request(request, { cache: 'no-cache' });
+
   event.respondWith(
-    fetch(request)
+    fetch(revalidatedRequest)
       .then(function(networkResponse) {
         // Ne met en cache qu'une reponse reellement valide (jamais une
         // erreur 4xx/5xx, qui deviendrait un faux "succes" en cache).
