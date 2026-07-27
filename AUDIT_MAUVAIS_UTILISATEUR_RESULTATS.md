@@ -1,12 +1,18 @@
 # AUDIT "MAUVAIS UTILISATEUR" — Résultats (27/07/2026)
 
+**Mise à jour (27/07/2026)** : les 3 failles critiques et les 4 failles
+moyennes ci-dessous ont été corrigées, testées sur l'émulateur et
+déployées en production (voir le commit "Corrige les failles critiques
+et moyennes de l'audit 'mauvais utilisateur'"). Les 3 points mineurs
+restent ouverts (impact jugé négligeable, non traités).
+
 Audit statique du code, mené selon la grille de [PERSONA_MAUVAIS_UTILISATEUR.md](PERSONA_MAUVAIS_UTILISATEUR.md).
 Méthode : lecture intégrale de `functions/index.js` (~100 routes),
 `firestore.rules`, les services de rendu/échappement, le connecteur
 d'import Excel. Posture : utilisateur authentifié standard, jamais admin
 au départ, appels API directs (DevTools/curl) plutôt que via l'UI.
 
-## Priorité 1 — Critique (exploitable par tout compte utilisateur normal)
+## Priorité 1 — Critique (exploitable par tout compte utilisateur normal) — ✅ CORRIGÉ
 
 1. **`POST /api/evaluation-results` (functions/index.js:2283-2312)** — le
    score et les corrections envoyés par le client sont écrits tels que
@@ -24,7 +30,7 @@ Ces 3 routes alimentent l'historique, les statistiques et potentiellement
 un usage RH/formation continue — falsifiables aujourd'hui sans avoir
 besoin d'un compte admin.
 
-## Priorité 2 — Moyen
+## Priorité 2 — Moyen — ✅ CORRIGÉ
 
 4. **`firestore.rules:207-212`** — un admin peut toujours modifier
    `role`/`status` d'un tiers en écriture Firestore directe (DevTools),
@@ -72,7 +78,22 @@ besoin d'un compte admin.
 - Permissions manquantes sur une route (`requireAuth` partout sauf
   `/health`, intentionnel).
 
+## Note technique — upload d'images non entièrement vérifiable en local
+
+Le correctif du point 5 (vérification des signatures réelles de
+fichier) a été testé unitairement (logique de détection) et via l'API
+`question-reports`/`competency-progress`/`evaluation-results` sur
+l'émulateur, mais le test de bout en bout HTTP de `/api/images`
+lui-même a échoué sur l'émulateur avec une erreur `busboy` ("Unexpected
+end of form"), reproduite aussi avec `curl` natif — un problème connu de
+l'émulateur Firebase Functions (le framework consomme le flux de la
+requête avant que `multer` ne puisse le lire), sans rapport avec ce
+correctif. Recommandé : un test manuel réel en production (ex. joindre
+une image de justification depuis l'application) pour confirmer le
+comportement de bout en bout.
+
 ---
 
-**Décision en attente** : par quoi commencer. Recommandation : les 3
-critiques (Priorité 1) d'abord, car exploitables sans compte admin.
+**Statut** : tous les points Priorité 1 et 2 sont corrigés, testés
+(émulateur) et déployés en production. Priorité 3 (mineurs) laissée en
+l'état.
