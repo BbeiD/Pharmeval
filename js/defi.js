@@ -89,11 +89,15 @@ function render(state) {
   let html = streakSummaryHtml(state.progress);
 
   if (state.eligibleCount === 0) {
-    html += '<p class="admin-users-disclaimer" style="margin-top:16px;">Aucune question n\'est actuellement disponible pour le défi du jour.</p>';
+    html +=
+      '<div style="margin-top:16px;">' +
+        '<img class="mascot-img mascot-img-md" src="assets/illustrations/mascots/gelule-sommeil.png" alt="" aria-hidden="true">' +
+        '<p class="admin-users-disclaimer" style="text-align:center;">Aucune question n\'est actuellement disponible pour le défi du jour.</p>' +
+      '</div>';
   } else if (state.alreadyCompletedToday) {
     html +=
       '<div class="defi-done-block">' +
-        icon('highlight-check-validated', { size: 32 }) +
+        '<img class="mascot-img mascot-img-md" src="assets/illustrations/mascots/cerveau-reussite.png" alt="" aria-hidden="true">' +
         '<p><strong>Défi relevé pour aujourd\'hui !</strong></p>' +
         '<p class="admin-users-disclaimer">Revenez demain pour continuer votre série.</p>' +
         (state.progress.lastResultId
@@ -103,6 +107,7 @@ function render(state) {
   } else {
     html +=
       '<div class="defi-start-block">' +
+        '<img class="mascot-img mascot-img-md" src="assets/illustrations/mascots/gelule-defi.png" alt="" aria-hidden="true">' +
         '<p>' + questionCount + ' question(s) vous attendent aujourd\'hui.</p>' +
         '<button class="btn-primary" id="defi-start-btn" onclick="startDefi()">Commencer le défi</button>' +
       '</div>';

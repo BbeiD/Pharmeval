@@ -28,7 +28,10 @@
 
   <div id="mc-message" class="admin-message" style="display:none;"></div>
 
-  <div id="mc-empty" class="bank-list-empty" style="display:none;">Vous n'avez pas encore répondu à des questions rattachées à une compétence. Vos compétences apparaîtront ici dès que ce sera le cas.</div>
+  <div id="mc-empty" class="bank-list-empty" style="display:none;">
+    <img class="mascot-img mascot-img-md" src="assets/illustrations/mascots/cerveau-recherche.png" alt="" aria-hidden="true">
+    Vous n'avez pas encore répondu à des questions rattachées à une compétence. Vos compétences apparaîtront ici dès que ce sera le cas.
+  </div>
 
   <div id="mc-content" style="display:none;">
     <!-- AJOUT (refonte visuelle, phase 1) : donut "progression globale",
@@ -36,7 +39,10 @@
          agrege le masteryStatus deja reel de chaque competence. -->
     <div class="card" style="margin-bottom:var(--space-4);">
       <h3 style="margin-bottom:var(--space-3);">Votre progression globale</h3>
-      <div id="mc-mastery-donut"></div>
+      <div class="mc-progress-row">
+        <div id="mc-mastery-donut"></div>
+        <img class="mascot-img mascot-img-md" src="assets/illustrations/mascots/cerveau-progression.png" alt="" aria-hidden="true">
+      </div>
     </div>
 
     <!-- RADAR DE COMPETENCES (SPRINT19) -->

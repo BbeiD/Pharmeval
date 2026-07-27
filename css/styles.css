@@ -2061,12 +2061,18 @@
     .home-welcome-illustration { display: none; }
   }
 
-  /* ---- NOUVEAU (mockup, demande directe de David) : carte "Défi du jour"
-     condensée de l'accueil (js/home.js) - meme trophee que defi.html. ---- */
-  .home-defi-trophy {
-    display: flex; align-items: center; justify-content: center;
-    width: 64px; height: 64px; margin: var(--space-3) auto;
-    border-radius: 50%; background: var(--green-light); color: var(--green-dark);
+  /* ---- NOUVEAU (mascottes "Le Cerveau" / "La Gélule", demande directe de
+     David, 28/07/2026) : illustrations Recraft AI detourees (voir
+     assets/illustrations/mascots/) - purement decoratif, associe a un etat
+     specifique (defi du jour, etat vide...), jamais une donnee. ---- */
+  .mascot-img { display: block; object-fit: contain; }
+  .mascot-img-md { width: 130px; height: 130px; margin: 0 auto var(--space-3); }
+  .mascot-img-sm { width: 64px; height: 64px; margin: 0 auto var(--space-2); }
+
+  .mc-progress-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+  .mc-progress-row > div:first-child { flex: 1; min-width: 200px; }
+  @media (max-width: 700px) {
+    .mc-progress-row .mascot-img-md { display: none; }
   }
 
   /* ---- NOUVEAU (mockup, demande directe de David) : "Activité récente"

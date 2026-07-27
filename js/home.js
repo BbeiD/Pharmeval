@@ -289,7 +289,6 @@ async function loadDefiCard() {
   if (!el) return;
 
   const state = await getDailyChallengeStateForUser();
-  const trophy = '<div class="home-defi-trophy">' + icon('feedback-success-achievement', { size: 40 }) + '</div>';
 
   if (state.eligibleCount === 0) {
     el.innerHTML = '<p class="pv-list-empty">Aucune question disponible pour le moment.</p>';
@@ -298,7 +297,7 @@ async function loadDefiCard() {
 
   if (state.alreadyCompletedToday) {
     el.innerHTML =
-      trophy +
+      '<img class="mascot-img mascot-img-sm" src="assets/illustrations/mascots/cerveau-reussite.png" alt="" aria-hidden="true">' +
       '<p style="text-align:center;"><strong>Défi relevé pour aujourd\'hui !</strong></p>' +
       '<div class="btn-row" style="justify-content:center;"><a class="btn-secondary" href="defi.html">Voir mon défi</a></div>';
     return;
@@ -307,7 +306,7 @@ async function loadDefiCard() {
   const questionCount = Math.min(DAILY_CHALLENGE_QUESTION_COUNT, state.eligibleCount);
   el.innerHTML =
     '<p>' + questionCount + ' questions sélectionnées pour vous.</p>' +
-    trophy +
+    '<img class="mascot-img mascot-img-sm" src="assets/illustrations/mascots/gelule-defi.png" alt="" aria-hidden="true">' +
     '<button class="btn-primary" id="home-defi-start-btn" style="width:100%;">Commencer le défi</button>';
 
   document.getElementById('home-defi-start-btn').addEventListener('click', async function() {
