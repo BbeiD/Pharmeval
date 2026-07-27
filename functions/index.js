@@ -86,6 +86,71 @@ app.get("/api/tags/:tagId", requireAuth, async (req, res) => {
   }
 });
 
+// Reprend findOrCreateTag() de js/services/tag-catalog-service.js (moteur
+// de synchronisation du catalogue, import Excel). Meme regle que
+// firestore.rules (match /tags/{tagId}) : isRequesterCatalogAdmin(). Pas de
+// transaction ici (meme choix assume que l'original - un compteur d'usage
+// non critique, jamais une source d'incoherence sur les questions elles-memes).
+app.post("/api/tags/find-or-create", requireAuth, async (req, res) => {
+  const tagId = req.body && req.body.tagId;
+  const label = req.body && req.body.label;
+  if (!tagId) return res.status(400).json({ success: false, tagId: "", created: false, error: true });
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false, tagId, created: false, error: true });
+    }
+    const ref = admin.firestore().collection(TAGS_COLLECTION).doc(tagId);
+    const snap = await ref.get();
+    if (snap.exists) {
+      await ref.update({ usageCount: FieldValue.increment(1) });
+      return res.json({ success: true, tagId, created: false, error: false });
+    }
+    await ref.set({ id: tagId, label, usageCount: 1, createdAt: new Date().toISOString() });
+    res.json({ success: true, tagId, created: true, error: false });
+  } catch (err) {
+    console.error("[tags/find-or-create]", err && err.code, err);
+    res.status(500).json({ success: false, tagId, created: false, error: true });
+  }
+});
+
+const THEME_CODES = {
+  conseil: "CON", dermo: "DER", procedures: "PRO", medicaments: "MED",
+  bppo: "BPP", ftm: "FTM", deon: "DEO", bapcoc: "BAP", etudiant: "ETU",
+  legislation: "LEG", galenique: "GAL", adm: "ADM",
+};
+function formatPedagogicalId(themeCode3Letters, sequence) {
+  return "PHARM-" + String(themeCode3Letters || "GEN").toUpperCase() + "-" + String(sequence).padStart(6, "0");
+}
+
+// Reprend allocatePedagogicalId() de js/services/catalog-sync-firestore-
+// backend.js (moteur de synchronisation du catalogue). CORRIGE au passage
+// une course non geree dans l'original (increment() puis un getDoc()
+// SEPARE - deux appels non-atomiques ensemble, deux imports concurrents
+// auraient pu lire la MEME valeur de sequence et generer un identifiant
+// pedagogique en double) : desormais lecture+ecriture de la sequence dans
+// UNE SEULE transaction Firestore. Meme regle que firestore.rules (match
+// /pedagogical_id_counters/{counterId}) : isRequesterCatalogAdmin().
+app.post("/api/catalog-sync/pedagogical-id", requireAuth, async (req, res) => {
+  const theme = (req.body && req.body.theme) || "";
+  const code3 = (THEME_CODES[theme] || "GEN").toUpperCase();
+  try {
+    if (!(await isRequesterCatalogAdmin(req.user.uid))) {
+      return res.status(403).json({ id: "ERR-ALLOC-" + Date.now(), error: true });
+    }
+    const ref = admin.firestore().collection("pedagogical_id_counters").doc(code3);
+    const sequence = await admin.firestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const next = (snap.exists ? snap.data().count : 0) + 1;
+      tx.set(ref, { count: next }, { merge: true });
+      return next;
+    });
+    res.json({ id: formatPedagogicalId(code3, sequence), error: false });
+  } catch (err) {
+    console.error("[catalog-sync/pedagogical-id]", theme, err && err.code, err);
+    res.status(500).json({ id: "ERR-ALLOC-" + Date.now(), error: true });
+  }
+});
+
 // Meme verification que isRequesterAdmin() dans firestore.rules : role
 // 'admin' ET statut 'active' sur le document users/{uid} du requerant.
 async function isRequesterAdmin(requesterUid) {

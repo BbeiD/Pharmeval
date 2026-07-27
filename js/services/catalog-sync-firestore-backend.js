@@ -22,13 +22,13 @@
 // dont le succes est confirme (voir la modification de l'engine, section
 // "Sprint 22" du fichier).
 
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, getDocs, collection, query, where, limit, increment,
+  getDocs, collection, query, where, limit,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { API_BASE_URL } from "../config.js";
 
 import { normalizeForDedup } from "./normalization-utils.js";
-import { THEME_CODES } from "./theme-utils.js";
 
 import { tagIdForLabel, findOrCreateTag, getTagById } from "./tag-catalog-service.js";
 
@@ -48,11 +48,10 @@ import { getSectionAncestorIds } from "./document-count-service.js";
 import {
   findMatchingSource, findMatchingSection, findMatchingCompetency,
   sourceCacheKey, sectionCacheKey, competencyCacheKey,
-  computeCounterDeltasForSuccessfulCreations, formatPedagogicalId,
+  computeCounterDeltasForSuccessfulCreations,
 } from "./catalog-sync-resolution-logic.js";
 
 const QUESTIONS_COLLECTION = 'questions';
-const PEDAGOGICAL_ID_COUNTER_COLLECTION = 'pedagogical_id_counters';
 
 function nowIso() { return new Date().toISOString(); }
 function logSyncError(context, err) {
@@ -125,13 +124,20 @@ export async function listExistingEditorialCatalogIds() {
  * @returns {Promise<string>}
  */
 export async function allocatePedagogicalId(theme) {
-  const code3 = (THEME_CODES[theme] || 'GEN').toUpperCase();
   try {
-    const ref = doc(db, PEDAGOGICAL_ID_COUNTER_COLLECTION, code3);
-    await setDoc(ref, { count: increment(1) }, { merge: true });
-    const snap = await getDoc(ref);
-    const sequence = snap.exists() ? snap.data().count : 1;
-    return formatPedagogicalId(code3, sequence);
+    if (!auth.currentUser) return 'ERR-ALLOC-' + Date.now();
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/catalog-sync/pedagogical-id`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme }),
+    });
+    if (!res.ok) {
+      logSyncError('allocation d\'un identifiant pédagogique (thème "' + theme + '") (API ' + res.status + ')', null);
+      return 'ERR-ALLOC-' + Date.now();
+    }
+    const body = await res.json();
+    return body.id;
   } catch (err) {
     logSyncError('allocation d\'un identifiant pédagogique (thème "' + theme + '")', err);
     // Repli EXPLICITE ET VISIBLE (jamais un identifiant plausible mais

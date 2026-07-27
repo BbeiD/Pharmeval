@@ -17,7 +17,7 @@
 
 import { db, auth } from "../firebase-config.js";
 import {
-  doc, getDoc, setDoc, updateDoc, increment,
+  doc, getDoc,
   collection, query, orderBy, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { normalizeForDedup } from "./normalization-utils.js";
@@ -66,14 +66,18 @@ export async function findOrCreateTag(label) {
   const tagId = tagIdForLabel(label);
   if (!tagId) return { success: false, tagId: '', created: false, error: true };
   try {
-    const ref = doc(db, TAGS_COLLECTION, tagId);
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      await updateDoc(ref, { usageCount: increment(1) });
-      return { success: true, tagId: tagId, created: false, error: false };
+    if (!auth.currentUser) return { success: false, tagId: tagId, created: false, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/tags/find-or-create`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagId, label }),
+    });
+    if (!res.ok) {
+      logTagError('find-or-create du tag "' + label + '" (API ' + res.status + ')', null);
+      return { success: false, tagId: tagId, created: false, error: true };
     }
-    await setDoc(ref, { id: tagId, label: label, usageCount: 1, createdAt: new Date().toISOString() });
-    return { success: true, tagId: tagId, created: true, error: false };
+    return await res.json();
   } catch (err) {
     logTagError('find-or-create du tag "' + label + '"', err);
     return { success: false, tagId: tagId, created: false, error: true };
