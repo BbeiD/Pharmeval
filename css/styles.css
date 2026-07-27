@@ -302,7 +302,14 @@
     .sh-logo-link { display: none; }
     .sh-nav { flex-direction: row; flex: 1; gap: 0; justify-content: space-around; }
     .sh-nav-link { justify-content: center; padding: 8px; }
-    .sh-nav-label, .sh-app-tagline, .sh-app-name, .sh-account-inline, .sh-streak-block { display: none; }
+    .sh-nav-label, .sh-app-tagline, .sh-app-name, .sh-account-inline { display: none; }
+    /* !important necessaire ICI UNIQUEMENT : loadStreakBadge()
+       (site-header.js) fixe block.style.display = 'flex' EN STYLE INLINE
+       une fois la serie chargee (apres le rendu synchrone) - un style
+       inline gagne toujours sur une regle de feuille de style classique,
+       meme dans une media query, d'ou le "SÉRIE ACTUELLE" tronque
+       constate en test reel malgre la regle ci-dessus sans !important. */
+    .sh-streak-block { display: none !important; }
     .sh-sidebar-footer { flex-direction: row; border-top: none; margin-top: 0; padding-top: 0; gap: 0; width: auto; }
     .sh-avatar-btn { justify-content: center; width: auto; padding: 8px; }
   }
