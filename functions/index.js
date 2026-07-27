@@ -239,48 +239,6 @@ function boundedNumberParam(raw, defaultValue, max) {
   return Math.min(n, max);
 }
 
-// ROUTE TEMPORAIRE, lecture seule — a retirer juste apres usage.
-// Diagnostic du pool Entrainement libre pour UNE source (repartition par
-// statut + par section) - aide au diagnostic du 27/07/2026.
-app.get("/api/admin/diag-source", requireAuth, async (req, res) => {
-  try {
-    if (!(await isRequesterAdmin(req.user.uid))) {
-      return res.status(403).json({ status: "denied" });
-    }
-    const name = req.query.name;
-    if (!name) {
-      const allSnap = await admin.firestore().collection("document_sources").get();
-      const questionsSnap = await admin.firestore().collection("questions").get();
-      const countsBySource = {};
-      questionsSnap.docs.forEach((d) => {
-        const q = d.data();
-        if (!countsBySource[q.documentSourceId]) countsBySource[q.documentSourceId] = {};
-        countsBySource[q.documentSourceId][q.status] = (countsBySource[q.documentSourceId][q.status] || 0) + 1;
-      });
-      const summary = allSnap.docs.map((d) => ({ id: d.id, name: d.data().name, byStatus: countsBySource[d.id] || {} }));
-      return res.json({ status: "success", summary });
-    }
-    const sourceSnap = await admin.firestore().collection("document_sources").where("name", "==", name).limit(1).get();
-    if (sourceSnap.empty) return res.json({ status: "success", found: false });
-    const sourceDoc = sourceSnap.docs[0];
-    const questionsSnap = await admin.firestore().collection("questions").where("documentSourceId", "==", sourceDoc.id).get();
-    const byStatus = {};
-    const bySection = {};
-    questionsSnap.docs.forEach((d) => {
-      const q = d.data();
-      byStatus[q.status] = (byStatus[q.status] || 0) + 1;
-      const sec = q.documentSectionId || "(aucune)";
-      bySection[sec] = (bySection[sec] || 0) + 1;
-    });
-    const sectionsSnap = await admin.firestore().collection("document_sections").where("documentSourceId", "==", sourceDoc.id).get();
-    const sections = sectionsSnap.docs.map((d) => ({ id: d.id, name: d.data().name, status: d.data().status }));
-    res.json({ status: "success", found: true, sourceId: sourceDoc.id, totalQuestions: questionsSnap.size, byStatus, bySection, sections });
-  } catch (err) {
-    console.error("[admin/diag-source]", err && err.code, err);
-    res.status(500).json({ status: "error", message: String(err && err.message) });
-  }
-});
-
 const DAILY_CHALLENGE_COLLECTION = "daily_challenge_progress";
 
 // Reprend getDailyChallengeProgress() de

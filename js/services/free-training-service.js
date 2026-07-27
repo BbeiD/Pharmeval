@@ -15,6 +15,7 @@ import { applySecondaryFilters, pickRandomSubset, pickDiversifiedSubset } from "
 import { classifyCandidatePoolForUser } from "./question-progress-service.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { startNewFreeTrainingSession } from "./evaluation-session-service.js";
+import { getActiveSectionTree } from "./document-section-service.js";
 
 /**
  * Compose le pool de questions candidates pour un ensemble de filtres
@@ -46,15 +47,42 @@ export async function composeFreeTrainingPool(filters) {
   // est ignore, voir js/entrainement-libre.js qui le masque deja dans ce cas).
   const sectionAlreadyScoped = !!f.documentSectionId && sourceIds.length === 1;
 
+  // CORRECTIF ("pool vide" malgre une source active bien remplie,
+  // 27/07/2026) : le selecteur de section (js/entrainement-libre.js)
+  // presente l'arborescence ENTIERE, categories comprises - une categorie
+  // parente n'a genéralement AUCUNE question rattachee DIRECTEMENT (voir
+  // js/services/document-section-service.js : directQuestionCount peut
+  // etre 0 alors que totalQuestionCount, incluant les sous-sections, est
+  // eleve). Filtrer sur une correspondance EXACTE de `documentSectionId`
+  // ignorait donc silencieusement toutes les questions des sous-sections.
+  // Calcule ici l'ensemble {section choisie + tous ses descendants} via
+  // `path` (deja utilise pour la meme detection ailleurs, voir
+  // document-section-service.js) - jamais envoye a Firestore via une
+  // clause `in` (une categorie peut avoir largement plus de descendants
+  // que la limite de 30 valeurs d'une telle clause), toujours applique
+  // cote CLIENT (meme principe deja en place ici pour la difficulte et
+  // les tags une fois une section choisie).
+  let allowedSectionIds = null;
+  if (sectionAlreadyScoped) {
+    const treeResult = await getActiveSectionTree(sourceIds[0]);
+    if (treeResult.error) {
+      return { ready: false, message: 'Impossible de charger les sections pour le moment. Réessayez plus tard.', items: [] };
+    }
+    allowedSectionIds = new Set([f.documentSectionId]);
+    (treeResult.items || []).forEach(function(s) {
+      if (Array.isArray(s.path) && s.path.indexOf(f.documentSectionId) !== -1) allowedSectionIds.add(s.id);
+    });
+  }
+
   const perSourceResults = await Promise.all(sourceIds.map(function(sourceId) {
     const serverFilters = { status: 'published', documentSourceId: sourceId };
-    if (sectionAlreadyScoped) {
-      serverFilters.documentSectionId = f.documentSectionId;
-      // Difficulté appliquée cote CLIENT quand une section est deja choisie
-      // (voir Phase B0 : pas d'index a 4 champs) - jamais ajoutee ici.
-    } else if (f.difficulty) {
+    if (!sectionAlreadyScoped && f.difficulty) {
       serverFilters.difficulty = f.difficulty; // aucune section -> peut aller cote serveur (index dedie)
     }
+    // Difficulté ET section, quand une section est choisie, sont
+    // desormais TOUJOURS des post-filtres client (voir allowedSectionIds
+    // ci-dessus et applySecondaryFilters() plus bas) - jamais envoyees
+    // au serveur dans ce cas.
     return searchQuestionsBounded({ filters: serverFilters });
   }));
 
@@ -83,6 +111,7 @@ export async function composeFreeTrainingPool(filters) {
     tag: f.tag,
     difficulty: f.difficulty,
     sectionAlreadyScoped: sectionAlreadyScoped,
+    allowedSectionIds: allowedSectionIds,
   });
 
   if (f.neverSeen || f.neverSucceeded) {

@@ -13,7 +13,7 @@
 /**
  * @param {Array<object>} items - questions (documents complets) deja
  *   chargees, deja bornees (voir searchQuestionsBounded)
- * @param {{tag?:string, difficulty?:string, sectionAlreadyScoped?:boolean}} filters
+ * @param {{tag?:string, difficulty?:string, sectionAlreadyScoped?:boolean, allowedSectionIds?:(Set|null)}} filters
  * @returns {Array<object>}
  */
 export function applySecondaryFilters(items, filters) {
@@ -24,6 +24,12 @@ export function applySecondaryFilters(items, filters) {
     // deja ete choisie - sinon elle est deja filtree cote serveur (voir
     // free-training-service.js) et ne doit jamais l'etre deux fois.
     if (f.difficulty && f.sectionAlreadyScoped && q.difficulty !== f.difficulty) return false;
+    // AJOUT (correctif "pool vide", 27/07/2026) : `allowedSectionIds`
+    // contient la section choisie ET tous ses descendants (voir
+    // free-training-service.js) - une categorie parente sans question
+    // directement rattachee doit tout de meme retourner les questions de
+    // ses sous-sections, jamais une correspondance exacte uniquement.
+    if (f.allowedSectionIds && !f.allowedSectionIds.has(q.documentSectionId)) return false;
     return true;
   });
 }
