@@ -89,31 +89,15 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------
-    // NOTE IMPORTANTE (garantie "toujours au moins un administrateur actif",
-    // reconfirmee au correctif v1.9.1) : Pharmeval empeche de retrograder ou
-    // de suspendre le dernier administrateur actif restant.
-    //
-    // Cette garantie est actuellement implementee et testee au niveau
-    // APPLICATIF UNIQUEMENT (js/services/admin-service.js, fonction
-    // countActiveAdmins() dans user-management-service.js), PAS au niveau
-    // de ces regles Firestore. Choix assume et deliberement NON change par
-    // ce correctif : simuler un comptage global d'administrateurs actifs
-    // directement dans une regle Firestore serait fragile (necessiterait
-    // une fonction d'agregation count() appliquee a une requete filtree,
-    // bien plus complexe et moins fiable ici qu'un simple get() sur un
-    // document unique, deja utilise ci-dessus pour isRequesterAdmin()).
-    //
-    // Consequence honnete a documenter : un administrateur techniquement
-    // capable de contourner entierement l'interface ET le service
-    // applicatif (ex. appel Firestore direct depuis la console du
-    // navigateur) pourrait aujourd'hui encore retrograder ou suspendre le
-    // dernier administrateur actif, malgre le refus systematique de
-    // l'application normale. Ce risque est juge acceptable pour l'instant
-    // (l'application normale l'empeche efficacement) ; une protection
-    // serveur plus robuste (Cloud Function declenchee sur ecriture, ou une
-    // operation serveur transactionnelle dediee) devra etre mise en place
-    // ulterieurement si ce risque devient une preoccupation reelle - voir
-    // RAPPORT_CORRECTIF_1.9.1.md, "Limite connue".
+    // NOTE IMPORTANTE (garantie "toujours au moins un administrateur actif") :
+    // CLOTUREE (audit "mauvais utilisateur", 27/07/2026). Le changement de
+    // role/statut d'un tiers passe desormais EXCLUSIVEMENT par PATCH
+    // /api/users/:uid/role et /status (functions/index.js), qui verifient
+    // cette garantie dans une TRANSACTION Firestore (voir "Phase C.1",
+    // countActiveAdmins()). L'ecriture DIRECTE des champs role/status par
+    // un administrateur (qui contournait cette transaction) est desormais
+    // refusee ci-dessous - voir la regle n°2 (`allow update: if false`,
+    // remplace l'ancienne regle qui autorisait ce contournement).
     // -------------------------------------------------------------------
 
     match /users/{userId} {
@@ -176,40 +160,16 @@ service cloud.firestore {
                     && request.resource.data.get('profileId', null) == resource.data.get('profileId', null)
                     && request.resource.data.get('groupIds', null) == resource.data.get('groupIds', null);
 
-      // --- Mise a jour par un ADMINISTRATEUR, sur le document d'un AUTRE
-      // utilisateur uniquement (CORRECTIF v1.9.1 - regle resserree) ---
+      // --- Mise a jour n°2 : role/status — VERROUILLEE (audit "mauvais
+      // utilisateur", 27/07/2026) ---
       //
-      // Un administrateur peut modifier UNIQUEMENT les champs `role` et/ou
-      // `status` d'un autre utilisateur - jamais aucun autre champ (uid,
-      // email, createdAt, profileCompleted, profile, displayName,
-      // photoURL...). La condition `diff(...).affectedKeys().hasOnly([...])`
-      // exige que l'ENSEMBLE des champs reellement modifies par l'ecriture
-      // soit un sous-ensemble de ['role', 'status'] : toute tentative de
-      // modifier un champ de profil en meme temps (meme un seul, meme en
-      // accompagnement d'un changement de role legitime) fait echouer
-      // toute la regle, pas seulement le champ en trop.
-      //
-      // Les valeurs ecrites sont egalement validees explicitement : seuls
-      // 'user'/'admin' sont acceptes pour `role`, et 'pending'/'active'/
-      // 'suspended' pour `status`. Les roles futurs (EDITOR, TEACHER,
-      // SUPER_ADMIN - deja presents dans les constantes cote application,
-      // voir authorization-service.js) ne sont PAS encore autorises ici :
-      // tant qu'ils ne sont pas officiellement implementes (aucun ecran ne
-      // permet de les attribuer), Firestore les refuse explicitement.
-      //
-      // Le cas "un administrateur modifie SON PROPRE role/statut" reste
-      // explicitement exclu ici (request.auth.uid != userId) : meme un
-      // administrateur doit passer par la regle "PROPRIETAIRE" ci-dessus
-      // pour son propre document, qui protege deja strictement role/status
-      // - un administrateur ne peut donc jamais changer son propre role ou
-      // son propre statut, ni via l'interface (voir js/services/admin-
-      // service.js, correctif v1.9.1), ni en contournant l'interface.
-      allow update: if request.auth != null
-                    && isRequesterAdmin()
-                    && request.auth.uid != userId
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'status'])
-                    && request.resource.data.role in ['user', 'admin']
-                    && request.resource.data.status in ['pending', 'active', 'suspended'];
+      // Autorisait auparavant un administrateur a modifier role/status d'un
+      // tiers directement via le SDK client, en CONTOURNANT la transaction
+      // "toujours au moins un administrateur actif" (voir note en-tete de
+      // /users/{userId} ci-dessus). Desormais refuse sans exception : ce
+      // changement passe exclusivement par PATCH /api/users/:uid/role et
+      // /status (functions/index.js, SDK Admin, hors regles Firestore).
+      allow update: if false;
 
       // --- Mise a jour n°3 (Sprint 14) : champs METIER du module
       // Utilisateurs (firstName/lastName/organizationId/profileId/
@@ -698,6 +658,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // AJOUT (audit "mauvais utilisateur", 27/07/2026) : compteur de quota
+    // d'upload d'images (POST /api/images, functions/index.js) - lu et
+    // ecrit EXCLUSIVEMENT par la Cloud Function (SDK Admin, hors regles).
+    // Un acces client direct permettrait de reinitialiser son propre
+    // quota, ce qui viderait la protection de tout son sens.
+    match /image_upload_counters/{uid} {
+      allow read, write: if false;
+    }
+
     // =========================================================================
     // NOUVEAU (Sprint 21.5, Phase B0) : progression par question
     // =========================================================================
@@ -729,26 +698,23 @@ service cloud.firestore {
     // l'unique source authentique du contenu editorial, voir aussi le
     // retrait de l'edition ponctuelle dans /questions ci-dessus) : cette
     // collection n'est qu'une file de suivi pour l'administrateur.
+    // VERROUILLE (audit "mauvais utilisateur", 27/07/2026) : la creation
+    // se faisait jusqu'ici en ecriture directe (contournant toute limite
+    // de frequence serveur) - migree vers POST /api/question-reports et
+    // PATCH /api/question-reports/:id/resolve (functions/index.js, SDK
+    // Admin, hors regles), qui appliquent desormais une fenetre glissante
+    // (20/heure/utilisateur) en plus des memes verifications que
+    // l'ancienne regle ci-dessous (userId, status, champs figes a la
+    // resolution).
     match /question_reports/{reportId} {
-      allow read: if isRequesterAdmin()
-                  || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow read, write: if false;
+    }
 
-      allow create: if request.auth != null
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.status == 'open'
-                    && request.resource.data.pedagogicalId is string
-                    && request.resource.data.reason is string;
-
-      // Seul un administrateur peut faire evoluer un signalement (le
-      // marquer resolu) - jamais son auteur, et jamais un changement des
-      // champs d'origine (pedagogicalId/userId/reason/comment figes).
-      allow update: if isRequesterAdmin()
-                    && request.resource.data.pedagogicalId == resource.data.pedagogicalId
-                    && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.reason == resource.data.reason
-                    && request.resource.data.comment == resource.data.comment;
-
-      allow delete: if false;
+    // AJOUT (audit "mauvais utilisateur", 27/07/2026) : compteur de
+    // frequence des signalements - meme raisonnement que
+    // image_upload_counters/ ci-dessus.
+    match /question_report_counters/{uid} {
+      allow read, write: if false;
     }
 
     // Marqueur d'idempotence : un document par EvaluationResult traite, pour

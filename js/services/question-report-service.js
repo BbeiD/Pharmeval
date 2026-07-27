@@ -12,15 +12,10 @@
 // l'administrateur, qui corrige ensuite via une resynchronisation du
 // catalogue.
 
-import { db, auth } from "../firebase-config.js";
-import {
-  collection, addDoc, doc, updateDoc,
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { auth } from "../firebase-config.js";
 import { getCurrentUserContext } from "./app-context.js";
 import { hasPermission, PERMISSIONS } from "./authorization-service.js";
 import { API_BASE_URL } from "../config.js";
-
-const REPORT_COLLECTION = 'question_reports';
 
 /** Motifs de signalement proposes (liste fermee, cadrage demande par David). */
 export const REPORT_REASONS = Object.freeze({
@@ -61,18 +56,19 @@ export async function submitQuestionReport(fields) {
   }
 
   try {
-    await addDoc(collection(db, REPORT_COLLECTION), {
-      pedagogicalId: f.pedagogicalId,
-      userId: ctx.uid,
-      userEmail: ctx.email || '',
-      reason: f.reason,
-      comment: (f.comment || '').toString().trim(),
-      status: 'open',
-      createdAt: new Date().toISOString(),
-      resolvedAt: null,
-      resolvedBy: null,
+    if (!auth.currentUser) return { success: false, message: 'Vous devez être connecté pour signaler une question.' };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-reports`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedagogicalId: f.pedagogicalId, reason: f.reason, comment: f.comment || '' }),
     });
-    return { success: true, message: 'Merci, votre signalement a été transmis.' };
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      logReportError('envoi d\'un signalement (API ' + res.status + ')', null);
+      return { success: false, message: (body && body.message) || 'Impossible d\'envoyer le signalement pour le moment. Réessayez plus tard.' };
+    }
+    return body;
   } catch (err) {
     logReportError('envoi d\'un signalement', err);
     return { success: false, message: 'Impossible d\'envoyer le signalement pour le moment. Réessayez plus tard.' };
@@ -149,14 +145,18 @@ export async function getOpenReportCounts(pedagogicalIds) {
  */
 export async function markReportResolved(reportId) {
   if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return { success: false };
-  const ctx = getCurrentUserContext();
   try {
-    await updateDoc(doc(db, REPORT_COLLECTION, reportId), {
-      status: 'resolved',
-      resolvedAt: new Date().toISOString(),
-      resolvedBy: (ctx && ctx.uid) || null,
+    if (!auth.currentUser) return { success: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-reports/${encodeURIComponent(reportId)}/resolve`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
     });
-    return { success: true };
+    if (!res.ok) {
+      logReportError('résolution du signalement ' + reportId + ' (API ' + res.status + ')', null);
+      return { success: false };
+    }
+    return await res.json();
   } catch (err) {
     logReportError('résolution du signalement ' + reportId, err);
     return { success: false };

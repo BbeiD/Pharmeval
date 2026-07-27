@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const { Timestamp, FieldValue } = require("firebase-admin/firestore");
+const { correctEvaluationSession } = require("./lib/evaluation-correction-service");
+const { validateQuestion } = require("./lib/question-import-validator");
 
 admin.initializeApp();
 // europe-west1 : co-localise le calcul avec Firestore (deja en europe-west1)
@@ -43,7 +45,53 @@ app.get("/health", (req, res) => res.send("OK"));
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
+// Signatures ("magic bytes") des formats d'image reellement acceptes -
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : `req.file.mimetype`
+// est une simple DECLARATION du client (en-tete multipart), jamais
+// verifiee jusqu'ici - un fichier renomme/falsifie passait tel quel.
+// Cette verification lit les premiers octets REELS du fichier, qui ne
+// peuvent pas etre falsifies sans casser le format lui-meme.
+function isLikelyImage(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true; // JPEG
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return true; // PNG
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) return true; // GIF8
+  if (buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WEBP") return true; // WEBP
+  return false;
+}
+
+const IMAGE_UPLOAD_COUNTERS_COLLECTION = "image_upload_counters";
+const IMAGE_UPLOAD_MAX_PER_HOUR = 30;
+
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : aucune limite
+// n'existait jusqu'ici sur le nombre d'uploads par utilisateur - une
+// rafale pouvait gonfler le stockage/la facturation sans aucun
+// garde-fou. Fenetre glissante simple (transaction, pas de dependance
+// externe) : au plus IMAGE_UPLOAD_MAX_PER_HOUR uploads par heure entamee.
+async function checkAndIncrementUploadQuota(uid) {
+  const ref = admin.firestore().collection(IMAGE_UPLOAD_COUNTERS_COLLECTION).doc(uid);
+  const now = Date.now();
+  return admin.firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : null;
+    const windowStart = data && data.windowStart ? data.windowStart : 0;
+    const withinWindow = now - windowStart < 60 * 60 * 1000;
+    const count = withinWindow ? (data.count || 0) : 0;
+    if (count >= IMAGE_UPLOAD_MAX_PER_HOUR) return false;
+    tx.set(ref, { windowStart: withinWindow ? windowStart : now, count: count + 1 });
+    return true;
+  });
+}
+
 app.post("/api/images", requireAuth, upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Fichier manquant." });
+  if (!isLikelyImage(req.file.buffer) || !req.file.mimetype.startsWith("image/")) {
+    return res.status(400).json({ error: "Le fichier envoyé n'est pas une image reconnue." });
+  }
+  const allowed = await checkAndIncrementUploadQuota(req.user.uid);
+  if (!allowed) {
+    return res.status(429).json({ error: "Trop d'envois d'images en une heure. Réessayez plus tard." });
+  }
   const bucket = admin.storage().bucket();
   const blob = bucket.file(`justifications/${Date.now()}-${req.file.originalname}`);
   await blob.save(req.file.buffer, { contentType: req.file.mimetype });
@@ -58,7 +106,7 @@ const DEFAULT_TAGS_PAGE_SIZE = 200; // meme borne que tag-catalog-service.js (fr
 // cote serveur avec le SDK Admin. Lecture ouverte a tout utilisateur
 // authentifie, meme regle que firestore.rules (match /tags/{tagId}).
 app.get("/api/tags/most-used", requireAuth, async (req, res) => {
-  const pageSize = Number(req.query.pageSize) || DEFAULT_TAGS_PAGE_SIZE;
+  const pageSize = boundedNumberParam(req.query.pageSize, DEFAULT_TAGS_PAGE_SIZE, 500);
   try {
     const snap = await admin
       .firestore()
@@ -178,6 +226,19 @@ async function isRequesterAdmin(requesterUid) {
   return data.role === "admin" && data.status === "active";
 }
 
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : pageSize/maxScan
+// n'avaient jusqu'ici aucun PLAFOND - un utilisateur authentifie normal
+// pouvait demander un balayage arbitrairement grand (ex. maxScan=5000000)
+// en boucle, saturant les 10 instances disponibles (maxInstances:10,
+// seule protection de concurrence existante) et gonflant le cout des
+// lectures Firestore. `max` borne desormais toute valeur fournie par le
+// client, quel que soit le nombre demande.
+function boundedNumberParam(raw, defaultValue, max) {
+  const n = Number(raw);
+  if (!(n > 0)) return defaultValue;
+  return Math.min(n, max);
+}
+
 const DAILY_CHALLENGE_COLLECTION = "daily_challenge_progress";
 
 // Reprend getDailyChallengeProgress() de
@@ -266,16 +327,47 @@ app.get("/api/competency-progress/by-id/:progressId", requireAuth, async (req, r
   }
 });
 
+const VALID_MASTERY_STATUSES = ["mastered", "to_reinforce", "not_acquired"];
+const VALID_COMPETENCY_LEVELS = ["discovery", "beginner", "intermediate", "advanced", "expert"];
+const VALID_PROGRESSION_TRENDS = ["improving", "stable", "declining"];
+
 // Reprend saveProgressionDocument() de
 // js/services/competency-progress-catalog-service.js. Meme regle que
 // firestore.rules (create ET update, identiques ici) : uniquement en son
 // propre nom, identifiant conforme a uid_competencyId. Ecriture complete
 // (setDoc), jamais partielle - meme principe que le client.
+//
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : cette collection
+// n'est plus alimentee par aucun flux d'evaluation reel aujourd'hui
+// (aucune session ne renseigne `competencyId` - voir le commentaire de
+// getMyCompetencyProgressFromQuestions(), js/services/competency-
+// progress-service.js, qui l'a remplacee pour "Mes competences"). Un
+// vrai recalcul server-side (comme pour evaluation-results/question-
+// progress ci-dessus) serait donc disproportionne vu son usage actuel -
+// on se limite a une validation de BORNES/ENUMS pour empecher une valeur
+// totalement absurde d'etre ecrite, en attendant une decision sur le
+// devenir de cette collection (retrait ou reactivation reelle).
 app.post("/api/competency-progress", requireAuth, async (req, res) => {
   const progressDocument = req.body || {};
   const expectedId = `${req.user.uid}_${progressDocument.competencyId}`;
   if (progressDocument.userId !== req.user.uid || progressDocument.id !== expectedId) {
     return res.status(403).json({ success: false, error: true });
+  }
+  const numericFields = ["evaluationCount", "bestPercent", "lastPercent", "averagePercent", "confidenceScore"];
+  for (const field of numericFields) {
+    const value = progressDocument[field];
+    if (value !== undefined && (typeof value !== "number" || value < 0 || value > (field === "evaluationCount" ? Number.MAX_SAFE_INTEGER : 100))) {
+      return res.status(400).json({ success: false, error: true, message: `Champ "${field}" hors bornes.` });
+    }
+  }
+  if (progressDocument.masteryStatus !== undefined && progressDocument.masteryStatus !== null && !VALID_MASTERY_STATUSES.includes(progressDocument.masteryStatus)) {
+    return res.status(400).json({ success: false, error: true, message: "masteryStatus invalide." });
+  }
+  if (progressDocument.currentLevel !== undefined && !VALID_COMPETENCY_LEVELS.includes(progressDocument.currentLevel)) {
+    return res.status(400).json({ success: false, error: true, message: "currentLevel invalide." });
+  }
+  if (progressDocument.trend !== undefined && !VALID_PROGRESSION_TRENDS.includes(progressDocument.trend)) {
+    return res.status(400).json({ success: false, error: true, message: "trend invalide." });
   }
   try {
     await admin.firestore().collection(COMPETENCY_PROGRESS_COLLECTION).doc(progressDocument.id).set(progressDocument);
@@ -353,7 +445,7 @@ function parseCursorParam(raw) {
 }
 
 app.get("/api/evaluations", requireAuth, async (req, res) => {
-  const pageSize = Number(req.query.pageSize) || DEFAULT_EVALUATIONS_PAGE_SIZE;
+  const pageSize = boundedNumberParam(req.query.pageSize, DEFAULT_EVALUATIONS_PAGE_SIZE, 200);
   const cursorTimestamp = parseCursorParam(req.query.cursor);
   try {
     let q = admin
@@ -681,7 +773,7 @@ app.get("/api/questions/all-for-source/:sourceId", requireAuth, async (req, res)
 // (methode GET distincte de toute facon, mais gardee ici pour la lisibilite).
 app.get("/api/questions", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const pageSize = boundedNumberParam(req.query.pageSize, 25, 100);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -718,7 +810,7 @@ app.get("/api/questions", requireAuth, async (req, res) => {
 // utilisateur authentifie peut lire une question publiee.
 app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : DEFAULT_SEARCH_SCAN_LIMIT;
+  const scanLimit = boundedNumberParam(req.query.maxScan, DEFAULT_SEARCH_SCAN_LIMIT, 2000);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -755,6 +847,14 @@ app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
 // questions, mais le SDK Admin contourne firestore.rules, la verification
 // est donc refaite ici, defense en profondeur identique au commentaire
 // d'origine). Un seul writeBatch (atomique : tout ou rien).
+//
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : chaque question
+// est desormais revalidee avec validateQuestion() (copie fidele du
+// validateur cote client, functions/lib/) AVANT ecriture - jusqu'ici,
+// seuls pedagogicalId/status etaient verifies ici, un appel API direct
+// pouvait donc ecrire une question structurellement absurde (theme
+// inexistant, index de bonne reponse hors bornes...) malgre la promesse
+// de "defense en profondeur identique" du commentaire d'origine.
 app.post("/api/questions/batch", requireAuth, async (req, res) => {
   const documents = req.body && req.body.documents;
   try {
@@ -774,6 +874,10 @@ app.post("/api/questions/batch", requireAuth, async (req, res) => {
     ));
     if (invalid) {
       return res.status(403).json({ success: false, writtenCount: 0, error: true });
+    }
+    const validationErrors = entries.flatMap(([, document], index) => validateQuestion(document, index));
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ success: false, writtenCount: 0, error: true, validationErrors });
     }
     const batch = admin.firestore().batch();
     entries.forEach(([pedagogicalId, document]) => {
@@ -977,7 +1081,7 @@ async function isRequesterCatalogAdmin(requesterUid) {
 // authentifie.
 app.get("/api/document-sources", requireAuth, async (req, res) => {
   const { sourceType, status } = req.query;
-  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : DEFAULT_SOURCES_PAGE_SIZE;
+  const pageSize = boundedNumberParam(req.query.pageSize, DEFAULT_SOURCES_PAGE_SIZE, 500);
   try {
     if (status !== "active" && !(await isRequesterCatalogAdmin(req.user.uid))) {
       return res.status(403).json({ items: [], error: "Accès refusé" });
@@ -1520,7 +1624,7 @@ function buildCompetenciesFilterClauses(query, filters) {
 // autre cas exige isRequesterAdmin().
 app.get("/api/competencies/page", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const pageSize = boundedNumberParam(req.query.pageSize, 25, 100);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -1549,7 +1653,7 @@ app.get("/api/competencies/page", requireAuth, async (req, res) => {
 // Reprend searchCompetenciesBounded(). Meme regle que ci-dessus.
 app.get("/api/competencies/search-bounded", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const scanLimit = boundedNumberParam(req.query.maxScan, 500, 2000);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -1705,7 +1809,7 @@ function buildParcoursFilterClauses(query, filters) {
 // jamais de fuite d'un parcours non publie via un filtre absent.
 app.get("/api/parcours", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const pageSize = boundedNumberParam(req.query.pageSize, 25, 100);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -1740,7 +1844,7 @@ app.get("/api/parcours", requireAuth, async (req, res) => {
 // Reprend searchParcoursBounded(). Meme regle que ci-dessus.
 app.get("/api/parcours/search-bounded", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
-  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const scanLimit = boundedNumberParam(req.query.maxScan, 500, 2000);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -2074,7 +2178,7 @@ const DEFAULT_AUDIT_READ_LIMIT = 50;
 // que firestore.rules (match /audit_logs/{logId}) : administrateurs
 // uniquement, sans exception (peut contenir des infos sur n'importe qui).
 app.get("/api/audit-logs", requireAuth, async (req, res) => {
-  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_AUDIT_READ_LIMIT;
+  const max = boundedNumberParam(req.query.limit, DEFAULT_AUDIT_READ_LIMIT, 500);
   const { targetUid } = req.query;
   try {
     if (!(await isRequesterAdmin(req.user.uid))) {
@@ -2147,22 +2251,35 @@ const APPLIED_RESULTS_COLLECTION = "question_progress_applied_results";
 // d'idempotence qu'auparavant cote client (un marqueur
 // question_progress_applied_results/{resultId} pose dans une TRANSACTION
 // avant tout increment - si le marqueur existe deja, no-op silencieux).
-// Chaque entree doit porter le uid du demandeur (jamais celui d'un tiers,
-// meme regle que question_progress), et le resultat correspondant doit
-// exister et appartenir au demandeur (meme regle que la creation du
-// marqueur cote firestore.rules) - le SDK Admin contournant les regles,
-// ces deux verifications sont refaites ici explicitement.
+//
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : les `entries`
+// (quelle question, correcte ou non) ne sont PLUS jamais acceptees
+// depuis le corps de la requete - un utilisateur pouvait auparavant
+// gonfler sa progression en envoyant n'importe quelle liste avec
+// `isCorrect:true`, sans rapport avec ses reponses reelles. Les entrees
+// sont desormais DERIVEES exclusivement du document `evaluation_results`
+// deja enregistre (lui-meme recalcule server-side, voir POST
+// /api/evaluation-results ci-dessus) - seul `resultId` reste fourni par
+// le client, pour identifier QUEL resultat appliquer.
 app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
-  const { resultId, entries } = req.body || {};
-  if (!resultId || !Array.isArray(entries) || entries.some((e) => e.userId !== req.user.uid)) {
+  const { resultId } = req.body || {};
+  if (!resultId) {
     return res.status(403).json({ success: false, applied: false, error: true });
   }
 
+  let entries;
   try {
     const resultSnap = await admin.firestore().collection(EVALUATION_RESULTS_COLLECTION).doc(resultId).get();
     if (!resultSnap.exists || resultSnap.data().userId !== req.user.uid) {
       return res.status(403).json({ success: false, applied: false, error: true });
     }
+    const resultData = resultSnap.data();
+    entries = [];
+    (resultData.competencyResults || []).forEach((cr) => {
+      (cr.questionResults || []).forEach((qr) => {
+        entries.push({ userId: resultData.userId, pedagogicalId: qr.pedagogicalId, isCorrect: qr.status === "correct" });
+      });
+    });
   } catch (err) {
     console.error("[question-progress/apply:check]", err && err.code, err);
     return res.status(500).json({ success: false, applied: false, error: true });
@@ -2253,7 +2370,7 @@ app.get("/api/evaluation-results/:id", requireAuth, async (req, res) => {
 // regle que firestore.rules (isRequesterAdmin() peut lire n'importe quel
 // document evaluation_results).
 app.get("/api/evaluation-results/for-user/:uid", requireAuth, async (req, res) => {
-  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : 20;
+  const max = boundedNumberParam(req.query.limit, 20, 200);
   try {
     if (!(await isRequesterAdmin(req.user.uid))) {
       return res.status(403).json({ items: [], error: "Accès refusé" });
@@ -2280,6 +2397,18 @@ app.get("/api/evaluation-results/for-user/:uid", requireAuth, async (req, res) =
 // session correspondante doit exister, appartenir au demandeur et etre
 // deja 'submitted' - conditions verifiees ici via un get() explicite,
 // comme le fait la regle Firestore.
+//
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : le score et les
+// competencyResults envoyes par le client (`resultDocument.score`, etc.)
+// ne sont PLUS jamais ecrits tels que recus - un utilisateur pouvait
+// auparavant s'auto-attribuer n'importe quel score par simple appel API
+// direct, sans passer par l'UI. Le resultat est desormais RECALCULE en
+// integralite server-side, via correctEvaluationSession() (copie fidele
+// du moteur de correction, functions/lib/), a partir de la session DEJA
+// STOCKEE (questionSnapshot + answers, jamais modifiable par le client
+// une fois la session soumise) - seuls `resultDocument.userId/id/
+// sessionId` servent encore a identifier QUELLE session corriger, jamais
+// a fournir le resultat lui-meme.
 app.post("/api/evaluation-results", requireAuth, async (req, res) => {
   const resultDocument = req.body || {};
   if (
@@ -2296,14 +2425,16 @@ app.post("/api/evaluation-results", requireAuth, async (req, res) => {
       return res.status(409).json({ success: false, error: true });
     }
     const sessionSnap = await admin.firestore().collection(EVALUATION_SESSIONS_COLLECTION).doc(resultDocument.id).get();
+    const session = sessionSnap.data();
     if (
       !sessionSnap.exists ||
-      sessionSnap.data().userId !== req.user.uid ||
-      sessionSnap.data().status !== "submitted"
+      session.userId !== req.user.uid ||
+      session.status !== "submitted"
     ) {
       return res.status(403).json({ success: false, error: true });
     }
-    await resultRef.set(resultDocument);
+    const computedResult = correctEvaluationSession(session);
+    await resultRef.set(computedResult);
     res.json({ success: true, error: false });
   } catch (err) {
     console.error("[evaluation-results:post]", err && err.code, err);
@@ -2594,7 +2725,7 @@ app.get("/api/reference-bank/:bankType/page", requireAuth, async (req, res) => {
   const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
   if (!collectionName) return res.status(400).json({ items: [], lastDoc: null, hasMore: false, error: true });
   const filters = parseFiltersParam(req.query.filters);
-  const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 25;
+  const pageSize = boundedNumberParam(req.query.pageSize, 25, 100);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -2626,7 +2757,7 @@ app.get("/api/reference-bank/:bankType/search-bounded", requireAuth, async (req,
   const collectionName = REFERENCE_BANK_COLLECTIONS[req.params.bankType];
   if (!collectionName) return res.status(400).json({ items: [], truncated: false, error: true });
   const filters = parseFiltersParam(req.query.filters);
-  const scanLimit = Number(req.query.maxScan) > 0 ? Number(req.query.maxScan) : 500;
+  const scanLimit = boundedNumberParam(req.query.maxScan, 500, 2000);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
@@ -2846,6 +2977,87 @@ app.get("/api/question-reports", requireAuth, async (req, res) => {
   }
 });
 
+const REPORT_REASONS = ["wrong_answer", "inconsistency", "duplicate", "typo", "other"];
+const REPORT_COMMENT_MAX_LENGTH = 1000;
+const QUESTION_REPORT_COUNTERS_COLLECTION = "question_report_counters";
+const QUESTION_REPORT_MAX_PER_HOUR = 20;
+
+// CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : la creation d'un
+// signalement se faisait jusqu'ici en ecriture Firestore DIRECTE
+// (question-report-service.js, addDoc), contournant entierement les
+// Cloud Functions - aucune limite de frequence possible cote serveur, et
+// aucune borne de longueur sur `comment`. Migre vers cette route (meme
+// principe que toutes les autres ecritures deja migrees) pour appliquer
+// une fenetre glissante (meme mecanisme que checkAndIncrementUploadQuota()
+// ci-dessus) et une borne de taille. firestore.rules verrouille desormais
+// cette collection a `if false` (ecriture exclusivement via cette route).
+async function checkAndIncrementReportQuota(uid) {
+  const ref = admin.firestore().collection(QUESTION_REPORT_COUNTERS_COLLECTION).doc(uid);
+  const now = Date.now();
+  return admin.firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : null;
+    const windowStart = data && data.windowStart ? data.windowStart : 0;
+    const withinWindow = now - windowStart < 60 * 60 * 1000;
+    const count = withinWindow ? (data.count || 0) : 0;
+    if (count >= QUESTION_REPORT_MAX_PER_HOUR) return false;
+    tx.set(ref, { windowStart: withinWindow ? windowStart : now, count: count + 1 });
+    return true;
+  });
+}
+
+app.post("/api/question-reports", requireAuth, async (req, res) => {
+  const fields = req.body || {};
+  if (typeof fields.pedagogicalId !== "string" || !fields.pedagogicalId) {
+    return res.status(400).json({ success: false, message: "Question cible introuvable." });
+  }
+  if (!REPORT_REASONS.includes(fields.reason)) {
+    return res.status(400).json({ success: false, message: "Motif de signalement invalide." });
+  }
+  const comment = (fields.comment || "").toString().trim().slice(0, REPORT_COMMENT_MAX_LENGTH);
+  try {
+    const allowed = await checkAndIncrementReportQuota(req.user.uid);
+    if (!allowed) {
+      return res.status(429).json({ success: false, message: "Trop de signalements envoyés récemment. Réessayez plus tard." });
+    }
+    await admin.firestore().collection(QUESTION_REPORTS_COLLECTION).add({
+      pedagogicalId: fields.pedagogicalId,
+      userId: req.user.uid,
+      userEmail: req.user.email || "",
+      reason: fields.reason,
+      comment,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+    });
+    res.json({ success: true, message: "Merci, votre signalement a été transmis." });
+  } catch (err) {
+    console.error("[question-reports:post]", err && err.code, err);
+    res.status(500).json({ success: false, message: "Impossible d'envoyer le signalement pour le moment." });
+  }
+});
+
+// Reprend markReportResolved() de js/services/question-report-service.js.
+// Reservee aux administrateurs - ne modifie jamais pedagogicalId/userId/
+// reason/comment (memes champs figes que l'ancienne regle Firestore).
+app.patch("/api/question-reports/:id/resolve", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ success: false });
+    }
+    await admin.firestore().collection(QUESTION_REPORTS_COLLECTION).doc(req.params.id).update({
+      status: "resolved",
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: req.user.uid,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[question-reports/resolve]", err && err.code, err);
+    res.status(500).json({ success: false });
+  }
+});
+
 const DEFAULT_CONTENT_AUDIT_LIMIT = 50;
 
 // Reprend getRecentQuestionAuditLogs()/getRecentParcoursAuditLogs()/
@@ -2862,7 +3074,7 @@ const CONTENT_AUDIT_CONFIG = {
 app.get("/api/content-audit-logs/:logType", requireAuth, async (req, res) => {
   const config = CONTENT_AUDIT_CONFIG[req.params.logType];
   if (!config) return res.status(400).json({ items: [], error: false });
-  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_CONTENT_AUDIT_LIMIT;
+  const max = boundedNumberParam(req.query.limit, DEFAULT_CONTENT_AUDIT_LIMIT, 500);
   const filterId = req.query.filterId;
   try {
     if (!(await isRequesterAdmin(req.user.uid))) {
@@ -2885,7 +3097,7 @@ const DEFAULT_IMPORT_LOGS_LIMIT = 50;
 // Reprend getRecentImportLogs() de js/services/import-log-service.js.
 // Reservee aux administrateurs (meme regle que firestore.rules).
 app.get("/api/import-logs", requireAuth, async (req, res) => {
-  const max = Number(req.query.limit) > 0 ? Number(req.query.limit) : DEFAULT_IMPORT_LOGS_LIMIT;
+  const max = boundedNumberParam(req.query.limit, DEFAULT_IMPORT_LOGS_LIMIT, 500);
   try {
     if (!(await isRequesterAdmin(req.user.uid))) {
       return res.status(403).json({ items: [], error: "Accès refusé" });
