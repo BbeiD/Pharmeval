@@ -7,7 +7,7 @@
 import { auth } from "../js/firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument, PROFESSION_OPTIONS, ORGANIZATION_TYPE_OPTIONS } from "../js/services/user-service.js";
-import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
+import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
 import { formatUserFullName } from "../js/services/user-profile-metadata-service.js";
@@ -16,6 +16,7 @@ import {
   deactivateUser, reactivateUser, editUserBusinessProfile, getUserTimeline,
   createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
+import { promoteToAdmin, revokeAdmin } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
@@ -278,6 +279,19 @@ function detailHtml(u) {
   } else {
     html += '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'deactivate\')">Désactiver</button>';
   }
+  // AJOUT (demande directe de David, 27/07/2026 - test manuel Etape 15) :
+  // promoteToAdmin()/revokeAdmin() (admin-service.js) existaient deja,
+  // deja proteges cote serveur (dernier administrateur actif, auto-
+  // modification refusee), mais n'etaient jamais appeles nulle part dans
+  // l'application - aucun bouton ne les exposait. Jamais affiche sur son
+  // propre compte (protection redondante avec le serveur, mais evite un
+  // clic qui echouerait systematiquement).
+  const ctx = getCurrentUserContext();
+  if (ctx && ctx.uid !== u.uid) {
+    html += (u.role === 'admin')
+      ? '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke\')">Retirer les droits administrateur</button>'
+      : '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
+  }
   html += '</div></div>';
 
   html += '<div class="bank-detail-section"><h4>Historique</h4><div id="users-timeline-container" class="bank-timeline">Chargement…</div></div>';
@@ -338,7 +352,10 @@ export async function saveUserEdit() {
   if (result.status === 'success') { await loadPage(); await selectUser(u.uid); }
 }
 
-const ACTION_LABELS = { deactivate: 'désactiver ce compte', reactivate: 'réactiver ce compte' };
+const ACTION_LABELS = {
+  deactivate: 'désactiver ce compte', reactivate: 'réactiver ce compte',
+  promote: 'promouvoir cet utilisateur administrateur', revoke: 'retirer les droits administrateur de cet utilisateur',
+};
 export function requestUserAction(kind) {
   const uid = state.selectedId;
   if (!uid) return;
@@ -358,6 +375,8 @@ export async function confirmUserAction() {
   let result;
   if (kind === 'deactivate') result = await deactivateUser(user);
   else if (kind === 'reactivate') result = await reactivateUser(user);
+  else if (kind === 'promote') result = await promoteToAdmin(user);
+  else if (kind === 'revoke') result = await revokeAdmin(user);
   else result = { status: 'error', message: 'Action inconnue.' };
   pendingAction = null;
   showMessage(result.status, result.message);

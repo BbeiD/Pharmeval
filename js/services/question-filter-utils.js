@@ -19,6 +19,7 @@ export function buildFilterDescriptors(filters) {
   if (f.author) descriptors.push({ field: 'author', op: '==', value: f.author });
   if (f.documentSourceId) descriptors.push({ field: 'documentSourceId', op: '==', value: f.documentSourceId });
   if (f.documentSectionId) descriptors.push({ field: 'documentSectionId', op: '==', value: f.documentSectionId });
+  if (f.competencyId) descriptors.push({ field: 'competencyId', op: '==', value: f.competencyId });
   if (f.tag) descriptors.push({ field: 'tags', op: 'array-contains', value: f.tag });
   return descriptors;
 }

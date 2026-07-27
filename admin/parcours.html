@@ -148,6 +148,25 @@
   </div>
 </div>
 
+<!-- AJOUT (demande directe de David, 27/07/2026 - test manuel Etape 15) :
+     apres l'ajout d'une/plusieurs competence(s) depuis la banque, les
+     questions publiees DEJA taguees avec cette/ces competence(s)
+     (question.competencyId) sont proposees ici pour validation - jamais
+     liees automatiquement sans revue (case cochee par defaut, mais
+     l'administrateur peut decocher avant de confirmer). -->
+<div id="parcours-suggested-questions-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeSuggestedQuestionsPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg></button>
+    <h3>Questions suggérées pour cette compétence</h3>
+    <p class="admin-users-disclaimer" style="margin:8px 0;">Ces questions publiées sont déjà rattachées à la compétence ajoutée. Décochez celles à ne pas lier à ce parcours.</p>
+    <div id="parcours-suggested-questions-results" style="margin-top:8px; max-height:45vh; overflow-y:auto;"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeSuggestedQuestionsPanel()">Ignorer, ne rien lier</button>
+      <button class="btn-primary" onclick="confirmSuggestedQuestions()">Lier les questions cochées</button>
+    </div>
+  </div>
+</div>
+
 <!-- AJOUT : panneau de selection d'une ou plusieurs sources documentaires
      EXISTANTES - meme principe que le panneau de competences ci-dessus,
      sans champ de recherche (peu de sources actives, liste simple). -->

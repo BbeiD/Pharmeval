@@ -64,6 +64,7 @@ let state = {
 };
 let pendingAction = null;      // { kind, parcours }
 let linkingCompetencyId = null; // competence en cours de liaison (panneau de recherche de questions)
+let suggestedQuestionsItems = []; // { competencyId, pedagogicalId, question, checked } - voir confirmCompetencyPicker()
 
 // ---------------------------------------------------------------------------
 // Controle d'acces
@@ -790,14 +791,103 @@ export async function confirmCompetencyPicker() {
   if (!p || competencyPickerSelection.size === 0) return;
 
   const ids = Array.from(competencyPickerSelection);
+  const addedCompetencyNames = {};
   let lastResult = null;
   for (const competencyId of ids) {
     lastResult = await addCompetencyFromBank(p, competencyId);
-    if (lastResult.status === 'success') p.competencies = lastResult.competencies;
+    if (lastResult.status === 'success') {
+      p.competencies = lastResult.competencies;
+      const added = lastResult.competencies.find(function(c) { return c.competencyId === competencyId; });
+      addedCompetencyNames[competencyId] = added ? added.name : competencyId;
+    }
   }
 
   showParcoursMessage(lastResult ? lastResult.status : 'error', ids.length + ' compétence(s) traitée(s).');
   closeCompetencyPickerPanel();
+  await selectParcours(p.id);
+
+  // AJOUT (demande directe de David, 27/07/2026) : propose les questions
+  // publiees deja taguees avec chaque competence ajoutee, pour validation
+  // avant liaison - jamais silencieusement, voir openSuggestedQuestionsPanel().
+  await openSuggestedQuestionsPanel(p.id, addedCompetencyNames);
+}
+
+// ---------------------------------------------------------------------------
+// Questions suggerees (heritage depuis la Banque de competences)
+// ---------------------------------------------------------------------------
+
+async function openSuggestedQuestionsPanel(parcoursId, competencyNamesById) {
+  const competencyIds = Object.keys(competencyNamesById || {});
+  if (competencyIds.length === 0) return;
+
+  const perCompetency = await Promise.all(competencyIds.map(function(competencyId) {
+    return searchQuestionsForLinking({ filters: { status: 'published', competencyId: competencyId } })
+      .then(function(result) { return { competencyId: competencyId, result: result }; });
+  }));
+
+  suggestedQuestionsItems = [];
+  perCompetency.forEach(function(entry) {
+    if (!entry.result.authorized || entry.result.error) return;
+    entry.result.items.forEach(function(q) {
+      suggestedQuestionsItems.push({
+        competencyId: entry.competencyId,
+        competencyName: competencyNamesById[entry.competencyId],
+        pedagogicalId: q.pedagogicalId,
+        question: q.question,
+        checked: true,
+      });
+    });
+  });
+
+  if (suggestedQuestionsItems.length === 0) return; // rien a proposer, pas de panneau vide
+
+  renderSuggestedQuestionsPanel();
+  document.getElementById('parcours-suggested-questions-overlay').style.display = 'flex';
+}
+
+function renderSuggestedQuestionsPanel() {
+  const container = document.getElementById('parcours-suggested-questions-results');
+  const byCompetency = new Map();
+  suggestedQuestionsItems.forEach(function(item, index) {
+    if (!byCompetency.has(item.competencyId)) byCompetency.set(item.competencyId, []);
+    byCompetency.get(item.competencyId).push(Object.assign({ index: index }, item));
+  });
+
+  let html = '';
+  byCompetency.forEach(function(items, competencyId) {
+    html += '<p style="margin:10px 0 4px;"><strong>' + escapeHtml(items[0].competencyName || competencyId) + '</strong> (' + items.length + ' question(s))</p>';
+    html += items.map(function(item) {
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+        '<input type="checkbox" onchange="toggleSuggestedQuestion(' + item.index + ')"' + (item.checked ? ' checked' : '') + '>' +
+        '<span><span class="bank-row-id">' + escapeHtml(item.pedagogicalId) + '</span><br>' + escapeHtml((item.question || '').slice(0, 100)) + '</span>' +
+        '</label>';
+    }).join('');
+  });
+  container.innerHTML = html;
+}
+
+export function toggleSuggestedQuestion(index) {
+  if (!suggestedQuestionsItems[index]) return;
+  suggestedQuestionsItems[index].checked = !suggestedQuestionsItems[index].checked;
+}
+
+export function closeSuggestedQuestionsPanel() {
+  suggestedQuestionsItems = [];
+  document.getElementById('parcours-suggested-questions-overlay').style.display = 'none';
+}
+
+export async function confirmSuggestedQuestions() {
+  const p = state.items.find(function(item) { return item.id === state.selectedId; });
+  const toLink = suggestedQuestionsItems.filter(function(item) { return item.checked; });
+  document.getElementById('parcours-suggested-questions-overlay').style.display = 'none';
+  suggestedQuestionsItems = [];
+  if (!p || toLink.length === 0) return;
+
+  let lastResult = null;
+  for (const item of toLink) {
+    lastResult = await linkQuestionToCompetency(p, item.competencyId, item.pedagogicalId);
+  }
+  showParcoursMessage(lastResult ? lastResult.status : 'error', toLink.length + ' question(s) liée(s).');
   await selectParcours(p.id);
 }
 
@@ -1168,6 +1258,9 @@ window.closeCompetencyPickerPanel = closeCompetencyPickerPanel;
 window.onCompetencyPickerSearchInput = onCompetencyPickerSearchInput;
 window.toggleCompetencyPick = toggleCompetencyPick;
 window.confirmCompetencyPicker = confirmCompetencyPicker;
+window.toggleSuggestedQuestion = toggleSuggestedQuestion;
+window.closeSuggestedQuestionsPanel = closeSuggestedQuestionsPanel;
+window.confirmSuggestedQuestions = confirmSuggestedQuestions;
 window.openSourcePickerPanel = openSourcePickerPanel;
 window.closeSourcePickerPanel = closeSourcePickerPanel;
 window.toggleSourcePick = toggleSourcePick;
