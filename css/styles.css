@@ -276,20 +276,35 @@
   }
   .mp-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-  /* Mobile/tablette : sidebar reduite aux icones seules (meme principe que
-     l'ancienne barre horizontale, qui masquait deja les libelles). */
+  /* Mobile/tablette : la sidebar devient une barre de navigation FIXEE EN
+     BAS de l'ecran (retour utilisateur, 27/07/2026 : la colonne d'icones a
+     gauche "ne fait pas assez app mobile" et grignote une largeur precieuse
+     sur un ecran etroit) - reutilise EXACTEMENT le meme HTML (site-header.js
+     n'est pas modifie), uniquement reagence par CSS : la sidebar passe
+     d'une colonne (gauche) a une rangee (bas), le logo disparait (plus de
+     place utile, l'utilisateur sait deja ou il est une fois connecte), et
+     le bouton de compte (avatar) rejoint les icones de navigation dans la
+     meme rangee plutot que de rester seul en pied de colonne - son menu
+     deroulant s'ouvre deja VERS LE HAUT (voir .sh-account-menu), ce qui
+     tombe bien pour un declencheur ancre en bas d'ecran. */
   @media (max-width: 780px) {
-    :root { --sidebar-width: var(--sidebar-width-collapsed); }
-    /* CORRECTIF (retour mobile, 27/07/2026) : .sh-app-tagline etait deja
-       masque, mais pas .sh-app-name ("Pharmeval") - le nom entier restait
-       affiche a cote de l'icone dans une colonne de 76px, et se retrouvait
-       tronque a "Ph" (texte coupe par overflow, jamais redimensionne). Le
-       logo (icone seule) suffit une fois la barre reduite. */
-    .sh-nav-label, .sh-app-tagline, .sh-app-name, .sh-account-inline, .sh-streak-text { display: none; }
-    .sh-logo-link { justify-content: center; }
-    .sh-nav-link { justify-content: center; padding: 10px; }
-    .sh-avatar-btn { justify-content: center; }
-    .sh-streak-block { justify-content: center; }
+    :root { --bottom-nav-height: 60px; }
+    body { padding-left: 0; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)); }
+
+    .site-sidebar {
+      top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: auto;
+      flex-direction: row; align-items: center;
+      border-right: none; border-top: 1px solid var(--border);
+      padding: 6px var(--space-2);
+      padding-bottom: calc(6px + env(safe-area-inset-bottom));
+      overflow: visible;
+    }
+    .sh-logo-link { display: none; }
+    .sh-nav { flex-direction: row; flex: 1; gap: 0; justify-content: space-around; }
+    .sh-nav-link { justify-content: center; padding: 8px; }
+    .sh-nav-label, .sh-app-tagline, .sh-app-name, .sh-account-inline, .sh-streak-block { display: none; }
+    .sh-sidebar-footer { flex-direction: row; border-top: none; margin-top: 0; padding-top: 0; gap: 0; width: auto; }
+    .sh-avatar-btn { justify-content: center; width: auto; padding: 8px; }
   }
 
   .container { max-width: 820px; margin: 0 auto; padding: 28px 20px; }
