@@ -36,6 +36,7 @@ export const BANK_TO_THEME = Object.freeze({
   DERCOS_QDB: 'dermo',
   CERAVE_QDB: 'dermo',
   CBIP_QDB: 'medicaments',
+  DELPHI_PE: 'medicaments',
   PROC_QDB: 'procedures',
   PROC2_QDB: 'procedures',
   RETOURS_QDB: 'procedures',
