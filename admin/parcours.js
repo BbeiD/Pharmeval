@@ -271,7 +271,8 @@ function renderBulkBar() {
     (isTrashView
       ? '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'restore\')">' + icon('action-restore', { size: 14 }) + ' Restaurer</button>' +
         (hasPermission(PERMISSIONS.PURGE_PARCOURS) ? '<button type="button" class="btn-secondary bank-delete-btn" onclick="requestBulkParcoursAction(\'delete\')">Supprimer définitivement</button>' : '')
-      : '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
+      : '<button type="button" class="btn-primary" onclick="requestBulkParcoursAction(\'publish\')">Publier</button>' +
+        '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
     ) +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_on\')">★ Mettre en avant</button>' +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_off\')">☆ Retirer la mise en avant</button>';
@@ -291,6 +292,9 @@ export function requestBulkParcoursAction(kind) {
   } else if (kind === 'feature_on' || kind === 'feature_off') {
     pendingAction = { kind: 'bulk_feature', ids: ids, featured: kind === 'feature_on' };
     message = (kind === 'feature_on' ? 'Mettre en avant' : 'Retirer la mise en avant pour') + ' les ' + ids.length + ' parcours sélectionnés ?';
+  } else if (kind === 'publish') {
+    pendingAction = { kind: 'bulk_publish', ids: ids };
+    message = 'Voulez-vous vraiment publier les ' + ids.length + ' parcours sélectionnés ? Ils deviendront visibles par tous les utilisateurs.';
   } else {
     return;
   }
@@ -1344,7 +1348,7 @@ export async function confirmParcoursAction() {
   // boucle sequentielle sur chaque id selectionne - reutilise les memes
   // fonctions de service unitaires (jamais de route "bulk" cote serveur,
   // jamais de logique metier dupliquee ici).
-  if (action.kind === 'bulk_delete' || action.kind === 'bulk_restore' || action.kind === 'bulk_feature') {
+  if (action.kind === 'bulk_delete' || action.kind === 'bulk_restore' || action.kind === 'bulk_feature' || action.kind === 'bulk_publish') {
     let successCount = 0, failCount = 0;
     for (const id of action.ids) {
       const p = state.items.find(function(item) { return item.id === id; });
@@ -1355,6 +1359,8 @@ export async function confirmParcoursAction() {
         itemResult = await restoreParcoursFromTrash(p);
       } else if (action.kind === 'bulk_feature') {
         itemResult = await setParcoursFeatured(p, action.featured);
+      } else if (action.kind === 'bulk_publish') {
+        itemResult = await publishParcours(p);
       } else if (p.status === PARCOURS_STATUSES.TRASH) {
         itemResult = await permanentlyDeleteParcours(p);
       } else {
@@ -1373,7 +1379,7 @@ export async function confirmParcoursAction() {
     }
 
     state.selectedIds.clear();
-    const verb = action.kind === 'bulk_restore' ? 'restauré(s)' : action.kind === 'bulk_feature' ? 'mis à jour' : 'traité(s)';
+    const verb = action.kind === 'bulk_restore' ? 'restauré(s)' : action.kind === 'bulk_feature' ? 'mis à jour' : action.kind === 'bulk_publish' ? 'publié(s)' : 'traité(s)';
     showParcoursMessage(
       failCount === 0 ? 'success' : 'error',
       successCount + ' parcours ' + verb + (failCount > 0 ? ', ' + failCount + ' échec(s).' : '.')
