@@ -388,9 +388,9 @@
      au reste du site) - chaque carte se retrouvait ecrasee sur ~100px de
      large sur un telephone. Regle deplacee ici pour pouvoir la surcharger
      proprement en media query. */
-  .home-triple-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3); }
+  .home-duo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
   @media (max-width: 700px) {
-    .home-triple-grid { grid-template-columns: 1fr; }
+    .home-duo-grid { grid-template-columns: 1fr; }
   }
 
   /* VIEWS */
@@ -2084,13 +2084,32 @@
   .home-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
   .home-welcome-text { flex: 1; min-width: 0; }
 
-  /* ---- NOUVEAU (mockup, demande directe de David) : carte "Défi du jour"
-     condensée de l'accueil (js/home.js) - meme trophee que defi.html. ---- */
-  .home-defi-trophy {
-    display: flex; align-items: center; justify-content: center;
-    width: 64px; height: 64px; margin: var(--space-3) auto;
-    border-radius: 50%; background: var(--green-light); color: var(--green-dark);
+  /* ---- NOUVEAU (chantier graphique, demande directe de David) : "hero
+     card" de l'accueil - fusionne l'ancien bandeau de bienvenue et
+     l'ancienne carte "Defi du jour" isolee en un seul point focal (voir
+     js/home.js, renderHero()). Le badge affiche la serie REELLE
+     (progress.currentStreak, deja calculee par daily-challenge-service.js)
+     - jamais une valeur inventee. ---- */
+  .home-hero-card { display: flex; align-items: center; gap: var(--space-4); }
+  .home-hero-badge {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 92px; height: 92px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent-orange-light);
   }
+  .home-hero-badge-icon { color: var(--accent-orange); display: flex; }
+  .home-hero-badge-icon svg { animation: home-hero-flame-pulse 2.6s ease-in-out infinite; }
+  @keyframes home-hero-flame-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  @media (prefers-reduced-motion: reduce) {
+    .home-hero-badge-icon svg { animation: none; }
+  }
+  .home-hero-badge-value { font-size: 24px; font-weight: 800; line-height: 1.1; color: var(--text); }
+  .home-hero-badge-label { font-size: 8px; text-transform: uppercase; letter-spacing: .02em; color: var(--accent-orange); font-weight: 700; text-align: center; }
+  .home-hero-text { flex: 1; min-width: 0; }
+  .home-hero-defi-status { color: var(--text2); margin: 2px 0 var(--space-2); font-size: 13px; }
+  @media (max-width: 700px) {
+    .home-hero-card { flex-direction: column; text-align: center; }
+  }
+
 
   /* ---- NOUVEAU (mockup, demande directe de David) : "Activité récente"
      de l'accueil (js/home.js). ---- */

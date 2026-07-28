@@ -102,7 +102,7 @@ onAuthStateChanged(auth, async function(user) {
     loadHomeStats(),
     loadMasteryDonut(),
     loadRecentActivity(),
-    loadDefiCard(),
+    renderHero(),
   ]);
 });
 
@@ -284,39 +284,45 @@ function activityRowHtml(event) {
 }
 
 // ---------------------------------------------------------------------------
-// Défi du jour (demande directe de David, 22/07/2026) - meme donnee que
-// js/defi.js, presentation condensee pour l'accueil. AUCUN "temps estime"
-// (explicitement refuse - personne ne mesure le temps reel par question
-// aujourd'hui, ce serait une valeur inventee).
+// Hero card (chantier graphique, demande directe de David, 28/07/2026) -
+// fusionne l'ancien bandeau de bienvenue et l'ancienne carte "Defi du
+// jour" isolee. Le badge affiche la serie REELLE (progress.currentStreak,
+// deja calculee par daily-challenge-service.js) - jamais une valeur
+// inventee. AUCUN "temps estime" (explicitement refuse - personne ne
+// mesure le temps reel par question aujourd'hui, ce serait une valeur
+// inventee).
 // ---------------------------------------------------------------------------
 
-async function loadDefiCard() {
-  const el = document.getElementById('home-defi-body');
-  if (!el) return;
+async function renderHero() {
+  const badgeIconEl = document.getElementById('home-hero-badge');
+  const streakEl = document.getElementById('home-hero-streak');
+  const bodyEl = document.getElementById('home-hero-defi-body');
+  if (!bodyEl) return;
 
   const state = await getDailyChallengeStateForUser();
-  const trophy = '<div class="home-defi-trophy">' + icon('feedback-success-achievement', { size: 40 }) + '</div>';
+
+  if (streakEl) streakEl.textContent = String(state.progress.currentStreak);
+  const iconEl = badgeIconEl && badgeIconEl.querySelector('.home-hero-badge-icon');
+  if (iconEl) iconEl.innerHTML = icon('feedback-streak-regularity', { size: 30 });
 
   if (state.eligibleCount === 0) {
-    el.innerHTML = '<p class="pv-list-empty">Aucune question disponible pour le moment.</p>';
+    bodyEl.innerHTML = '<p class="home-hero-defi-status">Aucune question disponible pour le moment.</p>';
     return;
   }
 
   if (state.alreadyCompletedToday) {
-    el.innerHTML =
-      trophy +
-      '<p style="text-align:center;"><strong>Défi relevé pour aujourd\'hui !</strong></p>' +
-      '<div class="btn-row" style="justify-content:center;"><a class="btn-secondary" href="defi.html">Voir mon défi</a></div>';
+    bodyEl.innerHTML =
+      '<p class="home-hero-defi-status">' + icon('highlight-check-validated', { size: 16 }) + ' Défi relevé pour aujourd\'hui !</p>' +
+      '<a class="btn-secondary" href="defi.html">Voir mon défi</a>';
     return;
   }
 
   const questionCount = Math.min(DAILY_CHALLENGE_QUESTION_COUNT, state.eligibleCount);
-  el.innerHTML =
-    '<p>' + questionCount + ' questions sélectionnées pour vous.</p>' +
-    trophy +
-    '<button class="btn-primary" id="home-defi-start-btn" style="width:100%;">Commencer le défi</button>';
+  bodyEl.innerHTML =
+    '<p class="home-hero-defi-status">' + questionCount + ' questions vous attendent aujourd\'hui.</p>' +
+    '<button class="btn-primary" id="home-hero-defi-btn">Commencer le défi</button>';
 
-  document.getElementById('home-defi-start-btn').addEventListener('click', async function() {
+  document.getElementById('home-hero-defi-btn').addEventListener('click', async function() {
     const btn = this;
     btn.disabled = true;
     btn.textContent = 'Préparation…';
