@@ -317,7 +317,13 @@ function cardHtml(entry, attempts, hasActiveSession) {
   );
 }
 
+// AJOUT (demande directe de David, 28/07/2026 - "je veux que le parcours
+// commence directement") : "Ouvrir" demarre desormais l'evaluation tout de
+// suite, sans passer par parcours-detail.html - meme destination que le
+// bouton "Commencer" de cette page (startParcoursEvaluation(),
+// js/parcours-detail.js), simplement declenchee un ecran plus tot.
+// L'historique reste consultable depuis "Mes évaluations", pas retire.
 export function openParcours(parcoursId) {
-  window.location.href = 'parcours-detail.html?id=' + encodeURIComponent(parcoursId);
+  window.location.href = 'evaluation.html?parcoursId=' + encodeURIComponent(parcoursId);
 }
 window.openParcours = openParcours;
