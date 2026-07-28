@@ -307,7 +307,6 @@ function cardHtml(entry, attempts, hasActiveSession) {
           '</div>' +
           '<h3>' + escapeHtml(p.name) + '</h3>' +
         '</div>' +
-        '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' +
           '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + featuredBadge + mandatoryBadge + dueBadge +
         '</div>' +

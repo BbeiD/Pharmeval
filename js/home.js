@@ -247,7 +247,6 @@ function cardHtml(entry, attempts) {
           '</div>' +
           '<h3>' + escapeHtml(p.name) + '</h3>' +
         '</div>' +
-        '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts) + '</div>' +
         '<a class="btn-primary" href="parcours-detail.html?id=' + encodeURIComponent(p.id) + '">Ouvrir</a>' +
