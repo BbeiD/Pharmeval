@@ -2064,17 +2064,31 @@
   }
 
   /* ---- NOUVEAU : Défi du jour (js/defi.js) ---- */
-  .defi-streak-row { display: flex; gap: var(--space-3); text-align: center; margin-bottom: var(--space-4); }
+  .defi-streak-row { display: flex; gap: var(--space-3); text-align: center; margin-bottom: var(--space-3); }
   .defi-streak-block {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: var(--space-3) var(--space-2); border-radius: var(--radius); background: var(--surface2);
+    padding: var(--space-3) var(--space-2); border-radius: var(--radius-lg); background: var(--surface2);
+    transition: transform .15s;
   }
-  .defi-streak-flame { color: var(--accent-orange); margin-bottom: 2px; }
+  .defi-streak-block:hover { transform: translateY(-2px); }
+  /* ---- NOUVEAU (chantier graphique, demande directe de David) : badge
+     colore par chiffre, meme vocabulaire visuel que .stat-card-icon-*. ---- */
+  .defi-streak-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%; margin-bottom: 4px;
+  }
+  .defi-streak-icon-orange { background: var(--accent-orange-light); color: var(--accent-orange); }
+  .defi-streak-icon-yellow { background: var(--accent-yellow-light); color: var(--accent-yellow); }
+  .defi-streak-icon-green { background: var(--green-light); color: var(--green-dark); }
   .defi-streak-value { font-size: 26px; font-weight: 700; color: var(--text); }
   .defi-streak-label { font-size: 11px; color: var(--text2); }
 
-  .defi-start-block { text-align: center; padding: var(--space-3) 0; }
-  .defi-start-block p { margin-bottom: var(--space-3); color: var(--text2); }
+  .defi-start-block { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+  .defi-question-pill {
+    display: inline-block; padding: 6px 14px;
+    border-radius: 999px; background: var(--accent-orange-light); color: var(--accent-orange);
+    font-size: 13px; font-weight: 700;
+  }
 
   .defi-done-block { text-align: center; padding: var(--space-3) 0; color: var(--green-dark); }
   .defi-done-block svg { margin-bottom: 8px; }

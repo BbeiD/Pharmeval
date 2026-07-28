@@ -62,19 +62,26 @@ async function loadState() {
   render(state);
 }
 
+// AJOUT (chantier graphique, demande directe de David) : les 3 chiffres
+// etaient deja reels (progress-service) mais presentes a plat - chacun
+// reprend desormais l'icone + le badge colore deja utilises ailleurs
+// (.stat-card-icon-*), pour que la page "raconte" plus qu'une liste de
+// nombres, sans inventer une seule donnee.
 function streakSummaryHtml(progress) {
   return (
     '<div class="defi-streak-row">' +
       '<div class="defi-streak-block">' +
-        '<span class="defi-streak-flame">' + icon('feedback-streak-regularity', { size: 28 }) + '</span>' +
+        '<span class="defi-streak-icon defi-streak-icon-orange">' + icon('feedback-streak-regularity', { size: 22 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.currentStreak + '</span>' +
         '<span class="defi-streak-label">jour(s) de suite</span>' +
       '</div>' +
       '<div class="defi-streak-block">' +
+        '<span class="defi-streak-icon defi-streak-icon-yellow">' + icon('highlight-star-filled', { size: 20 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.bestStreak + '</span>' +
         '<span class="defi-streak-label">Meilleure série</span>' +
       '</div>' +
       '<div class="defi-streak-block">' +
+        '<span class="defi-streak-icon defi-streak-icon-green">' + icon('highlight-check-validated', { size: 20 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.totalCompleted + '</span>' +
         '<span class="defi-streak-label">Défis relevés</span>' +
       '</div>' +
@@ -103,7 +110,7 @@ function render(state) {
   } else {
     html +=
       '<div class="defi-start-block">' +
-        '<p>' + questionCount + ' question(s) vous attendent aujourd\'hui.</p>' +
+        '<span class="defi-question-pill">' + questionCount + ' question(s)</span>' +
         '<button class="btn-primary" id="defi-start-btn" onclick="startDefi()">Commencer le défi</button>' +
       '</div>';
   }
