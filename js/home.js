@@ -220,26 +220,36 @@ async function loadHomeParcours() {
   }).join('');
 }
 
-function attemptsLineHtml(attempts) {
+// AJOUT (chantier graphique, demande directe de David) : medaillon icone
+// + pills de progression au lieu d'une phrase brute - reutilise
+// UNIQUEMENT des donnees deja reelles, meme traitement que
+// js/mes-parcours.js (cardHtml/progressPillsHtml), jamais une metrique
+// inventee.
+function progressPillsHtml(attempts) {
   const n = attempts ? attempts.attemptsCount : 0;
-  if (n === 0) return 'Pas encore commencé';
-  return 'Terminé ' + n + ' fois · Meilleur score : ' + attempts.bestPercent + ' %';
+  if (n === 0) return '<span class="mesparcours-pill">Pas encore commencé</span>';
+  return '<span class="mesparcours-pill">Terminé ' + n + ' fois</span>' +
+    '<span class="mesparcours-pill mesparcours-pill-strong">Meilleur score ' + attempts.bestPercent + ' %</span>';
 }
 
 function cardHtml(entry, attempts) {
   const p = entry.parcours;
-  const hex = p.color ? resolveParcoursColorHex(p.color) : null;
-  const stripe = hex ? 'background:' + escapeHtml(hex) + ';' : '';
+  const hex = (p.color ? resolveParcoursColorHex(p.color) : null) || '#1D9E75';
   const mandatoryBadge = entry.assignment && entry.assignment.mandatory
     ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
   return (
     '<div class="mesparcours-card">' +
-      '<div class="mesparcours-card-stripe" style="' + stripe + '"></div>' +
+      '<div class="mesparcours-card-stripe" style="background:' + escapeHtml(hex) + ';"></div>' +
       '<div class="mesparcours-card-body">' +
-        '<h3>' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 18 }) + ' ' + escapeHtml(p.name) + '</h3>' +
+        '<div class="mesparcours-card-header">' +
+          '<div class="mesparcours-card-icon" style="background:' + escapeHtml(hex) + '22;color:' + escapeHtml(hex) + ';">' +
+            renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 22 }) +
+          '</div>' +
+          '<h3>' + escapeHtml(p.name) + '</h3>' +
+        '</div>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
-        '<p class="mesparcours-attempts">' + escapeHtml(attemptsLineHtml(attempts)) + '</p>' +
+        '<div class="mesparcours-pills">' + progressPillsHtml(attempts) + '</div>' +
         '<a class="btn-primary" href="parcours-detail.html?id=' + encodeURIComponent(p.id) + '">Ouvrir</a>' +
       '</div>' +
     '</div>'

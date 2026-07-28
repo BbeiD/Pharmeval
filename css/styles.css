@@ -1687,11 +1687,6 @@
   .bank-tab:hover { border-color: var(--green); color: var(--green-dark); }
   .bank-tab-active { background: var(--green); border-color: var(--green); color: white; font-weight: 600; }
 
-  /* CORRECTIF (demande directe de David, 22/07/2026) : remplace la barre de
-     progression par question (jugee peu lisible sur cet ecran) par une
-     simple ligne "nombre de fois termine / meilleur score" (voir
-     mes-parcours.js, attemptsLineHtml()). */
-  .mesparcours-attempts { font-size: 12px; color: var(--text2); margin: 2px 0; }
 
   /* Colonne droite : fiche produit */
   .bank-detail-placeholder {
@@ -1788,12 +1783,32 @@
 
   /* ---- NOUVEAU (Sprint 15) : cartes "Mes parcours" (espace utilisateur) ---- */
   .mesparcours-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
-  .mesparcours-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+  .mesparcours-card {
+    border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
+    background: var(--surface); display: flex; flex-direction: column;
+    box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s;
+  }
+  .mesparcours-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
   .mesparcours-card-stripe { height: 6px; background: var(--border); }
   .mesparcours-card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .mesparcours-card-body h3 { margin: 0; font-size: 16px; }
   .mesparcours-card-body p { margin: 0; font-size: 13px; color: var(--text2); flex: 1; }
   .mesparcours-card-body .btn-primary { align-self: flex-start; margin-top: 4px; }
+  /* ---- NOUVEAU (chantier graphique, demande directe de David) :
+     medaillon icone colore (couleur reelle du parcours) + pills de
+     progression, au lieu d'une simple icone 18px et d'une phrase brute. ---- */
+  .mesparcours-card-header { display: flex; align-items: center; gap: 10px; }
+  .mesparcours-card-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  }
+  .mesparcours-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mesparcours-pill {
+    font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+    background: var(--surface2); color: var(--text2);
+  }
+  .mesparcours-pill-strong { background: var(--green-light); color: var(--green-dark); }
+  .mesparcours-pill-active { background: var(--accent-orange-light); color: var(--accent-orange); }
 
   /* ---- NOUVEAU (Sprint 16) : page de consultation d'un parcours ---- */
   .pv-page { max-width: 960px; margin: 0 auto; }
