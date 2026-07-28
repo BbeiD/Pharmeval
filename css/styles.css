@@ -2063,7 +2063,7 @@
      bienvenue reste toujours lisible en priorite. ---- */
   .home-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
   .home-welcome-text { flex: 1; min-width: 0; }
-  .home-welcome-illustration { width: 330px; height: 220px; object-fit: contain; flex-shrink: 0; }
+  .home-welcome-illustration { width: 150px; height: 150px; object-fit: contain; flex-shrink: 0; }
   @media (max-width: 700px) {
     .home-welcome-illustration { display: none; }
   }
