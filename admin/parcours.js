@@ -42,6 +42,7 @@ import {
 import {
   listParcoursAssignments, createAssignment, removeAssignment, searchAssignmentTargets,
 } from "../js/services/assignment-service.js";
+import { fetchAllUsersBounded } from "../js/services/user-management-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
 
@@ -272,13 +273,14 @@ function renderBulkBar() {
       ? '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'restore\')">' + icon('action-restore', { size: 14 }) + ' Restaurer</button>' +
         (hasPermission(PERMISSIONS.PURGE_PARCOURS) ? '<button type="button" class="btn-secondary bank-delete-btn" onclick="requestBulkParcoursAction(\'delete\')">Supprimer définitivement</button>' : '')
       : '<button type="button" class="btn-primary" onclick="requestBulkParcoursAction(\'publish\')">Publier</button>' +
+        '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'assign_all\')">Attribuer à tous les utilisateurs</button>' +
         '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
     ) +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_on\')">★ Mettre en avant</button>' +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_off\')">☆ Retirer la mise en avant</button>';
 }
 
-export function requestBulkParcoursAction(kind) {
+export async function requestBulkParcoursAction(kind) {
   const ids = Array.from(state.selectedIds);
   if (ids.length === 0) return;
 
@@ -295,6 +297,25 @@ export function requestBulkParcoursAction(kind) {
   } else if (kind === 'publish') {
     pendingAction = { kind: 'bulk_publish', ids: ids };
     message = 'Voulez-vous vraiment publier les ' + ids.length + ' parcours sélectionnés ? Ils deviendront visibles par tous les utilisateurs.';
+  } else if (kind === 'assign_all') {
+    // "Attribuer à tous les utilisateurs" (demande directe de David,
+    // 28/07/2026) : le modele d'attribution (assignment-metadata-service.js)
+    // ne connait QUE user/group/profile - aucune cible "tout le monde" -
+    // donc on cree une attribution individuelle par utilisateur reel
+    // (createAssignment, deja idempotent via assignmentExists()) plutot que
+    // d'inventer un nouveau type de cible hors perimetre de ce bouton.
+    const usersResult = await fetchAllUsersBounded();
+    if (usersResult.error) {
+      showParcoursMessage('error', 'Impossible de charger la liste des utilisateurs.');
+      return;
+    }
+    const users = usersResult.items || [];
+    if (users.length === 0) {
+      showParcoursMessage('denied', 'Aucun utilisateur trouvé.');
+      return;
+    }
+    pendingAction = { kind: 'bulk_assign_all_users', ids: ids, users: users };
+    message = 'Voulez-vous vraiment attribuer les ' + ids.length + ' parcours sélectionnés aux ' + users.length + ' utilisateurs de la plateforme ? Cela peut créer jusqu\'à ' + (ids.length * users.length) + ' attributions (les attributions déjà existantes sont ignorées, jamais dupliquées).';
   } else {
     return;
   }
@@ -1340,6 +1361,33 @@ export async function confirmParcoursAction() {
       const p = state.items.find(function(item) { return item.id === state.selectedId; });
       if (p) await renderAssignments(p);
     }
+    return;
+  }
+
+  // AJOUT ("Attribuer à tous les utilisateurs", demande directe de David,
+  // 28/07/2026) : double boucle parcours x utilisateurs, reutilise
+  // createAssignment() tel quel (deja idempotent via assignmentExists() -
+  // jamais de doublon meme si le bouton est cliqué deux fois). "denied" ici
+  // ne signifie jamais un echec reel, seulement "deja attribue" - distingue
+  // des vrais echecs pour ne jamais alarmer inutilement l'administrateur.
+  if (action.kind === 'bulk_assign_all_users') {
+    let createdCount = 0, alreadyCount = 0, failCount = 0;
+    for (const id of action.ids) {
+      for (const u of action.users) {
+        const result = await createAssignment({ parcoursId: id, type: ASSIGNMENT_TARGET_TYPES.USER, targetId: u.uid });
+        if (result.status === 'success') createdCount++;
+        else if (result.status === 'denied') alreadyCount++;
+        else failCount++;
+      }
+    }
+    state.selectedIds.clear();
+    showParcoursMessage(
+      failCount === 0 ? 'success' : 'error',
+      createdCount + ' attribution(s) créée(s)' +
+        (alreadyCount > 0 ? ', ' + alreadyCount + ' déjà existante(s) (ignorée(s))' : '') +
+        (failCount > 0 ? ', ' + failCount + ' échec(s).' : '.')
+    );
+    await loadPage();
     return;
   }
 
