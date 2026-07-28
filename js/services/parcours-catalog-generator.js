@@ -20,6 +20,7 @@ import { browseQuestions } from "./question-bank-service.js";
 import { createParcours } from "./parcours-service.js";
 import { updateParcoursFields } from "./parcours-catalog-service.js";
 import { PARCOURS_COLORS } from "./parcours-metadata-service.js";
+import { pickRandomSubset } from "./free-training-logic.js";
 
 // Table fournie par David (28/07/2026) - "Parcours" / "Sources a combiner".
 // Chaque terme est recherche INDEPENDAMMENT (recherche plein texte sur
@@ -143,37 +144,53 @@ export async function analyzeParcoursCatalog() {
  * automatiquement) avec ses questions en directQuestionIds - AUCUNE
  * competence inventee, AUCUN sourceId invente.
  *
+ * `overrides[i]` permet a l'admin de personnaliser la ligne i AVANT
+ * creation (demande directe de David, 28/07/2026) :
+ * - `name` : remplace le nom de la table si fourni et non vide ;
+ * - `questionCount` : nombre de questions a retenir parmi celles
+ *   REELLEMENT trouvees (tirage aleatoire via pickRandomSubset - jamais
+ *   plus que ce qui a ete trouve, voir pickRandomSubset()). Absent/invalide
+ *   => on garde toutes les questions trouvees pour cette ligne, comportement
+ *   identique a avant l'ajout de ce parametre.
+ *
  * @param {{rows: Array<object>}} analyzeResult - resultat de analyzeParcoursCatalog()
+ * @param {Array<{name?:string, questionCount?:number}>} [overrides] - une entree par ligne, meme ordre que analyzeResult.rows
  * @returns {Promise<{rows: Array<{name:string, success:boolean, parcoursId:string|null, questionCount:number, message:string|null}>}>}
  */
-export async function generateParcoursCatalog(analyzeResult) {
+export async function generateParcoursCatalog(analyzeResult, overrides) {
   const rows = (analyzeResult && analyzeResult.rows) || [];
+  const overrideList = overrides || [];
   const results = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    const override = overrideList[i] || {};
     const color = COLOR_ROTATION[i % COLOR_ROTATION.length];
+    const name = (override.name && override.name.toString().trim()) || row.name;
+    const allQuestionIds = row.questionIds || [];
+    const requestedCount = Number.isFinite(override.questionCount) ? override.questionCount : allQuestionIds.length;
+    const picked = pickRandomSubset(allQuestionIds, Math.max(0, requestedCount));
     const description = row.allBanks
       ? 'Généré automatiquement — questions tirées de l\'ensemble des banques publiées.'
       : 'Généré automatiquement à partir des thèmes suivants : ' + (row.terms || []).map(function(t) { return t.term; }).join(', ') + '.';
 
-    const createResult = await createParcours({ name: row.name, description: description });
+    const createResult = await createParcours({ name: name, description: description });
     if (!createResult.success) {
-      results.push({ name: row.name, success: false, parcoursId: null, questionCount: 0, message: createResult.message || 'Création échouée.' });
+      results.push({ name: name, success: false, parcoursId: null, questionCount: 0, message: createResult.message || 'Création échouée.' });
       continue;
     }
 
     const parcoursId = createResult.parcours.id;
     const fieldsResult = await updateParcoursFields(parcoursId, {
       color: color,
-      directQuestionIds: row.questionIds || [],
+      directQuestionIds: picked.selected,
     });
 
     results.push({
-      name: row.name,
+      name: name,
       success: !!(fieldsResult && fieldsResult.success),
       parcoursId: parcoursId,
-      questionCount: (row.questionIds || []).length,
+      questionCount: picked.actualCount,
       message: (fieldsResult && fieldsResult.success) ? null : 'Parcours créé mais l\'ajout des questions a échoué - à compléter manuellement.',
     });
   }
