@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="../assets/icons/pwa/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/icons/pwa/apple-touch-icon.png">
+<title>Pharmeval — Générer le catalogue de parcours</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="pc-loading">Vérification des droits d'accès…</div>
+
+<div id="pc-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>La génération du catalogue de parcours est réservée aux administrateurs.</p>
+    <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
+  </div>
+</div>
+
+<div id="site-header-mount"></div>
+
+<div id="pc-view" style="display:none;">
+  <div class="import-page">
+    <div class="import-header">
+      <h2><span class="page-header-icon page-header-icon-blue"><img src="../assets/icons/nav/mes-parcours.png" alt="" aria-hidden="true"></span> Générer le catalogue de parcours</h2>
+      <a href="parcours.html" class="btn-secondary">← Retour aux parcours</a>
+    </div>
+    <p class="import-intro">
+      Crée jusqu'à 20 parcours <strong>en brouillon</strong> à partir d'une liste de thèmes à combiner (voir
+      <code>js/services/parcours-catalog-generator.js</code>). L'analyse ci-dessous ne modifie
+      <strong>aucune donnée</strong> — chaque parcours n'est réellement créé qu'après confirmation explicite,
+      et reste en brouillon pour relecture avant toute publication.
+    </p>
+
+    <div class="import-card">
+      <h3>1. Analyser</h3>
+      <p class="pv-list-empty" style="margin-bottom:10px;">
+        Recherche, pour chaque thème proposé, les questions déjà publiées correspondantes (recherche plein
+        texte, même mécanisme que la Banque de questions) — aucune question n'est inventée, un thème sans
+        correspondance reste à 0 résultat.
+      </p>
+      <div class="btn-row">
+        <button class="btn-primary" id="pc-analyze-btn">Analyser</button>
+      </div>
+    </div>
+
+    <div id="pc-analyzing-card" class="import-card" style="display:none;">
+      <h3>Analyse en cours…</h3>
+      <p id="pc-analyzing-progress" class="pv-list-empty">—</p>
+    </div>
+
+    <div id="pc-report-card" class="import-card" style="display:none;">
+      <h3>2. Résultat de l'analyse</h3>
+      <div id="pc-report-body"></div>
+      <div class="btn-row" style="margin-top:var(--space-3);">
+        <button class="btn-primary" id="pc-generate-btn">Créer les brouillons</button>
+      </div>
+    </div>
+
+    <div id="pc-generating-card" class="import-card" style="display:none;">
+      <h3>Création en cours…</h3>
+      <p class="pv-list-empty">Merci de ne pas fermer cette page.</p>
+    </div>
+
+    <div id="pc-result-card" class="import-card" style="display:none;">
+      <h3>3. Brouillons créés</h3>
+      <div id="pc-result-body"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="parcours-catalog.js"></script>
+
+<script src="../js/sw-register.js"></script>
+
+</body>
+</html>

@@ -275,6 +275,16 @@ export function completeParcoursMetadata(partial) {
     // inchange) pour ne jamais confondre les deux notions dans le code.
     sourceIds: Array.isArray(p.sourceIds) ? p.sourceIds.slice() : [],
     directQuestionIds: Array.isArray(p.directQuestionIds) ? p.directQuestionIds.slice() : [],
+    // AJOUT (chantier "catalogue de parcours", demande directe de David,
+    // 28/07/2026) : accessTier prepare un futur palier payant - AUCUNE
+    // logique de restriction n'existe encore, 'free' pour tous aujourd'hui,
+    // jamais invente au-dela de cette valeur par defaut. organizationId
+    // distingue un parcours catalogue global (null, visible en self-service
+    // par tout utilisateur) d'un parcours specifique a une organisation
+    // cliente (ex. cours d'universite) - jamais devine, uniquement copie
+    // depuis une valeur explicitement fournie.
+    accessTier: p.accessTier || 'free',
+    organizationId: p.organizationId || null,
   };
 }
 
