@@ -142,15 +142,15 @@ async function loadHomeStats() {
 
   const tiles = [
     {
-      icon: '<img src="assets/icons/nav/mes-parcours.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-blue',
+      icon: '<img src="assets/icons/nav/mes-parcours.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue',
       value: String(inProgressCount), label: 'Parcours en cours', href: 'mes-parcours.html',
     },
     {
-      icon: '<img src="assets/icons/pages/evaluations.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-orange',
+      icon: '<img src="assets/icons/pages/evaluations.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange',
       value: String(overview.count), label: 'Évaluations réalisées', href: 'index.html?history=1',
     },
     {
-      icon: '<img src="assets/icons/pages/star.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-green',
+      icon: '<img src="assets/icons/pages/star.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-green', accentCls: '',
       value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen', href: 'index.html?history=1',
     },
   ];
@@ -158,10 +158,12 @@ async function loadHomeStats() {
   // AJOUT (demande directe de David, 28/07/2026) : chaque tuile renvoie
   // vers l'ecran correspondant (Mes parcours / Mes evaluations), meme
   // logique de navigation que les liens deja presents ailleurs (voir
-  // js/mon-profil.js, renderMenu()).
+  // js/mon-profil.js, renderMenu()) - et reprend la couleur de sa propre
+  // icone plutot qu'un vert uniforme (chantier graphique, point 9 de
+  // l'audit).
   gridEl.innerHTML = tiles.map(function(t) {
     return (
-      '<a class="stat-card stat-card-link" href="' + escapeHtml(t.href) + '">' +
+      '<a class="stat-card stat-card-link ' + t.accentCls + '" href="' + escapeHtml(t.href) + '">' +
         '<div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
         '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
         '<div class="stat-card-label">' + escapeHtml(t.label) + '</div>' +

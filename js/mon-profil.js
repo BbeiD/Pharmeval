@@ -113,12 +113,12 @@ async function renderStats(ctx) {
   const inProgressCount = completionItems.filter(function(c) { return c.percent !== null && c.percent < 100; }).length;
 
   const tiles = [
-    { icon: '<img src="assets/icons/nav/mes-parcours.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-blue', value: String(inProgressCount), label: 'Parcours en cours' },
-    { icon: '<img src="assets/icons/pages/evaluations.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-orange', value: String(overview.count), label: 'Évaluations réalisées' },
-    { icon: '<img src="assets/icons/pages/star.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-green', value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen' },
+    { icon: '<img src="assets/icons/nav/mes-parcours.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(inProgressCount), label: 'Parcours en cours' },
+    { icon: '<img src="assets/icons/pages/evaluations.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange', value: String(overview.count), label: 'Évaluations réalisées' },
+    { icon: '<img src="assets/icons/pages/star.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-green', accentCls: '', value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen' },
   ];
   gridEl.innerHTML = tiles.map(function(t) {
-    return '<div class="stat-card"><div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
+    return '<div class="stat-card ' + t.accentCls + '"><div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
       '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
       '<div class="stat-card-label">' + escapeHtml(t.label) + '</div></div>';
   }).join('');

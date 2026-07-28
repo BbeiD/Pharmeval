@@ -96,12 +96,12 @@
        INDEPENDANTES (voir js/home.js), une erreur sur l'une n'affecte
        jamais les deux autres. -->
   <div class="import-card-grid home-triple-grid" style="margin-bottom:var(--space-3);">
-    <div class="card">
+    <div class="card" style="border-top:3px solid var(--accent-purple);">
       <h3 style="margin-bottom:var(--space-3);">Votre progression globale</h3>
       <div id="home-mastery-donut"></div>
     </div>
-    <div class="card" id="home-defi-card">
-      <h3 style="margin-bottom:var(--space-3);"><img src="assets/icons/nav/defi.png" alt="" aria-hidden="true" style="width:20px;height:20px;vertical-align:-5px;"> Défi du jour</h3>
+    <div class="card" id="home-defi-card" style="border-top:3px solid var(--accent-orange);">
+      <h3 style="margin-bottom:var(--space-3);"><span class="page-header-icon page-header-icon-orange"><img src="assets/icons/nav/defi.png" alt="" aria-hidden="true"></span> Défi du jour</h3>
       <div id="home-defi-body"></div>
     </div>
     <div class="card">
@@ -114,7 +114,7 @@
   <!-- Apercu des parcours attribues a l'utilisateur (deja construit ce soir,
        reutilise ici tel quel - meme service que js/mes-parcours.js,
        getAssignedParcoursForUser(), aucune logique metier ici). -->
-  <div class="card">
+  <div class="card" style="border-top:3px solid var(--accent-blue);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
       <h3 style="margin:0;">Vos parcours</h3>
       <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>

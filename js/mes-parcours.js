@@ -157,14 +157,14 @@ function renderStatsGrid() {
   const terminees = state.entries.filter(function(e) { return statusForEntry(e.parcours.id) === 'terminees'; }).length;
 
   const tiles = [
-    { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', value: String(total), label: 'Parcours attribués' },
-    { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', value: String(enCours), label: 'En cours' },
-    { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-green', value: String(terminees), label: 'Terminés au moins une fois' },
+    { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(total), label: 'Parcours attribués' },
+    { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange', value: String(enCours), label: 'En cours' },
+    { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-green', accentCls: '', value: String(terminees), label: 'Terminés au moins une fois' },
   ];
 
   gridEl.innerHTML = tiles.map(function(t) {
     return (
-      '<div class="stat-card">' +
+      '<div class="stat-card ' + t.accentCls + '">' +
         '<div class="stat-card-icon ' + t.iconCls + '">' + t.icon + '</div>' +
         '<div class="stat-card-value">' + escapeHtml(t.value) + '</div>' +
         '<div class="stat-card-label">' + escapeHtml(t.label) + '</div>' +
