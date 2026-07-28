@@ -15,28 +15,13 @@
 // ".site-sidebar"/"body") - AUCUNE page n'a besoin de changer sa propre
 // structure HTML pour ca.
 //
-// CORRECTIF (nouvelle exception documentee, 22/07/2026) : ce module ne
-// lisait JAMAIS Firestore lui-meme (uniquement getCurrentUserContext(),
-// deja peuple par la page appelante) - la SERIE du defi du jour, affichee
-// en pied de sidebar sur TOUTE page, est la PREMIERE exception : un appel
-// Firestore "best effort" est declenche APRES le rendu synchrone du reste
-// (jamais bloquant, jamais d'erreur remontee a l'appelant) - voir
-// loadStreakBadge() plus bas.
-//
-// DECONNEXION : geree ICI en autonomie (signOut() + clearCurrentUserContext()
-// + redirection vers l'accueil), plutot que de dependre de js/auth.js (trop
-// couple a l'ecran de connexion, voir son en-tete) - corrige au passage un
-// bug reel : avant ce module, aucune page hors index.html n'offrait de
-// moyen de se deconnecter.
+// CORRECTIF (chantier graphique, demande directe de David, 28/07/2026) :
+// le pied de sidebar (avatar/nom/profession + serie du defi) a ete retire
+// - deja consultable directement depuis "Mon profil" (nav), redondant ici.
+// La deconnexion (autrefois geree dans ce module) vit desormais sur
+// mon-profil.html (voir js/mon-profil.js, renderMenu()).
 
-import { auth } from "./firebase-config.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { getCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
-import { PROFESSION_OPTIONS } from "./services/user-service.js";
-import { icon } from "./icons.js";
-
-const PROFESSION_LABEL_BY_VALUE = new Map(PROFESSION_OPTIONS.map(function(o) { return [o.value, o.label]; }));
 
 // Pages REELLEMENT construites aujourd'hui - a completer au fur et a
 // mesure du deploiement (sources documentaires, Mon profil : pas encore
@@ -70,16 +55,6 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function initialsFrom(displayName, email) {
-  const name = (displayName || '').trim();
-  if (name) {
-    const parts = name.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  }
-  return (email || '?').slice(0, 2).toUpperCase();
-}
-
 // CORRECTIF chemins relatifs : les pages admin/*.html vivent un dossier
 // plus bas - un lien "index.html" ecrit tel quel y pointerait vers
 // admin/index.html (inexistant). Prefixe systematiquement les cibles avec
@@ -98,7 +73,6 @@ export function renderSiteHeader(activeKey) {
   const mount = document.getElementById('site-header-mount');
   if (!mount) return;
 
-  const ctx = getCurrentUserContext();
   // Meme condition que updateAdminUI()/openAdminZone() (js/admin.js) - le
   // lien Administration doit apparaitre pour TOUT role possedant
   // MANAGE_USERS (admin ET super_admin), jamais un simple role === 'admin'
@@ -117,17 +91,6 @@ export function renderSiteHeader(activeKey) {
       '</a>';
     }).join('');
 
-  const displayName = (ctx && ctx.displayName) || (ctx && ctx.email) || '';
-  const photoURL = ctx && ctx.photoURL;
-  const avatarHtml = photoURL
-    ? '<img class="sh-avatar-img" src="' + escapeHtml(photoURL) + '" alt="">'
-    : '<span class="sh-avatar-initials">' + escapeHtml(initialsFrom(ctx && ctx.displayName, ctx && ctx.email)) + '</span>';
-  // AJOUT (mockup) : profession affichee EN CLAIR sous le nom, dans le pied
-  // de sidebar (jamais juste dans le menu deroulant comme avant) - valeur
-  // libre uniquement si reellement choisie a l'inscription (PROFESSION_LABEL_BY_VALUE),
-  // jamais "Autre"/une valeur brute non traduite affichee telle quelle.
-  const professionLabel = PROFESSION_LABEL_BY_VALUE.get(ctx && ctx.profile && ctx.profile.profession) || '';
-
   mount.innerHTML =
     '<div class="site-sidebar">' +
       '<a class="sh-logo-link" href="' + escapeHtml(base + 'index.html') + '">' +
@@ -138,66 +101,9 @@ export function renderSiteHeader(activeKey) {
         '</span>' +
       '</a>' +
       '<nav class="sh-nav" aria-label="Navigation principale">' + navHtml + '</nav>' +
-      '<div class="sh-sidebar-footer">' +
-        '<div class="sh-account">' +
-          '<button type="button" class="sh-avatar-btn" id="sh-avatar-btn" aria-haspopup="true" aria-expanded="false" aria-label="Mon compte">' +
-            '<span class="sh-avatar-circle">' + avatarHtml + '</span>' +
-            '<span class="sh-account-inline">' +
-              '<span class="sh-account-inline-name">' + escapeHtml(displayName || '—') + '</span>' +
-              (professionLabel ? '<span class="sh-account-inline-role">' + escapeHtml(professionLabel) + '</span>' : '') +
-            '</span>' +
-          '</button>' +
-          '<div class="sh-account-menu" id="sh-account-menu" style="display:none;">' +
-            '<div class="sh-account-name">' + escapeHtml(displayName || '—') + '</div>' +
-            (ctx && ctx.email ? '<div class="sh-account-email">' + escapeHtml(ctx.email) + '</div>' : '') +
-            '<a class="sh-account-profile-link" href="' + escapeHtml(base + 'mon-profil.html') + '">' + icon('nav-profile', { size: 16 }) + ' Mon profil</a>' +
-            '<button type="button" class="sh-account-logout" id="sh-account-logout">' + icon('action-restore', { size: 16 }) + ' Se déconnecter</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="sh-streak-block" id="sh-streak-block" style="display:none;">' +
-          '<span class="sh-streak-icon">' + icon('feedback-streak-regularity', { size: 20 }) + '</span>' +
-          '<span class="sh-streak-text">' +
-            '<span class="sh-streak-label">Série actuelle</span>' +
-            '<span class="sh-streak-value" id="sh-streak-value"></span>' +
-          '</span>' +
-        '</div>' +
-      '</div>' +
     '</div>';
 
   wireInteractions(mount);
-  loadStreakBadge();
-}
-
-/**
- * AJOUT (exception documentee, voir en-tete) : remplit la serie du defi du
- * jour APRES le rendu synchrone ci-dessus - "best effort" total (aucune
- * erreur ici ne doit jamais degrader le reste de la sidebar, deja affichee
- * et fonctionnelle).
- *
- * Lit DIRECTEMENT daily-challenge-catalog-service.js (UNE lecture de
- * document, la progression seule) plutot que daily-challenge-service.js
- * (getDailyChallengeStateForUser(), qui recalcule EN PLUS tout le pool de
- * questions eligibles du jour - inutile ici, ou seul le compteur de serie
- * est affiche). Import PARESSEUX (dynamique) : evite que cette dependance
- * Firestore ne s'importe systematiquement au chargement de CHAQUE page,
- * y compris avant authentification.
- */
-async function loadStreakBadge() {
-  const block = document.getElementById('sh-streak-block');
-  const valueEl = document.getElementById('sh-streak-value');
-  if (!block || !valueEl) return;
-
-  const ctx = getCurrentUserContext();
-  if (!ctx || !ctx.uid) return;
-
-  try {
-    const { getDailyChallengeProgress } = await import('./services/daily-challenge-catalog-service.js');
-    const progress = await getDailyChallengeProgress(ctx.uid);
-    valueEl.textContent = ((progress && progress.currentStreak) || 0) + ' jour(s)';
-    block.style.display = 'flex';
-  } catch (err) {
-    console.error('[site-header] chargement de la série impossible', err);
-  }
 }
 
 function wireInteractions(mount) {
@@ -214,31 +120,5 @@ function wireInteractions(mount) {
       evt.preventDefault();
       fn();
     }
-  });
-
-  const avatarBtn = document.getElementById('sh-avatar-btn');
-  const menu = document.getElementById('sh-account-menu');
-
-  avatarBtn.addEventListener('click', function(evt) {
-    evt.stopPropagation();
-    const isOpen = menu.style.display !== 'none';
-    menu.style.display = isOpen ? 'none' : 'block';
-    avatarBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-  });
-  document.addEventListener('click', function(evt) {
-    if (!mount.contains(evt.target)) {
-      menu.style.display = 'none';
-      avatarBtn.setAttribute('aria-expanded', 'false');
-    }
-  });
-
-  document.getElementById('sh-account-logout').addEventListener('click', async function() {
-    clearCurrentUserContext();
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error('Erreur de déconnexion :', err);
-    }
-    window.location.href = basePath() + 'index.html';
   });
 }
