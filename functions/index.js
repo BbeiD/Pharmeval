@@ -1800,6 +1800,14 @@ function buildParcoursFilterClauses(query, filters) {
   let q = query;
   if (f.status) q = q.where("status", "==", f.status);
   if (f.author) q = q.where("author", "==", f.author);
+  // AJOUT (chantier "Mes parcours en self-service" / "Mon organisation",
+  // demande directe de David, 28/07/2026) : organizationId===null cible le
+  // catalogue global (self-service), une valeur precise cible les
+  // parcours propres a une organisation (ex. cours d'universite) -
+  // Firestore supporte nativement l'egalite avec null.
+  if (Object.prototype.hasOwnProperty.call(f, "organizationId")) {
+    q = q.where("organizationId", "==", f.organizationId);
+  }
   return q;
 }
 

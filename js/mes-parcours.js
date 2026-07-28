@@ -20,6 +20,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
+import { getSelfServiceCatalogParcours, getOrganizationParcours } from "./services/parcours-service.js";
 import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getActiveSession } from "./services/evaluation-session-service.js";
@@ -54,7 +55,21 @@ const TABS = [
   { key: 'terminees', label: 'Terminées' },
 ];
 
-let state = { entries: [], attemptsByParcoursId: new Map(), activeSessionByParcoursId: new Map(), activeTab: 'toutes' };
+// AJOUT (chantier "Mes parcours en self-service" / "Mon organisation",
+// demande directe de David, 28/07/2026) : deuxieme niveau d'onglets, AU-DESSUS
+// des onglets de statut existants (TABS ci-dessus, inchanges) - "Mes
+// parcours" = attribues + catalogue self-service (organizationId===null,
+// union dedupliquee), "Mon organisation" = parcours propres a
+// l'organisation de l'utilisateur (users/{uid}.organizationId).
+const TOP_TABS = [
+  { key: 'mes-parcours', label: 'Mes parcours' },
+  { key: 'organisation', label: 'Mon organisation' },
+];
+
+let state = {
+  entries: [], attemptsByParcoursId: new Map(), activeSessionByParcoursId: new Map(),
+  activeTab: 'toutes', activeTopTab: 'mes-parcours',
+};
 
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = document.getElementById('mesparcours-loading');
@@ -77,9 +92,28 @@ onAuthStateChanged(auth, async function(user) {
   if (viewEl) viewEl.style.display = 'block';
   renderSiteHeader('mes-parcours');
 
+  renderTopTabs();
   renderTabs();
   await loadMyParcours();
 });
+
+function renderTopTabs() {
+  const el = document.getElementById('mesparcours-top-tabs');
+  if (!el) return;
+  el.innerHTML = TOP_TABS.map(function(t) {
+    const activeCls = t.key === state.activeTopTab ? ' bank-tab-active' : '';
+    return '<button type="button" class="bank-tab' + activeCls + '" onclick="selectMesFormationsTopTab(\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
+  }).join('');
+}
+
+export function selectMesFormationsTopTab(key) {
+  state.activeTopTab = key;
+  state.activeTab = 'toutes';
+  renderTopTabs();
+  renderTabs();
+  loadMyParcours();
+}
+window.selectMesFormationsTopTab = selectMesFormationsTopTab;
 
 function renderTabs() {
   const el = document.getElementById('mesparcours-tabs');
@@ -103,6 +137,34 @@ function statusForEntry(parcoursId) {
   return (attempts && attempts.attemptsCount > 0) ? 'terminees' : 'a-commencer';
 }
 
+// AJOUT (chantier "Mes parcours en self-service", demande directe de
+// David) : "Mes parcours" = attribues (assignment-service.js, inchange) +
+// catalogue self-service (organizationId===null) - UNION dedupliquee par
+// id, la version ATTRIBUEE gagne quand un parcours existe dans les deux
+// (garde le badge "Obligatoire"/l'echeance, jamais perdus).
+async function loadEntriesForActiveTopTab(ctx) {
+  if (state.activeTopTab === 'organisation') {
+    const result = await getOrganizationParcours();
+    if (result.error) return { error: true, items: [] };
+    return { error: false, items: result.items.map(function(p) { return { parcours: p, assignment: null }; }) };
+  }
+
+  const [assignedResult, catalogResult] = await Promise.all([
+    getAssignedParcoursForUser(ctx && ctx.uid),
+    getSelfServiceCatalogParcours(),
+  ]);
+  if (assignedResult.error && catalogResult.error) return { error: true, items: [] };
+
+  const byId = new Map();
+  (catalogResult.error ? [] : catalogResult.items).forEach(function(p) {
+    byId.set(p.id, { parcours: p, assignment: null });
+  });
+  (assignedResult.error ? [] : assignedResult.items).forEach(function(entry) {
+    byId.set(entry.parcours.id, entry); // priorite a la version attribuee (badges/echeance)
+  });
+  return { error: false, items: Array.from(byId.values()) };
+}
+
 async function loadMyParcours() {
   const ctx = getCurrentUserContext();
   const gridEl = document.getElementById('mesparcours-grid');
@@ -110,19 +172,22 @@ async function loadMyParcours() {
   gridEl.innerHTML = '<div class="bank-list-loading">Chargement de vos parcours…</div>';
   emptyEl.style.display = 'none';
 
-  const [assignedResult, attemptResult] = await Promise.all([
-    getAssignedParcoursForUser(ctx && ctx.uid),
+  const [entriesResult, attemptResult] = await Promise.all([
+    loadEntriesForActiveTopTab(ctx),
     getParcoursAttemptSummaryForUser(ctx && ctx.uid),
   ]);
 
-  if (assignedResult.error) {
+  if (entriesResult.error) {
     gridEl.innerHTML = '';
     showMessage('error', 'Impossible de charger vos parcours pour le moment. Réessayez plus tard.');
     return;
   }
 
-  if (assignedResult.items.length === 0) {
+  if (entriesResult.items.length === 0) {
     gridEl.innerHTML = '';
+    emptyEl.textContent = state.activeTopTab === 'organisation'
+      ? 'Aucun parcours n\'est encore proposé par votre organisation.'
+      : 'Aucun parcours disponible pour l\'instant.';
     emptyEl.style.display = 'block';
     return;
   }
@@ -132,9 +197,9 @@ async function loadMyParcours() {
   // affiche comme une erreur bloquante), la liste reste consultable.
   state.attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
 
-  // Session EN COURS par parcours - un appel PARALLELE par parcours attribue
+  // Session EN COURS par parcours - un appel PARALLELE par parcours affiche
   // (liste toujours modeste, meme volumetrie que le reste de cet ecran).
-  state.entries = assignedResult.items;
+  state.entries = entriesResult.items;
   state.activeSessionByParcoursId = new Map();
   await Promise.all(state.entries.map(async function(entry) {
     const active = await getActiveSession(entry.parcours.id, null).catch(function() { return null; });
@@ -157,7 +222,7 @@ function renderStatsGrid() {
   const terminees = state.entries.filter(function(e) { return statusForEntry(e.parcours.id) === 'terminees'; }).length;
 
   const tiles = [
-    { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(total), label: 'Parcours attribués' },
+    { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(total), label: 'Parcours disponibles' },
     { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange', value: String(enCours), label: 'En cours' },
     { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-green', accentCls: '', value: String(terminees), label: 'Terminés au moins une fois' },
   ];

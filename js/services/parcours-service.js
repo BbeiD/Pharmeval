@@ -44,6 +44,7 @@ import {
 } from "./question-catalog-service.js";
 import { getCompetencyById, getCompetenciesByIds } from "./competency-catalog-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "./document-source-catalog-service.js";
+import { getUserByUid } from "./user-management-service.js";
 
 const MIN_PARCOURS_NAME_LENGTH = 3;
 
@@ -122,6 +123,58 @@ export async function browseParcours(options) {
     authorized: true, error: false, searchMode: false,
     items: result.items, lastDoc: result.lastDoc, hasMore: result.hasMore,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue en self-service (chantier "Mes parcours" / "Mon organisation",
+// demande directe de David, 28/07/2026) - AUCUNE permission d'administration
+// requise (contrairement a browseParcours() ci-dessus, reservee a
+// MANAGE_PARCOURS) : le serveur autorise deja tout utilisateur authentifie
+// a lire des parcours filtres sur status=='published' (voir
+// functions/index.js, route GET /api/parcours) - jamais un acces plus
+// large que ca.
+// ---------------------------------------------------------------------------
+
+/**
+ * Catalogue global self-service : tous les parcours publies, PAS
+ * rattaches a une organisation (organizationId === null). Un utilisateur
+ * peut ouvrir n'importe lequel, attribue ou non - voir
+ * parcours-view-service.js#getParcoursDetailForUser().
+ *
+ * @returns {Promise<{authorized:boolean, error?:boolean, items:Array<object>, message?:string}>}
+ */
+export async function getSelfServiceCatalogParcours() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter les parcours.', items: [] };
+
+  const result = await queryParcoursPage({ filters: { status: 'published', organizationId: null }, pageSize: 100 });
+  if (result.error) {
+    return { authorized: true, error: true, message: 'Impossible de charger le catalogue de parcours pour le moment. Réessayez plus tard.', items: [] };
+  }
+  return { authorized: true, error: false, items: result.items };
+}
+
+/**
+ * Parcours publies specifiques a l'organisation de l'utilisateur courant
+ * (users/{uid}.organizationId, voir user-management-service.js) - liste
+ * vide (jamais une erreur) si l'utilisateur n'appartient a aucune
+ * organisation.
+ *
+ * @returns {Promise<{authorized:boolean, error?:boolean, items:Array<object>, organizationId:string|null, message?:string}>}
+ */
+export async function getOrganizationParcours() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter les parcours.', items: [], organizationId: null };
+
+  const userDoc = await getUserByUid(ctx.uid);
+  const organizationId = (userDoc && userDoc.organizationId) || null;
+  if (!organizationId) return { authorized: true, error: false, items: [], organizationId: null };
+
+  const result = await queryParcoursPage({ filters: { status: 'published', organizationId: organizationId }, pageSize: 100 });
+  if (result.error) {
+    return { authorized: true, error: true, message: 'Impossible de charger les parcours de votre organisation pour le moment. Réessayez plus tard.', items: [], organizationId: organizationId };
+  }
+  return { authorized: true, error: false, items: result.items, organizationId: organizationId };
 }
 
 // ---------------------------------------------------------------------------
