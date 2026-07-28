@@ -6,6 +6,28 @@
      fichier HTML n'ait besoin d'etre modifie. */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
 
+  /* ---- NOUVEAU (demande directe de David, 28/07/2026) : ecran de
+     chargement - remplace le simple mot "Chargement..." par le logo
+     Pharmeval, qui pulse d'une teinte grise vers sa couleur reelle. Une
+     boucle continue plutot qu'une transition unique : la duree reelle du
+     chargement varie d'une page a l'autre, jamais synchronisee de facon
+     fiable avec une seule animation "one-shot". ---- */
+  .app-loading {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 60vh;
+  }
+  .app-loading-logo {
+    width: 64px; height: 64px;
+    animation: app-loading-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes app-loading-pulse {
+    0%, 100% { filter: grayscale(1) opacity(0.35); }
+    50% { filter: grayscale(0) opacity(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .app-loading-logo { animation: none; filter: grayscale(0); }
+  }
+
   /* AJOUT (bibliotheque d'icones, remplace les emojis) : alignement generique
      de TOUTE icone inline venant de js/icons.js (icon()/dotIcon()/renderAnyIcon())
      - reconnue par ses attributs communs (aria-hidden+focusable), jamais par
@@ -171,6 +193,17 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: var(--space-3);
+  }
+  /* ---- CORRECTIF (demande directe de David, 28/07/2026) : "ca fait trop
+     vide" - sur mobile, minmax(180px,1fr) ne laissait passer qu'une seule
+     colonne (3 cartes empilees, beaucoup de vide vertical). Force les 3
+     tuiles sur UNE MEME ligne, resserrees, plutot que de les empiler. ---- */
+  @media (max-width: 480px) {
+    .stat-card-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+    .stat-card-grid .stat-card { padding: var(--space-2); }
+    .stat-card-grid .stat-card-icon { width: 28px; height: 28px; font-size: 14px; margin-bottom: 2px; }
+    .stat-card-grid .stat-card-value { font-size: 17px; }
+    .stat-card-grid .stat-card-label { font-size: 10px; line-height: 1.2; }
   }
 
   /* AJOUT : donut "progression globale" (js/mastery-donut-chart.js),
