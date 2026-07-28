@@ -28,6 +28,7 @@ import {
   addSourceToParcours, removeSourceFromParcours,
   addQuestionDirectlyToParcours, removeQuestionDirectlyFromParcours,
   resolveParcoursDirectContentDisplay,
+  resolvePooledQuestionIds, resolveDerivedCompetenciesFromPool,
   getParcoursTimeline,
 } from "../js/services/parcours-service.js";
 import { browseCompetencies } from "../js/services/competency-service.js";
@@ -61,7 +62,6 @@ const STATUS_BADGES = {
 
 let state = {
   searchText: '', filters: { status: '', author: '' }, sortField: 'createdAt', sortDirection: 'desc',
-  page: 0, cursorStack: [null], cursorIndex: 0,
   items: [], hasMore: false, selectedId: null,
   // AJOUT (demande directe de David, 28/07/2026, "menu des parcours peu
   // flexible") : selection multiple pour actions groupees (suppression,
@@ -115,6 +115,15 @@ onAuthStateChanged(auth, async function(user) {
 // Chargement et rendu de la liste
 // ---------------------------------------------------------------------------
 
+// AJOUT (suppression de la pagination, demande directe de David,
+// 28/07/2026 - "avec la pagination ce n'est pas evident") : charge TOUS
+// les parcours correspondant aux filtres actifs en un seul appel, borne
+// genereusement (meme principe que fetchAllUsersBounded(), USER_LIST_
+// FETCH_LIMIT=500) plutot que 25 par page. Si la banque depasse un jour
+// cette limite, un avertissement est affiche - jamais une troncature
+// silencieuse.
+const MAX_PARCOURS_DISPLAYED = 500;
+
 async function loadPage() {
   const listEl = document.getElementById('parcours-list');
   const emptyEl = document.getElementById('parcours-list-empty');
@@ -122,13 +131,10 @@ async function loadPage() {
   if (emptyEl) emptyEl.style.display = 'none';
   state.selectedIds.clear();
 
-  const isSearch = !!state.searchText.trim();
-  const cursorDoc = isSearch ? null : state.cursorStack[state.cursorIndex];
-
   const result = await browseParcours({
     searchText: state.searchText, filters: state.filters,
     sortField: state.sortField, sortDirection: state.sortDirection,
-    page: state.page, cursorDoc: cursorDoc,
+    pageSize: MAX_PARCOURS_DISPLAYED, page: 0, cursorDoc: null,
   });
 
   if (!result.authorized) {
@@ -143,20 +149,21 @@ async function loadPage() {
 
   state.items = result.items;
   state.hasMore = result.hasMore;
-  if (!result.searchMode) state.lastDoc = result.lastDoc;
 
   const disclaimerEl = document.getElementById('parcours-search-disclaimer');
   if (disclaimerEl) {
     if (result.searchMode && result.truncatedScan) {
       disclaimerEl.style.display = 'block';
       disclaimerEl.textContent = 'Recherche limitée aux parcours les plus récents correspondant aux filtres actifs.';
+    } else if (result.hasMore) {
+      disclaimerEl.style.display = 'block';
+      disclaimerEl.textContent = 'Plus de ' + MAX_PARCOURS_DISPLAYED + ' parcours correspondent à ces critères — seuls les ' + MAX_PARCOURS_DISPLAYED + ' premiers sont affichés.';
     } else {
       disclaimerEl.style.display = 'none';
     }
   }
 
   renderList(state.items);
-  renderPagination();
 }
 
 function renderList(items) {
@@ -198,7 +205,6 @@ function rowHtml(p) {
           '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
           '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
         '</div>' +
-        '<div class="parcours-row-desc">' + escapeHtml((p.description || '').slice(0, 90)) + '</div>' +
         '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' +
           (p.featured ? ' <span class="bank-badge parcours-featured-badge">' + icon('highlight-star-filled', { size: 12 }) + ' Mis en avant</span>' : '') +
         '</div>' +
@@ -414,39 +420,12 @@ export function confirmBulkAssignUsersPanel() {
   document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
-function renderPagination() {
-  const el = document.getElementById('parcours-pagination');
-  if (!el) return;
-  const isSearch = !!state.searchText.trim();
-  const canGoBack = isSearch ? state.page > 0 : state.cursorIndex > 0;
-  const canGoForward = state.hasMore;
-  el.innerHTML =
-    '<button class="btn-secondary" onclick="goToParcoursPage(-1)"' + (canGoBack ? '' : ' disabled') + '>← Précédent</button>' +
-    '<span class="bank-pagination-label">Page ' + ((isSearch ? state.page : state.cursorIndex) + 1) + '</span>' +
-    '<button class="btn-secondary" onclick="goToParcoursPage(1)"' + (canGoForward ? '' : ' disabled') + '>Suivant →</button>';
-}
-
-export function goToParcoursPage(delta) {
-  const isSearch = !!state.searchText.trim();
-  if (isSearch) {
-    state.page = Math.max(0, state.page + delta);
-  } else {
-    if (delta > 0 && state.hasMore) {
-      state.cursorStack = state.cursorStack.slice(0, state.cursorIndex + 1);
-      state.cursorStack.push(state.lastDoc);
-      state.cursorIndex++;
-    } else if (delta < 0 && state.cursorIndex > 0) {
-      state.cursorIndex--;
-    }
-  }
-  return loadPage();
-}
-
-function resetPagination() {
-  state.page = 0;
-  state.cursorStack = [null];
-  state.cursorIndex = 0;
-}
+// Pagination supprimee (demande directe de David, 28/07/2026 - "pas
+// evident") : loadPage() charge deja tout en un seul appel borne
+// (MAX_PARCOURS_DISPLAYED) - plus besoin de reinitialiser une page avant
+// recherche/filtre/tri, mais les 3 sites d'appel existants restent
+// inoffensifs a conserver tels quels.
+function resetPagination() {}
 
 // ---------------------------------------------------------------------------
 // Recherche, filtres, tri
@@ -609,17 +588,27 @@ export async function selectParcours(id) {
   // "Reutilisation"). Meme principe pour les sources/questions directement
   // liees (resolveParcoursDirectContentDisplay) - les deux resolutions sont
   // independantes, lancees en parallele.
-  const [resolvedCompetencies, resolvedDirect] = await Promise.all([
+  //
+  // AJOUT (demande directe de David, 28/07/2026 - "si une question est
+  // ajoutee au parcours, la competence doit suivre") : resolveDerivedCompetenciesFromPool()
+  // existait deja cote service (parcours-service.js) mais n'etait jamais
+  // appelee depuis cet ecran - une question ajoutee (directQuestionIds)
+  // dont la fiche Banque porte deja un `competencyId` n'affichait donc
+  // jamais sa competence ici. Necessite pooledQuestionIds (resolvePooledQuestionIds),
+  // calcule a partir du parcours BRUT (pas des versions deja resolues).
+  const [resolvedCompetencies, resolvedDirect, pooledQuestionIds] = await Promise.all([
     resolveParcoursCompetenciesDisplay(p),
     resolveParcoursDirectContentDisplay(p),
+    resolvePooledQuestionIds(p),
   ]);
-  detailEl.innerHTML = detailHtml(p, resolvedCompetencies, resolvedDirect);
+  const derivedCompetencies = await resolveDerivedCompetenciesFromPool(p, pooledQuestionIds);
+  detailEl.innerHTML = detailHtml(p, resolvedCompetencies, resolvedDirect, derivedCompetencies);
 
   await renderTimeline(p);
   await renderAssignments(p);
 }
 
-function detailHtml(p, resolvedCompetencies, resolvedDirect) {
+function detailHtml(p, resolvedCompetencies, resolvedDirect, derivedCompetencies) {
   const badge = STATUS_BADGES[p.status] || STATUS_BADGES.draft;
   const competencies = (resolvedCompetencies || p.competencies || []).slice().sort(function(a, b) { return a.order - b.order; });
   const directSources = (resolvedDirect && resolvedDirect.sources) || [];
@@ -698,6 +687,33 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect) {
   }
   html += '<div class="btn-row"><button class="btn-primary" onclick="openCompetencyPickerPanel()">+ Ajouter une compétence (banque)</button></div>';
   html += '</div>';
+
+  // AJOUT (demande directe de David, 28/07/2026 - "la compétence doit
+  // suivre") : competences JAMAIS ajoutees explicitement a ce parcours,
+  // mais deduites des questions deja presentes (directQuestionIds,
+  // competencies[].questionIds, questions de source) dont la fiche Banque
+  // porte deja un `competencyId` - purement informatif, aucune action
+  // (retirer la question ou sa competence dans la Banque les fait
+  // disparaitre d'elles-memes, voir resolveDerivedCompetenciesFromPool()).
+  const derived = derivedCompetencies || [];
+  if (derived.length > 0) {
+    html += '<div class="bank-detail-section"><h4>Compétences déduites automatiquement (' + derived.length + ')</h4>';
+    html += '<p class="admin-users-disclaimer" style="margin:8px 0;">Déduites des questions déjà présentes dans ce parcours (compétence assignée à la question dans la Banque de questions) — pas besoin de les ajouter manuellement.</p>';
+    html += '<div class="parcours-competency-list">';
+    derived.forEach(function(c) {
+      const bank = c.bankData;
+      html += '<div class="parcours-competency-card">';
+      html += '<div class="parcours-competency-header"><strong>' + escapeHtml(bank ? bank.name : c.competencyId + ' (introuvable)') + '</strong>';
+      if (bank && bank.color && COMPETENCY_COLOR_HEX[bank.color]) {
+        html += '<span class="bank-chip" style="background:' + escapeHtml(COMPETENCY_COLOR_HEX[bank.color]) + ';color:#fff;">' + escapeHtml(capitalizeFirst(bank.color)) + '</span>';
+      }
+      html += '<span class="bank-chip">Auto</span>';
+      html += '</div>';
+      if (bank && bank.description) html += '<p class="parcours-competency-description">' + escapeHtml(bank.description) + '</p>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
 
   // AJOUT : sources documentaires et questions directement liees -
   // PARALLELES aux competences ci-dessus, jamais niches dedans (voir
@@ -1573,7 +1589,6 @@ function escapeHtml(s) {
 window.onParcoursSearchInput = onParcoursSearchInput;
 window.onParcoursFilterChange = onParcoursFilterChange;
 window.toggleParcoursSortDirection = toggleParcoursSortDirection;
-window.goToParcoursPage = goToParcoursPage;
 window.openCreateParcoursForm = openCreateParcoursForm;
 window.closeCreateParcoursForm = closeCreateParcoursForm;
 window.submitCreateParcours = submitCreateParcours;
