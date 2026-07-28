@@ -19,7 +19,14 @@
 const { KNOWN_THEMES } = require("./theme-utils");
 const { isRecognizedDifficultyInput } = require("./question-metadata-validation");
 
-const SUPPORTED_IMPORT_QUESTION_TYPES = Object.freeze(['single-choice']);
+// CORRECTIF (28/07/2026, synchronise avec js/services/question-import-
+// validator.js) : catalog-sync-engine.js traduit questionType vers 'qcm'
+// (vocabulaire interne) AVANT d'envoyer le document a POST /api/questions/
+// batch - cette revalidation serveur voyait donc TOUJOURS 'qcm', jamais
+// 'single-choice', et rejetait systematiquement toute synchronisation de
+// catalogue avec une erreur 400 (le dry-run, qui ne passe pas par ce
+// endpoint, reussissait a tort et masquait le probleme).
+const SUPPORTED_IMPORT_QUESTION_TYPES = Object.freeze(['single-choice', 'qcm']);
 const KNOWN_SPACES = Object.freeze(['student', 'pharmacist', 'both']);
 
 const MIN_QUESTION_LENGTH = 10;
@@ -117,7 +124,7 @@ function validateQuestion(rawQuestion, index) {
     if (!isNonEmptyString(rawQuestion.questionType)) {
       err('Le champ "questionType" doit être une chaîne non vide.', 'questionType');
     } else if (SUPPORTED_IMPORT_QUESTION_TYPES.indexOf(rawQuestion.questionType) === -1) {
-      err('Type de question non pris en charge par l\'import : "' + rawQuestion.questionType + '" (seul "single-choice" est accepté ce sprint).', 'questionType');
+      err('Type de question non pris en charge par l\'import : "' + rawQuestion.questionType + '" (accepté(s) : ' + SUPPORTED_IMPORT_QUESTION_TYPES.join(', ') + ').', 'questionType');
     }
   }
 

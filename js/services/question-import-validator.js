@@ -55,8 +55,19 @@ export const MAX_QUESTIONS_PER_IMPORT = 500;
  * public, distinct du vocabulaire interne QUESTION_TYPES de Sprint 9 - voir
  * question-parser.js pour la correspondance). Seul "single-choice" est
  * pris en charge ce sprint (voir "Non-objectifs" : pas d'autres types de
- * question geres par l'import cette version). */
-export const SUPPORTED_IMPORT_QUESTION_TYPES = Object.freeze(['single-choice']);
+ * question geres par l'import cette version).
+ *
+ * CORRECTIF (28/07/2026, synchronisation du catalogue Excel toujours en
+ * echec "API 400") : catalog-sync-engine.js traduit questionType vers le
+ * vocabulaire interne ('single-choice' -> 'qcm', IMPORT_TYPE_TO_INTERNAL_TYPE)
+ * AVANT d'envoyer le document a POST /api/questions/batch - la defense en
+ * profondeur cote serveur (ajoutee plus tard, audit "mauvais utilisateur"
+ * du 27/07/2026) revalide donc une valeur DEJA traduite, jamais la valeur
+ * brute d'import. 'qcm' doit rester accepte ici en plus de 'single-choice',
+ * sans quoi TOUTE synchronisation de catalogue echoue systematiquement a
+ * l'ecriture reelle (le dry-run/apercu, qui ne passe pas par cette
+ * revalidation serveur, reussissait a tort). */
+export const SUPPORTED_IMPORT_QUESTION_TYPES = Object.freeze(['single-choice', 'qcm']);
 
 /**
  * Correspondance vocabulaire d'import -> vocabulaire interne (Sprint 9,
@@ -257,7 +268,7 @@ export function validateQuestion(rawQuestion, index) {
     if (!isNonEmptyString(rawQuestion.questionType)) {
       err('Le champ "questionType" doit être une chaîne non vide.', 'questionType');
     } else if (SUPPORTED_IMPORT_QUESTION_TYPES.indexOf(rawQuestion.questionType) === -1) {
-      err('Type de question non pris en charge par l\'import : "' + rawQuestion.questionType + '" (seul "single-choice" est accepté ce sprint).', 'questionType');
+      err('Type de question non pris en charge par l\'import : "' + rawQuestion.questionType + '" (accepté(s) : ' + SUPPORTED_IMPORT_QUESTION_TYPES.join(', ') + ').', 'questionType');
     }
   }
 
