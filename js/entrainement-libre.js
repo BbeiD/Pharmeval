@@ -49,7 +49,12 @@ function showMessage(status, message) {
 // restartFreeTrainingSession(), jamais les deux a la fois.
 // state.selectedSourceIds : selection MULTIPLE (tuiles a icones, decision
 // validee avec David) - remplace l'ancien <select> a choix unique.
-let state = { pool: null, replacingSessionId: null, sources: [], selectedSourceIds: new Set() };
+// state.selectedSectionId : selection UNIQUE du sous-theme (chantier
+// graphique, demande directe de David, 28/07/2026) - remplace l'ancien
+// <select> par des tuiles a icones, chaque sous-theme herite de l'icone
+// de son theme (source) parent, jamais une icone propre (n'existe pas
+// dans le modele de donnees - voir document-section-metadata-service.js).
+let state = { pool: null, replacingSessionId: null, sources: [], selectedSourceIds: new Set(), selectedSectionId: '', sections: [] };
 
 
 // ---------------------------------------------------------------------------
@@ -166,41 +171,66 @@ window.toggleEtlSource = toggleEtlSource;
 async function onSourceSelectionChange() {
   resetDownstream();
   const sectionWrap = qs('etl-section-wrap');
-  const sectionSelect = qs('etl-section');
   const composeBtn = qs('etl-compose-btn');
 
   const selectedIds = Array.from(state.selectedSourceIds);
+  state.selectedSectionId = '';
+  state.sections = [];
 
   if (selectedIds.length === 0) {
     sectionWrap.style.display = 'none';
-    sectionSelect.innerHTML = '<option value="">—</option>';
-    sectionSelect.disabled = true;
     composeBtn.disabled = true;
     return;
   }
 
   composeBtn.disabled = false;
 
-  // La section n'a de sens QUE si une seule source est selectionnee - une
-  // section appartient a UNE source precise (voir composeFreeTrainingPool,
-  // meme regle cote service) : masquee/reinitialisee des que plusieurs
-  // sources sont choisies, jamais laissee visible dans un etat ambigu.
+  // Le sous-theme n'a de sens QUE si un seul theme est selectionne - un
+  // sous-theme appartient a UN theme precis (voir composeFreeTrainingPool,
+  // meme regle cote service) : masque/reinitialise des que plusieurs
+  // themes sont choisis, jamais laisse visible dans un etat ambigu.
   if (selectedIds.length === 1) {
     sectionWrap.style.display = 'block';
     const result = await getActiveSectionTree(selectedIds[0]);
-    const items = (result && result.items) || [];
-    sectionSelect.innerHTML = '<option value="">— Toute la source —</option>' +
-      items.map(function(s) {
-        const indent = '— '.repeat(s.level);
-        return '<option value="' + escapeHtml(s.id) + '">' + indent + escapeHtml(s.name) + '</option>';
-      }).join('');
-    sectionSelect.disabled = false;
+    state.sections = (result && result.items) || [];
+    // AJOUT : l'icone du sous-theme est TOUJOURS celle du theme (source)
+    // parent - un sous-theme n'a pas sa propre icone dans le modele de
+    // donnees, jamais une icone generique/inventee ici.
+    const parentSource = state.sources.find(function(s) { return s.id === selectedIds[0]; });
+    state.selectedSectionIconKey = parentSource ? resolveSourceIconKey(parentSource, KNOWN_ICON_KEYS) : 'content-sources-catalog';
+    renderSectionIcons();
   } else {
     sectionWrap.style.display = 'none';
-    sectionSelect.innerHTML = '<option value="">—</option>';
-    sectionSelect.disabled = true;
   }
 }
+
+function renderSectionIcons() {
+  const container = qs('etl-section-icons');
+  if (!container) return;
+  const iconKey = state.selectedSectionIconKey;
+
+  const allChip =
+    '<button type="button" class="source-tile' + (state.selectedSectionId === '' ? ' source-tile-selected' : '') + '" onclick="selectEtlSection(\'\')" aria-pressed="' + (state.selectedSectionId === '' ? 'true' : 'false') + '">' +
+      '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
+      '<span class="source-tile-name">Tout le thème</span>' +
+    '</button>';
+
+  container.innerHTML = allChip + state.sections.map(function(s) {
+    const selectedCls = state.selectedSectionId === s.id ? ' source-tile-selected' : '';
+    return (
+      '<button type="button" class="source-tile' + selectedCls + '" onclick="selectEtlSection(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSectionId === s.id ? 'true' : 'false') + '">' +
+        '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
+        '<span class="source-tile-name">' + '— '.repeat(s.level) + escapeHtml(s.name) + '</span>' +
+      '</button>'
+    );
+  }).join('');
+}
+
+export function selectEtlSection(sectionId) {
+  state.selectedSectionId = sectionId;
+  renderSectionIcons();
+}
+window.selectEtlSection = selectEtlSection;
 
 function resetDownstream() {
   state.pool = null;
@@ -219,7 +249,7 @@ async function onComposeClick() {
 
   const filters = {
     documentSourceIds: Array.from(state.selectedSourceIds),
-    documentSectionId: qs('etl-section').value || undefined,
+    documentSectionId: state.selectedSectionId || undefined,
   };
 
   const result = await composeFreeTrainingPool(filters);

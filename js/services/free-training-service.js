@@ -39,7 +39,7 @@ import { getActiveSectionTree } from "./document-section-service.js";
 export async function composeFreeTrainingPool(filters) {
   const f = filters || {};
   const sourceIds = Array.isArray(f.documentSourceIds) ? f.documentSourceIds.filter(Boolean) : [];
-  if (sourceIds.length === 0) return { ready: false, message: 'Choisissez au moins une source documentaire.', items: [] };
+  if (sourceIds.length === 0) return { ready: false, message: 'Choisissez au moins un thème.', items: [] };
 
   // La section ne reste applicable cote serveur QUE si une seule source est
   // selectionnee (une section appartient a UNE source precise - avec
