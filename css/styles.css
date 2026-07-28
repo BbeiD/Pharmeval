@@ -220,7 +220,7 @@
   .sh-logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); margin-bottom: var(--space-4); padding: 0 var(--space-1); }
   .sh-logo-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
   .sh-app-name { font-size: 16px; font-weight: 700; }
-  .sh-app-tagline { font-size: 9px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+  .sh-app-tagline { font-size: 9px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .02em; white-space: normal; }
 
   .sh-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
   .sh-nav-link {
