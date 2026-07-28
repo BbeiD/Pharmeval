@@ -105,6 +105,15 @@ const OPTIONAL_QUESTION_FIELDS = Object.freeze([
   'tags', 'learningObjectives', 'keywords', 'space', 'estimatedTime', 'version',
   // SPRINT 21 (schemaVersion "1.1", additifs — voir CatalogSyncEngine) :
   'externalIds', 'sourceDocument', 'primaryCompetency', 'pendingResourceRefs',
+  // CORRECTIF (28/07/2026, synchronise avec functions/lib/question-import-
+  // validator.js) : catalog-sync-engine.js construit le document FINAL
+  // avec des IDs deja RESOLUS (documentSourceId/documentSectionId/
+  // competencyId/tagIds), jamais les objets bruts sourceDocument/
+  // primaryCompetency ci-dessus - la revalidation serveur (defense en
+  // profondeur, POST /api/questions/batch) les rejetait tous comme
+  // "champs inconnus", faisant echouer 100% des synchronisations.
+  'documentSourceId', 'documentSectionId', 'competencyId', 'tagIds',
+  'fromEditorialCatalog', 'createdAt', 'updatedAt',
 ]);
 const ALL_QUESTION_FIELDS = Object.freeze(REQUIRED_QUESTION_FIELDS.concat(OPTIONAL_QUESTION_FIELDS));
 
@@ -389,6 +398,24 @@ export function validateQuestion(rawQuestion, index) {
   if (rawQuestion.pendingResourceRefs !== undefined && !isStringArray(rawQuestion.pendingResourceRefs)) {
     err('Le champ "pendingResourceRefs", s\'il est fourni, doit être un tableau de chaînes.', 'pendingResourceRefs');
   }
+  // CORRECTIF (28/07/2026) : IDs deja resolus par catalog-sync-engine.js -
+  // voir OPTIONAL_QUESTION_FIELDS ci-dessus pour le contexte complet.
+  ['documentSourceId', 'documentSectionId', 'competencyId'].forEach(function(field) {
+    if (rawQuestion[field] !== undefined && rawQuestion[field] !== null && typeof rawQuestion[field] !== 'string') {
+      err('Le champ "' + field + '", s\'il est fourni, doit être une chaîne (ou null).', field);
+    }
+  });
+  if (rawQuestion.tagIds !== undefined && !isStringArray(rawQuestion.tagIds)) {
+    err('Le champ "tagIds", s\'il est fourni, doit être un tableau de chaînes.', 'tagIds');
+  }
+  if (rawQuestion.fromEditorialCatalog !== undefined && typeof rawQuestion.fromEditorialCatalog !== 'boolean') {
+    err('Le champ "fromEditorialCatalog", s\'il est fourni, doit être un booléen.', 'fromEditorialCatalog');
+  }
+  ['createdAt', 'updatedAt'].forEach(function(field) {
+    if (rawQuestion[field] !== undefined && !isNonEmptyString(rawQuestion[field])) {
+      err('Le champ "' + field + '", s\'il est fourni, doit être une chaîne non vide.', field);
+    }
+  });
   if (rawQuestion.space !== undefined && (typeof rawQuestion.space !== 'string' || KNOWN_SPACES.indexOf(rawQuestion.space) === -1)) {
     err('Le champ "space", s\'il est fourni, doit être l\'un de : ' + KNOWN_SPACES.join(', ') + '.', 'space');
   }
