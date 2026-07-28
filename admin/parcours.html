@@ -247,6 +247,28 @@
   </div>
 </div>
 
+<!-- AJOUT ("Attribuer" en masse -> selection precise des utilisateurs,
+     demande directe de David, 28/07/2026) : panneau de selection MULTIPLE
+     d'utilisateurs reels avant attribution des parcours selectionnes -
+     remplace l'attribution automatique a TOUS les utilisateurs. -->
+<div id="parcours-bulk-assign-users-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal" style="max-width:640px;">
+    <button class="admin-modal-close" onclick="closeBulkAssignUsersPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg></button>
+    <h3>Attribuer les parcours sélectionnés à…</h3>
+
+    <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+      <input type="checkbox" id="parcours-bulk-assign-select-all" onchange="toggleBulkAssignSelectAllUsers(this.checked)"> Tout sélectionner
+    </label>
+    <input type="text" id="parcours-bulk-assign-search" class="bank-select" placeholder="Rechercher un utilisateur (nom, email)…" oninput="onBulkAssignUserFilterInput()">
+    <div id="parcours-bulk-assign-results" style="margin-top:8px; max-height:40vh; overflow-y:auto;"></div>
+
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" onclick="closeBulkAssignUsersPanel()">Annuler</button>
+      <button class="btn-primary" onclick="confirmBulkAssignUsersPanel()">Continuer</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="parcours.js"></script>
 
 <script src="../js/sw-register.js"></script>

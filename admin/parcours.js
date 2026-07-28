@@ -273,7 +273,7 @@ function renderBulkBar() {
       ? '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'restore\')">' + icon('action-restore', { size: 14 }) + ' Restaurer</button>' +
         (hasPermission(PERMISSIONS.PURGE_PARCOURS) ? '<button type="button" class="btn-secondary bank-delete-btn" onclick="requestBulkParcoursAction(\'delete\')">Supprimer définitivement</button>' : '')
       : '<button type="button" class="btn-primary" onclick="requestBulkParcoursAction(\'publish\')">Publier</button>' +
-        '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'assign_all\')">Attribuer à tous les utilisateurs</button>' +
+        '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'assign_all\')">Attribuer…</button>' +
         '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
     ) +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_on\')">★ Mettre en avant</button>' +
@@ -298,29 +298,119 @@ export async function requestBulkParcoursAction(kind) {
     pendingAction = { kind: 'bulk_publish', ids: ids };
     message = 'Voulez-vous vraiment publier les ' + ids.length + ' parcours sélectionnés ? Ils deviendront visibles par tous les utilisateurs.';
   } else if (kind === 'assign_all') {
-    // "Attribuer à tous les utilisateurs" (demande directe de David,
-    // 28/07/2026) : le modele d'attribution (assignment-metadata-service.js)
-    // ne connait QUE user/group/profile - aucune cible "tout le monde" -
-    // donc on cree une attribution individuelle par utilisateur reel
-    // (createAssignment, deja idempotent via assignmentExists()) plutot que
-    // d'inventer un nouveau type de cible hors perimetre de ce bouton.
-    const usersResult = await fetchAllUsersBounded();
-    if (usersResult.error) {
-      showParcoursMessage('error', 'Impossible de charger la liste des utilisateurs.');
-      return;
-    }
-    const users = usersResult.items || [];
-    if (users.length === 0) {
-      showParcoursMessage('denied', 'Aucun utilisateur trouvé.');
-      return;
-    }
-    pendingAction = { kind: 'bulk_assign_all_users', ids: ids, users: users };
-    message = 'Voulez-vous vraiment attribuer les ' + ids.length + ' parcours sélectionnés aux ' + users.length + ' utilisateurs de la plateforme ? Cela peut créer jusqu\'à ' + (ids.length * users.length) + ' attributions (les attributions déjà existantes sont ignorées, jamais dupliquées).';
+    // "Attribuer" en masse (demande directe de David, 28/07/2026 - revu le
+    // meme jour pour ne PAS attribuer automatiquement a tout le monde,
+    // mais ouvrir un panneau de selection precise) : le modele
+    // d'attribution (assignment-metadata-service.js) ne connait QUE
+    // user/group/profile - aucune cible "tout le monde" - donc on cree
+    // une attribution individuelle par utilisateur CHOISI (createAssignment,
+    // deja idempotent via assignmentExists()) plutot que d'inventer un
+    // nouveau type de cible hors perimetre de ce bouton.
+    await openBulkAssignUsersPanel(ids);
+    return;
   } else {
     return;
   }
 
   document.getElementById('parcours-confirm-message').textContent = message;
+  document.getElementById('parcours-confirm-overlay').style.display = 'flex';
+}
+
+// ---------------------------------------------------------------------------
+// AJOUT ("Attribuer" en masse -> selection precise des utilisateurs,
+// demande directe de David, 28/07/2026) : panneau distinct de la
+// confirmation generique ci-dessus - laisse l'administrateur choisir
+// PRECISEMENT a qui attribuer les parcours selectionnes, plutot que de
+// tout attribuer automatiquement a la plateforme entiere.
+// ---------------------------------------------------------------------------
+
+let bulkAssignParcoursIds = [];
+let bulkAssignAllUsers = [];
+let bulkAssignSelectedUids = new Set();
+
+async function openBulkAssignUsersPanel(ids) {
+  const usersResult = await fetchAllUsersBounded();
+  if (usersResult.error) {
+    showParcoursMessage('error', 'Impossible de charger la liste des utilisateurs.');
+    return;
+  }
+  bulkAssignAllUsers = usersResult.items || [];
+  if (bulkAssignAllUsers.length === 0) {
+    showParcoursMessage('denied', 'Aucun utilisateur trouvé.');
+    return;
+  }
+  bulkAssignParcoursIds = ids;
+  bulkAssignSelectedUids = new Set();
+  document.getElementById('parcours-bulk-assign-search').value = '';
+  renderBulkAssignUsersList('');
+  document.getElementById('parcours-bulk-assign-users-overlay').style.display = 'flex';
+}
+
+function userDisplayLabel(u) {
+  const name = ((u.firstName || '') + ' ' + (u.lastName || '')).trim();
+  return name ? name + ' — ' + (u.email || u.uid) : (u.email || u.uid);
+}
+
+function filterBulkAssignUsers(filterText) {
+  const needle = (filterText || '').toLowerCase().trim();
+  if (!needle) return bulkAssignAllUsers;
+  return bulkAssignAllUsers.filter(function(u) {
+    return userDisplayLabel(u).toLowerCase().indexOf(needle) !== -1;
+  });
+}
+
+function renderBulkAssignUsersList(filterText) {
+  const filtered = filterBulkAssignUsers(filterText);
+  const container = document.getElementById('parcours-bulk-assign-results');
+  container.innerHTML = filtered.length === 0
+    ? '<p class="bank-list-empty">Aucun utilisateur trouvé.</p>'
+    : filtered.map(function(u) {
+        const checked = bulkAssignSelectedUids.has(u.uid) ? ' checked' : '';
+        return '<label style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+          '<input type="checkbox" onchange="toggleBulkAssignUser(\'' + escapeHtml(u.uid) + '\', this.checked)"' + checked + '>' +
+          '<span>' + escapeHtml(userDisplayLabel(u)) + '</span></label>';
+      }).join('');
+
+  const selectAllCb = document.getElementById('parcours-bulk-assign-select-all');
+  if (selectAllCb) {
+    const selectedVisible = filtered.filter(function(u) { return bulkAssignSelectedUids.has(u.uid); }).length;
+    selectAllCb.checked = filtered.length > 0 && selectedVisible === filtered.length;
+    selectAllCb.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+  }
+}
+
+export function toggleBulkAssignUser(uid, checked) {
+  if (checked) bulkAssignSelectedUids.add(uid); else bulkAssignSelectedUids.delete(uid);
+  renderBulkAssignUsersList(valueOf('parcours-bulk-assign-search'));
+}
+
+export function toggleBulkAssignSelectAllUsers(checked) {
+  filterBulkAssignUsers(valueOf('parcours-bulk-assign-search')).forEach(function(u) {
+    if (checked) bulkAssignSelectedUids.add(u.uid); else bulkAssignSelectedUids.delete(u.uid);
+  });
+  renderBulkAssignUsersList(valueOf('parcours-bulk-assign-search'));
+}
+
+export function onBulkAssignUserFilterInput() {
+  renderBulkAssignUsersList(valueOf('parcours-bulk-assign-search'));
+}
+
+export function closeBulkAssignUsersPanel() {
+  document.getElementById('parcours-bulk-assign-users-overlay').style.display = 'none';
+}
+
+export function confirmBulkAssignUsersPanel() {
+  if (bulkAssignSelectedUids.size === 0) {
+    showParcoursMessage('denied', 'Sélectionnez au moins un utilisateur.');
+    return;
+  }
+  const selectedUsers = bulkAssignAllUsers.filter(function(u) { return bulkAssignSelectedUids.has(u.uid); });
+  closeBulkAssignUsersPanel();
+  pendingAction = { kind: 'bulk_assign_all_users', ids: bulkAssignParcoursIds, users: selectedUsers };
+  document.getElementById('parcours-confirm-message').textContent =
+    'Voulez-vous vraiment attribuer les ' + bulkAssignParcoursIds.length + ' parcours sélectionnés aux ' + selectedUsers.length +
+    ' utilisateur(s) choisi(s) ? Cela peut créer jusqu\'à ' + (bulkAssignParcoursIds.length * selectedUsers.length) +
+    ' attributions (les attributions déjà existantes sont ignorées, jamais dupliquées).';
   document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
@@ -1532,3 +1622,8 @@ window.toggleParcoursSelection = toggleParcoursSelection;
 window.toggleParcoursSelectAll = toggleParcoursSelectAll;
 window.clearParcoursSelection = clearParcoursSelection;
 window.requestBulkParcoursAction = requestBulkParcoursAction;
+window.toggleBulkAssignUser = toggleBulkAssignUser;
+window.toggleBulkAssignSelectAllUsers = toggleBulkAssignSelectAllUsers;
+window.onBulkAssignUserFilterInput = onBulkAssignUserFilterInput;
+window.closeBulkAssignUsersPanel = closeBulkAssignUsersPanel;
+window.confirmBulkAssignUsersPanel = confirmBulkAssignUsersPanel;
