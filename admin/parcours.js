@@ -63,6 +63,7 @@ const STATUS_BADGES = {
 let state = {
   searchText: '', filters: { status: '', author: '' }, sortField: 'createdAt', sortDirection: 'desc',
   items: [], hasMore: false, selectedId: null,
+  derivedCompetencyCounts: new Map(), // parcoursId -> nb de competences deduites (voir loadPage())
   // AJOUT (demande directe de David, 28/07/2026, "menu des parcours peu
   // flexible") : selection multiple pour actions groupees (suppression,
   // mise en avant) - toujours videe au rechargement de la liste (recherche,
@@ -150,6 +151,27 @@ async function loadPage() {
   state.items = result.items;
   state.hasMore = result.hasMore;
 
+  // AJOUT (demande directe de David, 28/07/2026 - "les competences ne sont
+  // pas heritees non plus") : le nombre de competences affiche sur CHAQUE
+  // ligne de la liste (rowHtml) ne comptait que parcours.competencies[]
+  // (explicites), jamais les competences deduites des questions deja
+  // presentes (resolveDerivedCompetenciesFromPool, voir selectParcours()
+  // ci-dessus, meme logique) - une ligne pouvait donc afficher "0
+  // competence(s)" alors que sa fiche detaillee en montrait plusieurs.
+  // Resolu ici pour TOUS les parcours visibles, en parallele, une seule
+  // fois par chargement de liste (jamais par ligne individuellement).
+  const derivedCounts = new Map();
+  await Promise.all(state.items.map(async function(p) {
+    try {
+      const pooled = await resolvePooledQuestionIds(p);
+      const derived = await resolveDerivedCompetenciesFromPool(p, pooled);
+      derivedCounts.set(p.id, derived.length);
+    } catch (err) {
+      derivedCounts.set(p.id, 0);
+    }
+  }));
+  state.derivedCompetencyCounts = derivedCounts;
+
   const disclaimerEl = document.getElementById('parcours-search-disclaimer');
   if (disclaimerEl) {
     if (result.searchMode && result.truncatedScan) {
@@ -192,7 +214,7 @@ function renderList(items) {
 function rowHtml(p) {
   const badge = STATUS_BADGES[p.status] || STATUS_BADGES.draft;
   const selected = p.id === state.selectedId ? ' parcours-row-selected' : '';
-  const competencyCount = (p.competencies || []).length;
+  const competencyCount = (p.competencies || []).length + (state.derivedCompetencyCounts.get(p.id) || 0);
   const checked = state.selectedIds.has(p.id) ? ' checked' : '';
   const starTitle = p.featured ? 'Retirer la mise en avant' : 'Mettre en avant';
   return (
