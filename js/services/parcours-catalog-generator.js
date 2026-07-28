@@ -151,11 +151,14 @@ export async function analyzeParcoursCatalog() {
  *   REELLEMENT trouvees (tirage aleatoire via pickRandomSubset - jamais
  *   plus que ce qui a ete trouve, voir pickRandomSubset()). Absent/invalide
  *   => on garde toutes les questions trouvees pour cette ligne, comportement
- *   identique a avant l'ajout de ce parametre.
+ *   identique a avant l'ajout de ce parametre ;
+ * - `skip` : la ligne est totalement ignoree (aucun parcours cree) - l'admin
+ *   a retire cette suggestion avant creation (voir admin/parcours-catalog.js,
+ *   "Supprimer cette suggestion").
  *
  * @param {{rows: Array<object>}} analyzeResult - resultat de analyzeParcoursCatalog()
- * @param {Array<{name?:string, questionCount?:number}>} [overrides] - une entree par ligne, meme ordre que analyzeResult.rows
- * @returns {Promise<{rows: Array<{name:string, success:boolean, parcoursId:string|null, questionCount:number, message:string|null}>}>}
+ * @param {Array<{name?:string, questionCount?:number, skip?:boolean}>} [overrides] - une entree par ligne, meme ordre que analyzeResult.rows
+ * @returns {Promise<{rows: Array<{name:string, success:boolean, parcoursId:string|null, questionCount:number, message:string|null, skipped?:boolean}>}>}
  */
 export async function generateParcoursCatalog(analyzeResult, overrides) {
   const rows = (analyzeResult && analyzeResult.rows) || [];
@@ -165,6 +168,10 @@ export async function generateParcoursCatalog(analyzeResult, overrides) {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const override = overrideList[i] || {};
+    if (override.skip) {
+      results.push({ name: row.name, success: false, parcoursId: null, questionCount: 0, message: 'Suggestion ignorée (retirée avant création).', skipped: true });
+      continue;
+    }
     const color = COLOR_ROTATION[i % COLOR_ROTATION.length];
     const name = (override.name && override.name.toString().trim()) || row.name;
     const allQuestionIds = row.questionIds || [];

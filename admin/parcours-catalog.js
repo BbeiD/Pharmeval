@@ -20,6 +20,10 @@ function escapeHtml(str) {
 }
 
 let lastAnalyzeResult = null;
+// AJOUT (demande directe de David, 28/07/2026) : lignes que l'admin a
+// retirees de la selection AVANT creation (voir onReportBodyClick) - un
+// index de ligne exclu n'est jamais envoye a generateParcoursCatalog().
+const excludedRows = new Set();
 
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = qs('pc-loading');
@@ -53,6 +57,7 @@ onAuthStateChanged(auth, async function(user) {
 
   qs('pc-analyze-btn').addEventListener('click', onAnalyzeClick);
   qs('pc-generate-btn').addEventListener('click', onGenerateClick);
+  qs('pc-report-body').addEventListener('click', onReportBodyClick);
 });
 
 async function onAnalyzeClick() {
@@ -60,6 +65,7 @@ async function onAnalyzeClick() {
   qs('pc-analyzing-card').style.display = 'block';
   qs('pc-report-card').style.display = 'none';
   qs('pc-result-card').style.display = 'none';
+  excludedRows.clear();
 
   lastAnalyzeResult = await analyzeParcoursCatalog();
 
@@ -89,15 +95,28 @@ function overrideFieldsHtml(row, index, matchedCount) {
   );
 }
 
-function rowReportHtml(row, index) {
+// AJOUT (demande directe de David, 28/07/2026) : bouton par ligne pour
+// retirer une suggestion de la selection avant creation (ex. un theme sans
+// correspondance qu'il ne souhaite pas creer en brouillon vide) - voir
+// onReportBodyClick (delegation d'evenements, la liste est reconstruite a
+// chaque analyse). Reversible via "Annuler" tant que la page n'a pas ete
+// rechargee.
+function removeButtonHtml(index) {
+  return '<button type="button" class="btn-secondary pc-remove-btn" data-row-index="' + index + '" style="flex-shrink:0;">Supprimer cette suggestion</button>';
+}
+
+function rowReportInnerHtml(row, index) {
   if (row.allBanks) {
     return (
-      '<div class="bank-detail-section">' +
-        '<strong>' + escapeHtml(row.name) + '</strong>' +
-        '<p class="pv-list-empty" style="margin:4px 0;">Toutes les banques — ' + row.totalPublished + ' question(s) publiée(s)' +
-          (row.truncated ? ' (balayage tronqué, voir note ci-dessous)' : '') + '.</p>' +
-        overrideFieldsHtml(row, index, row.totalPublished) +
-      '</div>'
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+        '<div style="flex:1;">' +
+          '<strong>' + escapeHtml(row.name) + '</strong>' +
+          '<p class="pv-list-empty" style="margin:4px 0;">Toutes les banques — ' + row.totalPublished + ' question(s) publiée(s)' +
+            (row.truncated ? ' (balayage tronqué, voir note ci-dessous)' : '') + '.</p>' +
+        '</div>' +
+        removeButtonHtml(index) +
+      '</div>' +
+      overrideFieldsHtml(row, index, row.totalPublished)
     );
   }
   const termsHtml = row.terms.map(function(t) {
@@ -110,13 +129,25 @@ function rowReportHtml(row, index) {
     ? '<p class="admin-users-disclaimer" style="margin-top:6px;">' + icon('action-warning', { size: 14 }) + ' Aucune correspondance pour : ' + escapeHtml(row.zeroMatchTerms.join(', ')) + '.</p>'
     : '';
   return (
-    '<div class="bank-detail-section">' +
-      '<strong>' + escapeHtml(row.name) + '</strong> — ' + row.questionIds.length + ' question(s) unique(s) au total' +
-      '<div class="bank-detail-tags-row" style="margin-top:6px;">' + termsHtml + '</div>' +
-      zeroWarning +
-      overrideFieldsHtml(row, index, row.questionIds.length) +
-    '</div>'
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+      '<div style="flex:1;">' +
+        '<strong>' + escapeHtml(row.name) + '</strong> — ' + row.questionIds.length + ' question(s) unique(s) au total' +
+        '<div class="bank-detail-tags-row" style="margin-top:6px;">' + termsHtml + '</div>' +
+        zeroWarning +
+      '</div>' +
+      removeButtonHtml(index) +
+    '</div>' +
+    overrideFieldsHtml(row, index, row.questionIds.length)
   );
+}
+
+function removedRowHtml(index) {
+  return '<em class="pv-list-empty">Suggestion supprimée — <a href="#" class="pc-undo-link" data-row-index="' + index + '">annuler</a></em>';
+}
+
+function rowReportHtml(row, index) {
+  const inner = excludedRows.has(index) ? removedRowHtml(index) : rowReportInnerHtml(row, index);
+  return '<div class="bank-detail-section" id="pc-row-' + index + '">' + inner + '</div>';
 }
 
 function renderReport(result) {
@@ -124,6 +155,25 @@ function renderReport(result) {
   const summary = '<p class="pv-list-empty" style="margin-bottom:10px;">' + result.totalRows + ' parcours analysés' +
     (emptyRows.length > 0 ? ' — <strong>' + emptyRows.length + ' sans aucune question trouvée</strong> (à revoir manuellement après création)' : '') + '.</p>';
   qs('pc-report-body').innerHTML = summary + result.rows.map(rowReportHtml).join('');
+}
+
+function onReportBodyClick(e) {
+  const removeBtn = e.target.closest('.pc-remove-btn');
+  if (removeBtn) {
+    const index = parseInt(removeBtn.dataset.rowIndex, 10);
+    excludedRows.add(index);
+    const wrapper = qs('pc-row-' + index);
+    if (wrapper) wrapper.innerHTML = removedRowHtml(index);
+    return;
+  }
+  const undoLink = e.target.closest('.pc-undo-link');
+  if (undoLink) {
+    e.preventDefault();
+    const index = parseInt(undoLink.dataset.rowIndex, 10);
+    excludedRows.delete(index);
+    const wrapper = qs('pc-row-' + index);
+    if (wrapper && lastAnalyzeResult) wrapper.innerHTML = rowReportInnerHtml(lastAnalyzeResult.rows[index], index);
+  }
 }
 
 function readRowOverrides(rowCount) {
@@ -145,12 +195,17 @@ async function onGenerateClick() {
   qs('pc-generate-btn').disabled = true;
   qs('pc-generating-card').style.display = 'block';
 
-  const overrides = readRowOverrides(lastAnalyzeResult.rows.length);
+  const overrides = readRowOverrides(lastAnalyzeResult.rows.length).map(function(o, i) {
+    return excludedRows.has(i) ? Object.assign({}, o, { skip: true }) : o;
+  });
   const result = await generateParcoursCatalog(lastAnalyzeResult, overrides);
 
   qs('pc-generating-card').style.display = 'none';
 
   qs('pc-result-body').innerHTML = result.rows.map(function(r) {
+    if (r.skipped) {
+      return '<div class="bank-detail-row"><strong>' + escapeHtml(r.name) + '</strong> — <em class="pv-list-empty">' + escapeHtml(r.message) + '</em></div>';
+    }
     const statusIcon = r.success ? icon('highlight-check-validated', { size: 16 }) : icon('action-error', { size: 16 });
     const link = r.parcoursId ? ' — <a href="parcours.html">Voir dans Mes parcours (admin)</a>' : '';
     return (
