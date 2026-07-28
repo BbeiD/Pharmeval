@@ -192,11 +192,11 @@ export async function updateParcoursStatus(parcoursId, newStatus) {
  * element imbrique dans un tableau Firestore).
  *
  * @param {string} parcoursId
- * @param {{name?:string, description?:string, targetAudience?:string, color?:string, icon?:string, competencies?:Array<object>, sourceIds?:Array<string>, directQuestionIds?:Array<string>, accessTier?:string, organizationId?:string|null}} fields
+ * @param {{name?:string, description?:string, targetAudience?:string, color?:string, icon?:string, competencies?:Array<object>, sourceIds?:Array<string>, directQuestionIds?:Array<string>, accessTier?:string, organizationId?:string|null, featured?:boolean}} fields
  * @returns {Promise<{success:boolean, error:boolean}>}
  */
 export async function updateParcoursFields(parcoursId, fields) {
-  const allowed = ['name', 'description', 'targetAudience', 'color', 'icon', 'competencies', 'sourceIds', 'directQuestionIds', 'accessTier', 'organizationId'];
+  const allowed = ['name', 'description', 'targetAudience', 'color', 'icon', 'competencies', 'sourceIds', 'directQuestionIds', 'accessTier', 'organizationId', 'featured'];
   const payload = {};
   allowed.forEach(function(key) {
     if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];

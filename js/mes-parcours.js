@@ -242,10 +242,16 @@ function renderGrid() {
   const gridEl = document.getElementById('mesparcours-grid');
   const emptyEl = document.getElementById('mesparcours-empty');
 
-  const filtered = state.entries.filter(function(entry) {
-    if (state.activeTab === 'toutes') return true;
-    return statusForEntry(entry.parcours.id) === state.activeTab;
-  });
+  // AJOUT (mise en avant admin, demande directe de David, 28/07/2026) :
+  // les parcours mis en avant remontent en tete de liste - tri stable
+  // (Array.prototype.sort en JS moderne preserve l'ordre relatif des
+  // elements a egalite), jamais un tri secondaire invente.
+  const filtered = state.entries
+    .filter(function(entry) {
+      if (state.activeTab === 'toutes') return true;
+      return statusForEntry(entry.parcours.id) === state.activeTab;
+    })
+    .sort(function(a, b) { return (b.parcours.featured ? 1 : 0) - (a.parcours.featured ? 1 : 0); });
 
   if (filtered.length === 0) {
     gridEl.innerHTML = '';
@@ -284,6 +290,12 @@ function cardHtml(entry, attempts, hasActiveSession) {
     ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
   const dueBadge = entry.assignment && entry.assignment.dueDate
     ? '<span class="bank-chip">Échéance : ' + escapeHtml(entry.assignment.dueDate) + '</span>' : '';
+  // AJOUT (mise en avant admin, demande directe de David, 28/07/2026) :
+  // seul effet visible cote utilisateur du bouton "★" admin/parcours.js -
+  // sans ce badge, la mise en avant serait un reglage invisible. Tri par
+  // mise en avant applique dans renderGrid() (jamais recalcule ici).
+  const featuredBadge = p.featured
+    ? '<span class="bank-chip parcours-featured-badge">' + icon('highlight-star-filled', { size: 13 }) + ' Recommandé</span>' : '';
 
   return (
     '<div class="mesparcours-card">' +
@@ -297,7 +309,7 @@ function cardHtml(entry, attempts, hasActiveSession) {
         '</div>' +
         '<p>' + escapeHtml(p.description || 'Aucune description disponible.') + '</p>' +
         '<div class="bank-detail-tags-row">' +
-          '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + mandatoryBadge + dueBadge +
+          '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + featuredBadge + mandatoryBadge + dueBadge +
         '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts, hasActiveSession) + '</div>' +
         '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +

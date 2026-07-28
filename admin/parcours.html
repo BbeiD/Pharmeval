@@ -92,6 +92,15 @@
 
       <!-- COLONNE GAUCHE : liste -->
       <div class="bank-list-column">
+        <!-- AJOUT (selection multiple, demande directe de David, 28/07/2026) :
+             "Tout sélectionner" toujours visible, barre d'actions groupees
+             affichee uniquement si au moins un parcours est coche (voir
+             renderBulkBar(), admin/parcours.js). -->
+        <label class="parcours-select-all-label">
+          <input type="checkbox" id="parcours-select-all-checkbox" onchange="toggleParcoursSelectAll(this.checked)">
+          Tout sélectionner sur cette page
+        </label>
+        <div id="parcours-bulk-bar" class="parcours-bulk-bar" style="display:none;"></div>
         <div id="parcours-list-empty" class="bank-list-empty" style="display:none;"></div>
         <div id="parcours-list" class="bank-list"></div>
         <div id="parcours-pagination" class="bank-pagination"></div>

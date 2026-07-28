@@ -15,12 +15,13 @@ import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/a
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { formatDateFr } from "../js/services/date-utils.js";
 import {
+  PARCOURS_STATUSES,
   PARCOURS_COLOR_HEX, resolveParcoursColorHex,
   PARCOURS_ICON_PICKER_CHOICES, PARCOURS_DEFAULT_ICON, resolveParcoursIconKey,
 } from "../js/services/parcours-metadata-service.js";
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
-  moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours,
+  moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours, setParcoursFeatured,
   editParcoursMetadata, removeCompetency, moveCompetency,
   linkQuestionToCompetency, unlinkQuestionFromCompetency, searchQuestionsForLinking,
   addCompetencyFromBank, resolveParcoursCompetenciesDisplay,
@@ -61,6 +62,12 @@ let state = {
   searchText: '', filters: { status: '', author: '' }, sortField: 'createdAt', sortDirection: 'desc',
   page: 0, cursorStack: [null], cursorIndex: 0,
   items: [], hasMore: false, selectedId: null,
+  // AJOUT (demande directe de David, 28/07/2026, "menu des parcours peu
+  // flexible") : selection multiple pour actions groupees (suppression,
+  // mise en avant) - toujours videe au rechargement de la liste (recherche,
+  // filtre, tri, pagination) pour ne jamais agir sur un parcours qui n'est
+  // plus dans la vue courante (voir loadPage()).
+  selectedIds: new Set(),
 };
 let pendingAction = null;      // { kind, parcours }
 let linkingCompetencyId = null; // competence en cours de liaison (panneau de recherche de questions)
@@ -112,6 +119,7 @@ async function loadPage() {
   const emptyEl = document.getElementById('parcours-list-empty');
   if (listEl) listEl.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
   if (emptyEl) emptyEl.style.display = 'none';
+  state.selectedIds.clear();
 
   const isSearch = !!state.searchText.trim();
   const cursorDoc = isSearch ? null : state.cursorStack[state.cursorIndex];
@@ -158,26 +166,137 @@ function renderList(items) {
   if (items.length === 0) {
     listEl.innerHTML = '';
     if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'Aucun parcours ne correspond à ces critères.'; }
+    renderBulkBar();
     return;
   }
   if (emptyEl) emptyEl.style.display = 'none';
   listEl.innerHTML = items.map(rowHtml).join('');
+  renderBulkBar();
 }
 
+// AJOUT (refonte de la liste, demande directe de David, 28/07/2026 -
+// "pas très beau ou intuitif, et pas très flexible") : case a cocher
+// (selection multiple) + etoile de mise en avant, directement dans la
+// ligne - jamais besoin d'ouvrir la fiche complete pour ces deux actions.
+// Classes dediees .parcours-row-* (voir css/styles.css) plutot que de
+// modifier .bank-row/.bank-row-top, partagees avec d'autres ecrans admin
+// (Banque de questions, Utilisateurs) qui ne doivent pas etre affectes.
 function rowHtml(p) {
   const badge = STATUS_BADGES[p.status] || STATUS_BADGES.draft;
-  const selected = p.id === state.selectedId ? ' bank-row-selected' : '';
+  const selected = p.id === state.selectedId ? ' parcours-row-selected' : '';
   const competencyCount = (p.competencies || []).length;
+  const checked = state.selectedIds.has(p.id) ? ' checked' : '';
+  const starTitle = p.featured ? 'Retirer la mise en avant' : 'Mettre en avant';
   return (
-    '<div class="bank-row' + selected + '" onclick="selectParcours(\'' + escapeHtml(p.id) + '\')">' +
-      '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
-        '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
+    '<div class="parcours-row' + selected + '">' +
+      '<label class="parcours-row-checkbox-wrap" onclick="event.stopPropagation()">' +
+        '<input type="checkbox" class="parcours-row-checkbox"' + checked + ' onchange="toggleParcoursSelection(\'' + escapeHtml(p.id) + '\', this.checked)">' +
+      '</label>' +
+      '<div class="parcours-row-body" onclick="selectParcours(\'' + escapeHtml(p.id) + '\')">' +
+        '<div class="parcours-row-top">' +
+          '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
+          '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
+        '</div>' +
+        '<div class="parcours-row-desc">' + escapeHtml((p.description || '').slice(0, 90)) + '</div>' +
+        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' +
+          (p.featured ? ' <span class="bank-badge parcours-featured-badge">' + icon('highlight-star-filled', { size: 12 }) + ' Mis en avant</span>' : '') +
+        '</div>' +
       '</div>' +
-      '<div class="bank-row-question">' + escapeHtml((p.description || '').slice(0, 90)) + '</div>' +
-      '<div class="bank-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)</div>' +
+      '<button type="button" class="parcours-row-star' + (p.featured ? ' parcours-row-star-active' : '') + '" title="' + starTitle + '" onclick="event.stopPropagation(); toggleParcoursFeaturedQuick(\'' + escapeHtml(p.id) + '\')">' + (p.featured ? '★' : '☆') + '</button>' +
     '</div>'
   );
+}
+
+// ---------------------------------------------------------------------------
+// Selection multiple et actions groupees (demande directe de David,
+// 28/07/2026 - "je veux pouvoir cocher plusieurs parcours et les
+// supprimer")
+// ---------------------------------------------------------------------------
+
+// Mise en avant : bascule immediate au clic sur l'etoile, sans passer par
+// la modale de confirmation (action non destructive, instantanement
+// reversible - meme logique qu'un "favori").
+export async function toggleParcoursFeaturedQuick(id) {
+  const p = state.items.find(function(item) { return item.id === id; });
+  if (!p) return;
+  const result = await setParcoursFeatured(p, !p.featured);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    p.featured = !p.featured;
+    renderList(state.items);
+  }
+}
+
+export function toggleParcoursSelection(id, checked) {
+  if (checked) state.selectedIds.add(id); else state.selectedIds.delete(id);
+  renderBulkBar();
+}
+
+export function toggleParcoursSelectAll(checked) {
+  state.items.forEach(function(p) {
+    if (checked) state.selectedIds.add(p.id); else state.selectedIds.delete(p.id);
+  });
+  renderList(state.items);
+}
+
+export function clearParcoursSelection() {
+  state.selectedIds.clear();
+  renderList(state.items);
+}
+
+// Barre d'actions groupees : contenu contextuel au filtre de statut actif
+// (corbeille => restaurer/supprimer definitivement ; sinon => supprimer,
+// qui archive automatiquement au passage si necessaire, voir
+// confirmParcoursAction()). Synchronise aussi la case "Tout sélectionner".
+function renderBulkBar() {
+  const bar = document.getElementById('parcours-bulk-bar');
+  const selectAllCb = document.getElementById('parcours-select-all-checkbox');
+  const visibleIds = state.items.map(function(p) { return p.id; });
+  const selectedVisibleCount = visibleIds.filter(function(id) { return state.selectedIds.has(id); }).length;
+
+  if (selectAllCb) {
+    selectAllCb.checked = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+    selectAllCb.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
+  }
+
+  if (!bar) return;
+  const count = state.selectedIds.size;
+  if (count === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+
+  const isTrashView = state.filters.status === 'trash';
+  bar.style.display = 'flex';
+  bar.innerHTML =
+    '<strong>' + count + ' sélectionné(s)</strong>' +
+    '<button type="button" class="btn-secondary" onclick="clearParcoursSelection()">Désélectionner</button>' +
+    (isTrashView
+      ? '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'restore\')">' + icon('action-restore', { size: 14 }) + ' Restaurer</button>' +
+        (hasPermission(PERMISSIONS.PURGE_PARCOURS) ? '<button type="button" class="btn-secondary bank-delete-btn" onclick="requestBulkParcoursAction(\'delete\')">Supprimer définitivement</button>' : '')
+      : '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
+    ) +
+    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_on\')">★ Mettre en avant</button>' +
+    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_off\')">☆ Retirer la mise en avant</button>';
+}
+
+export function requestBulkParcoursAction(kind) {
+  const ids = Array.from(state.selectedIds);
+  if (ids.length === 0) return;
+
+  let message;
+  if (kind === 'delete') {
+    pendingAction = { kind: 'bulk_delete', ids: ids };
+    message = 'Voulez-vous vraiment supprimer les ' + ids.length + ' parcours sélectionnés ? Les parcours non archivés seront d\'abord archivés puis mis à la corbeille (réversible). Les parcours déjà à la corbeille seront supprimés DÉFINITIVEMENT.';
+  } else if (kind === 'restore') {
+    pendingAction = { kind: 'bulk_restore', ids: ids };
+    message = 'Voulez-vous vraiment restaurer les ' + ids.length + ' parcours sélectionnés depuis la corbeille ?';
+  } else if (kind === 'feature_on' || kind === 'feature_off') {
+    pendingAction = { kind: 'bulk_feature', ids: ids, featured: kind === 'feature_on' };
+    message = (kind === 'feature_on' ? 'Mettre en avant' : 'Retirer la mise en avant pour') + ' les ' + ids.length + ' parcours sélectionnés ?';
+  } else {
+    return;
+  }
+
+  document.getElementById('parcours-confirm-message').textContent = message;
+  document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
 function renderPagination() {
@@ -1220,6 +1339,49 @@ export async function confirmParcoursAction() {
     return;
   }
 
+  // AJOUT (selection multiple, demande directe de David, 28/07/2026) :
+  // meme modale de confirmation que les actions unitaires ci-dessous, mais
+  // boucle sequentielle sur chaque id selectionne - reutilise les memes
+  // fonctions de service unitaires (jamais de route "bulk" cote serveur,
+  // jamais de logique metier dupliquee ici).
+  if (action.kind === 'bulk_delete' || action.kind === 'bulk_restore' || action.kind === 'bulk_feature') {
+    let successCount = 0, failCount = 0;
+    for (const id of action.ids) {
+      const p = state.items.find(function(item) { return item.id === id; });
+      if (!p) { failCount++; continue; }
+
+      let itemResult;
+      if (action.kind === 'bulk_restore') {
+        itemResult = await restoreParcoursFromTrash(p);
+      } else if (action.kind === 'bulk_feature') {
+        itemResult = await setParcoursFeatured(p, action.featured);
+      } else if (p.status === PARCOURS_STATUSES.TRASH) {
+        itemResult = await permanentlyDeleteParcours(p);
+      } else {
+        // Meme workflow que la suppression unitaire (Archive -> Corbeille) :
+        // un parcours non archive doit d'abord etre archive avant de
+        // pouvoir etre mis a la corbeille (voir moveParcoursToTrash(),
+        // parcours-service.js) - jamais de raccourci qui saute cette etape.
+        if (p.status !== PARCOURS_STATUSES.ARCHIVED) {
+          const archiveResult = await archiveParcours(p);
+          if (archiveResult.status !== 'success') { failCount++; continue; }
+        }
+        itemResult = await moveParcoursToTrash(Object.assign({}, p, { status: PARCOURS_STATUSES.ARCHIVED }));
+      }
+
+      if (itemResult && itemResult.status === 'success') successCount++; else failCount++;
+    }
+
+    state.selectedIds.clear();
+    const verb = action.kind === 'bulk_restore' ? 'restauré(s)' : action.kind === 'bulk_feature' ? 'mis à jour' : 'traité(s)';
+    showParcoursMessage(
+      failCount === 0 ? 'success' : 'error',
+      successCount + ' parcours ' + verb + (failCount > 0 ? ', ' + failCount + ' échec(s).' : '.')
+    );
+    await loadPage();
+    return;
+  }
+
   let result;
   if (action.kind === 'publish') result = await publishParcours(action.parcours);
   else if (action.kind === 'archive') result = await archiveParcours(action.parcours);
@@ -1311,3 +1473,8 @@ window.onAssignmentSearchInput = onAssignmentSearchInput;
 window.pickAssignmentTarget = pickAssignmentTarget;
 window.confirmAssignmentPicker = confirmAssignmentPicker;
 window.requestRemoveAssignment = requestRemoveAssignment;
+window.toggleParcoursFeaturedQuick = toggleParcoursFeaturedQuick;
+window.toggleParcoursSelection = toggleParcoursSelection;
+window.toggleParcoursSelectAll = toggleParcoursSelectAll;
+window.clearParcoursSelection = clearParcoursSelection;
+window.requestBulkParcoursAction = requestBulkParcoursAction;

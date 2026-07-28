@@ -337,6 +337,37 @@ export async function permanentlyDeleteParcours(parcours) {
   return success('Parcours supprimé définitivement.');
 }
 
+/**
+ * Active/desactive la mise en avant d'un parcours ("Mis en avant", demande
+ * directe de David, 28/07/2026 - "menu des parcours peu flexible") -
+ * controle manuel par un administrateur, disponible depuis n'importe quel
+ * statut (y compris la corbeille, au cas ou une restauration suivrait).
+ * Jamais calcule automatiquement - aucune metrique d'usage n'est inventee.
+ * @param {object} parcours
+ * @param {boolean} featured
+ * @returns {Promise<object>}
+ */
+export async function setParcoursFeatured(parcours, featured) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  const next = !!featured;
+  if (!!parcours.featured === next) {
+    return denied(next ? 'Ce parcours est déjà mis en avant.' : 'Ce parcours n\'est pas mis en avant.');
+  }
+
+  const result = await updateParcoursFields(parcours.id, { featured: next });
+  if (!result.success) return errorResult('La mise à jour a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'edit_featured', oldValue: !!parcours.featured, newValue: next,
+  }).catch(function() {});
+
+  return success(next ? 'Parcours mis en avant.' : 'Mise en avant retirée.');
+}
+
 // ---------------------------------------------------------------------------
 // Edition limitee des champs du parcours
 // ---------------------------------------------------------------------------

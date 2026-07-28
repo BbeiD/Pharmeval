@@ -285,6 +285,13 @@ export function completeParcoursMetadata(partial) {
     // depuis une valeur explicitement fournie.
     accessTier: p.accessTier || 'free',
     organizationId: p.organizationId || null,
+    // AJOUT (demande directe de David, 28/07/2026, "menu des parcours peu
+    // flexible") : mise en avant manuelle, controlee exclusivement par un
+    // administrateur (voir setParcoursFeatured(), parcours-service.js) -
+    // jamais calculee automatiquement a partir d'une metrique d'usage
+    // (aucune donnee de popularite n'est aujourd'hui fiable/disponible,
+    // "jamais de donnee inventee").
+    featured: !!p.featured,
   };
 }
 
