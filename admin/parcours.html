@@ -122,6 +122,18 @@
   <div class="admin-modal admin-confirm-modal">
     <h3>Confirmation</h3>
     <p id="parcours-confirm-message"></p>
+    <!-- AJOUT (onglet "À la une", demande directe de David, 29/07/2026) :
+         fenetre de dates optionnelle, affichee uniquement quand l'action
+         en cours est une mise en avant (voir showParcoursConfirmDates()) -
+         "à la une" est temporaire (actualite du moment), jamais permanent
+         par defaut sans que l'administrateur ait pu le preciser. -->
+    <div id="parcours-confirm-dates" style="display:none;margin-bottom:14px;">
+      <label class="bank-edit-label">Du (optionnel)</label>
+      <input type="date" id="parcours-confirm-start-date" class="bank-select" style="width:100%;margin-bottom:8px;">
+      <label class="bank-edit-label">Au (optionnel)</label>
+      <input type="date" id="parcours-confirm-end-date" class="bank-select" style="width:100%;">
+      <p class="admin-users-disclaimer" style="margin-top:6px;">Laissez vide pour une mise en avant sans date de fin.</p>
+    </div>
     <div class="btn-row">
       <button class="btn-secondary" onclick="cancelParcoursAction()">Annuler</button>
       <button class="btn-primary" id="parcours-confirm-btn" onclick="confirmParcoursAction()">Confirmer</button>

@@ -13,11 +13,12 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
-import { formatDateFr } from "../js/services/date-utils.js";
+import { formatDateFr, todayDateStr } from "../js/services/date-utils.js";
 import {
   PARCOURS_STATUSES,
   PARCOURS_COLOR_HEX, resolveParcoursColorHex,
   PARCOURS_ICON_PICKER_CHOICES, PARCOURS_DEFAULT_ICON, resolveParcoursIconKey,
+  isParcoursCurrentlyFeatured,
 } from "../js/services/parcours-metadata-service.js";
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
@@ -217,6 +218,21 @@ function rowHtml(p) {
   const competencyCount = (p.competencies || []).length + (state.derivedCompetencyCounts.get(p.id) || 0);
   const checked = state.selectedIds.has(p.id) ? ' checked' : '';
   const starTitle = p.featured ? 'Retirer la mise en avant' : 'Mettre en avant';
+
+  // AJOUT (onglet "À la une", demande directe de David, 29/07/2026) : le
+  // badge distingue "à la une aujourd'hui" (fenetre active ou permanente)
+  // de "mis en avant mais hors fenetre" (dates passees/futures) - jamais
+  // un simple `p.featured` qui masquerait ce caractere temporaire.
+  let featuredBadge = '';
+  if (p.featured) {
+    const isCurrent = isParcoursCurrentlyFeatured(p, todayDateStr());
+    const range = (p.featuredStartDate || p.featuredEndDate)
+      ? ' (' + (p.featuredStartDate ? formatDateFr(p.featuredStartDate) : '…') + ' → ' + (p.featuredEndDate ? formatDateFr(p.featuredEndDate) : '…') + ')'
+      : '';
+    featuredBadge = ' <span class="bank-badge parcours-featured-badge">' + icon('highlight-star-filled', { size: 12 }) +
+      (isCurrent ? ' À la une' : ' Mis en avant (hors période)') + range + '</span>';
+  }
+
   return (
     '<div class="parcours-row' + selected + '">' +
       '<label class="parcours-row-checkbox-wrap" onclick="event.stopPropagation()">' +
@@ -227,8 +243,7 @@ function rowHtml(p) {
           '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
           '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
         '</div>' +
-        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' +
-          (p.featured ? ' <span class="bank-badge parcours-featured-badge">' + icon('highlight-star-filled', { size: 12 }) + ' Mis en avant</span>' : '') +
+        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' + featuredBadge +
         '</div>' +
       '</div>' +
       '<button type="button" class="parcours-row-star' + (p.featured ? ' parcours-row-star-active' : '') + '" title="' + starTitle + '" onclick="event.stopPropagation(); toggleParcoursFeaturedQuick(\'' + escapeHtml(p.id) + '\')">' + (p.featured ? '★' : '☆') + '</button>' +
@@ -242,18 +257,48 @@ function rowHtml(p) {
 // supprimer")
 // ---------------------------------------------------------------------------
 
-// Mise en avant : bascule immediate au clic sur l'etoile, sans passer par
-// la modale de confirmation (action non destructive, instantanement
-// reversible - meme logique qu'un "favori").
+// Mise en avant : retrait immediat au clic sur l'etoile deja active, sans
+// passer par la modale (action non destructive, instantanement
+// reversible - meme logique qu'un "favori"). ACTIVER la mise en avant
+// passe desormais par la modale de confirmation (voir showFeaturedDates())
+// pour proposer une fenetre de dates optionnelle ("à la une", demande
+// directe de David, 29/07/2026 - "parcours temporaires").
 export async function toggleParcoursFeaturedQuick(id) {
   const p = state.items.find(function(item) { return item.id === id; });
   if (!p) return;
-  const result = await setParcoursFeatured(p, !p.featured);
-  showParcoursMessage(result.status, result.message);
-  if (result.status === 'success') {
-    p.featured = !p.featured;
-    renderList(state.items);
+
+  if (p.featured) {
+    const result = await setParcoursFeatured(p, false);
+    showParcoursMessage(result.status, result.message);
+    if (result.status === 'success') {
+      p.featured = false;
+      p.featuredStartDate = null;
+      p.featuredEndDate = null;
+      renderList(state.items);
+    }
+    return;
   }
+
+  pendingAction = { kind: 'feature_on_single', parcours: p };
+  document.getElementById('parcours-confirm-message').textContent = 'Mettre en avant le parcours « ' + p.name + ' » ?';
+  showFeaturedDatesFields(true);
+  document.getElementById('parcours-confirm-overlay').style.display = 'flex';
+}
+
+/**
+ * Affiche/masque le champ de fenetre de dates dans la modale de
+ * confirmation - UNIQUEMENT pertinent pour une mise en avant "ON" (voir
+ * toggleParcoursFeaturedQuick()/requestBulkParcoursAction() ci-dessous).
+ * Reinitialise toujours les deux champs a vide a l'ouverture (jamais une
+ * valeur residuelle d'une precedente ouverture de la modale).
+ * @param {boolean} show
+ */
+function showFeaturedDatesFields(show) {
+  const wrap = document.getElementById('parcours-confirm-dates');
+  if (!wrap) return;
+  wrap.style.display = show ? 'block' : 'none';
+  document.getElementById('parcours-confirm-start-date').value = '';
+  document.getElementById('parcours-confirm-end-date').value = '';
 }
 
 export function toggleParcoursSelection(id, checked) {
@@ -311,6 +356,7 @@ function renderBulkBar() {
 export async function requestBulkParcoursAction(kind) {
   const ids = Array.from(state.selectedIds);
   if (ids.length === 0) return;
+  showFeaturedDatesFields(false); // reinitialise avant chaque ouverture - seule la branche feature_on la reaffiche ci-dessous
 
   let message;
   if (kind === 'delete') {
@@ -322,6 +368,7 @@ export async function requestBulkParcoursAction(kind) {
   } else if (kind === 'feature_on' || kind === 'feature_off') {
     pendingAction = { kind: 'bulk_feature', ids: ids, featured: kind === 'feature_on' };
     message = (kind === 'feature_on' ? 'Mettre en avant' : 'Retirer la mise en avant pour') + ' les ' + ids.length + ' parcours sélectionnés ?';
+    showFeaturedDatesFields(kind === 'feature_on');
   } else if (kind === 'publish') {
     pendingAction = { kind: 'bulk_publish', ids: ids };
     message = 'Voulez-vous vraiment publier les ' + ids.length + ' parcours sélectionnés ? Ils deviendront visibles par tous les utilisateurs.';
@@ -1465,11 +1512,13 @@ export function requestParcoursAction(kind) {
   if (kind === 'purge') extra = ' Cette action est définitive et ne peut pas être annulée.';
   else if (kind === 'trash') extra = ' Ce parcours pourra être restauré depuis la corbeille, ou supprimé définitivement plus tard.';
   document.getElementById('parcours-confirm-message').textContent = 'Voulez-vous vraiment ' + verb + ' le parcours « ' + p.name + ' » ?' + extra;
+  showFeaturedDatesFields(false);
   document.getElementById('parcours-confirm-overlay').style.display = 'flex';
 }
 
 export function cancelParcoursAction() {
   pendingAction = null;
+  showFeaturedDatesFields(false);
   document.getElementById('parcours-confirm-overlay').style.display = 'none';
 }
 
@@ -1478,6 +1527,25 @@ export async function confirmParcoursAction() {
   if (!pendingAction) return;
   const action = pendingAction;
   pendingAction = null;
+
+  // AJOUT (onglet "À la une", demande directe de David, 29/07/2026) : lue
+  // une seule fois ici, avant que showFeaturedDatesFields() ne les
+  // reinitialise a la prochaine ouverture - ignoree par toute action dont
+  // le kind n'est pas lie a la mise en avant.
+  const featuredStartDate = document.getElementById('parcours-confirm-start-date').value || null;
+  const featuredEndDate = document.getElementById('parcours-confirm-end-date').value || null;
+
+  if (action.kind === 'feature_on_single') {
+    const result = await setParcoursFeatured(action.parcours, true, { startDate: featuredStartDate, endDate: featuredEndDate });
+    showParcoursMessage(result.status, result.message);
+    if (result.status === 'success') {
+      action.parcours.featured = true;
+      action.parcours.featuredStartDate = featuredStartDate;
+      action.parcours.featuredEndDate = featuredEndDate;
+      renderList(state.items);
+    }
+    return;
+  }
 
   // NOUVEAU (Sprint 15) : suppression d'une attribution - cas distinct des
   // transitions de statut du parcours ci-dessous (ne concerne jamais le
@@ -1534,7 +1602,8 @@ export async function confirmParcoursAction() {
       if (action.kind === 'bulk_restore') {
         itemResult = await restoreParcoursFromTrash(p);
       } else if (action.kind === 'bulk_feature') {
-        itemResult = await setParcoursFeatured(p, action.featured);
+        itemResult = await setParcoursFeatured(p, action.featured, { startDate: featuredStartDate, endDate: featuredEndDate });
+        if (itemResult && itemResult.status === 'success') { p.featuredStartDate = action.featured ? featuredStartDate : null; p.featuredEndDate = action.featured ? featuredEndDate : null; }
       } else if (action.kind === 'bulk_publish') {
         itemResult = await publishParcours(p);
       } else if (p.status === PARCOURS_STATUSES.TRASH) {

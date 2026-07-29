@@ -21,12 +21,13 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { getSelfServiceCatalogParcours, getOrganizationParcours } from "./services/parcours-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
 import { classificationFromParcoursName } from "./services/parcours-classification-logic.js";
+import { todayDateStr } from "./services/date-utils.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
@@ -62,9 +63,16 @@ const TABS = [
 // parcours" = attribues + catalogue self-service (organizationId===null,
 // union dedupliquee), "Mon organisation" = parcours propres a
 // l'organisation de l'utilisateur (users/{uid}.organizationId).
+// AJOUT (demande directe de David, 29/07/2026, "à la une") : reutilise le
+// flag `featured` existant (jamais un second flag - voir l'echange avec
+// David), borne dans le temps via featuredStartDate/featuredEndDate
+// (isParcoursCurrentlyFeatured(), parcours-metadata-service.js) - "à la
+// une" est temporaire (actualite du moment), jamais une simple mise en
+// avant permanente.
 const TOP_TABS = [
   { key: 'mes-parcours', label: 'Mes parcours' },
   { key: 'organisation', label: 'Mon organisation' },
+  { key: 'a-la-une', label: 'À la une' },
 ];
 
 let state = {
@@ -163,6 +171,17 @@ async function loadEntriesForActiveTopTab(ctx) {
   (assignedResult.error ? [] : assignedResult.items).forEach(function(entry) {
     byId.set(entry.parcours.id, entry); // priorite a la version attribuee (badges/echeance)
   });
+
+  // AJOUT ("À la une", demande directe de David, 29/07/2026) : meme bassin
+  // que "Mes parcours" (attribues + catalogue self-service) - un parcours
+  // "à la une" reste avant tout un parcours normalement accessible a
+  // l'utilisateur, juste filtre en plus sur sa fenetre de mise en avant.
+  if (state.activeTopTab === 'a-la-une') {
+    const today = todayDateStr();
+    const items = Array.from(byId.values()).filter(function(entry) { return isParcoursCurrentlyFeatured(entry.parcours, today); });
+    return { error: false, items: items };
+  }
+
   return { error: false, items: Array.from(byId.values()) };
 }
 
@@ -279,9 +298,10 @@ function groupEntriesByClassification(entries) {
     groups.get(key).push(entry);
   });
 
+  const today = todayDateStr();
   const groupKeys = Array.from(groups.keys()).sort(function(a, b) {
-    const aFeatured = groups.get(a).some(function(e) { return e.parcours.featured; });
-    const bFeatured = groups.get(b).some(function(e) { return e.parcours.featured; });
+    const aFeatured = groups.get(a).some(function(e) { return isParcoursCurrentlyFeatured(e.parcours, today); });
+    const bFeatured = groups.get(b).some(function(e) { return isParcoursCurrentlyFeatured(e.parcours, today); });
     if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
     return a.localeCompare(b, 'fr');
   });
@@ -348,8 +368,8 @@ function cardHtml(entry, attempts, hasActiveSession) {
   // seul effet visible cote utilisateur du bouton "★" admin/parcours.js -
   // sans ce badge, la mise en avant serait un reglage invisible. Tri par
   // mise en avant applique dans renderGrid() (jamais recalcule ici).
-  const featuredBadge = p.featured
-    ? '<span class="bank-chip parcours-featured-badge">' + icon('highlight-star-filled', { size: 13 }) + ' Recommandé</span>' : '';
+  const featuredBadge = isParcoursCurrentlyFeatured(p, todayDateStr())
+    ? '<span class="bank-chip parcours-featured-badge">' + icon('highlight-star-filled', { size: 13 }) + ' À la une</span>' : '';
 
   // AJOUT (demande directe de David, 29/07/2026) : "medaille" des qu'un
   // parcours a deja ete reussi a 100% (meilleur score - meme donnee que

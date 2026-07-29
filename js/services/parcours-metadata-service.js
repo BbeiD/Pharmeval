@@ -297,7 +297,36 @@ export function completeParcoursMetadata(partial) {
     // (aucune donnee de popularite n'est aujourd'hui fiable/disponible,
     // "jamais de donnee inventee").
     featured: !!p.featured,
+    // AJOUT (demande directe de David, 29/07/2026, onglet "À la une") :
+    // un parcours "à la une" est TEMPORAIRE (actualite du moment) - ces
+    // deux dates (chaines 'AAAA-MM-JJ', meme format que todayDateStr(),
+    // date-utils.js - comparables lexicalement) bornent sa fenetre de
+    // visibilite. `null` = pas de borne de ce cote (voir
+    // isParcoursCurrentlyFeatured() ci-dessous, seule fonction habilitee a
+    // interpreter ces deux champs + `featured`).
+    featuredStartDate: p.featuredStartDate || null,
+    featuredEndDate: p.featuredEndDate || null,
   };
+}
+
+/**
+ * Un parcours est REELLEMENT "a la une" aujourd'hui si `featured` est vrai
+ * ET que la date du jour (fournie par l'appelant - todayDateStr(),
+ * date-utils.js - jamais Date.now() ici, ce fichier reste un utilitaire
+ * pur sans horloge implicite) tombe dans sa fenetre [featuredStartDate,
+ * featuredEndDate] (bornes inclusives, chacune optionnelle). SEULE
+ * fonction du projet habilitee a interpreter cette combinaison de champs -
+ * jamais un simple `if (p.featured)` ailleurs, qui ignorerait le
+ * caractere temporaire demande explicitement par David.
+ * @param {{featured?:boolean, featuredStartDate?:(string|null), featuredEndDate?:(string|null)}} parcours
+ * @param {string} todayStr - 'AAAA-MM-JJ'
+ * @returns {boolean}
+ */
+export function isParcoursCurrentlyFeatured(parcours, todayStr) {
+  if (!parcours || !parcours.featured) return false;
+  if (parcours.featuredStartDate && todayStr < parcours.featuredStartDate) return false;
+  if (parcours.featuredEndDate && todayStr > parcours.featuredEndDate) return false;
+  return true;
 }
 
 const MIN_NAME_LENGTH = 3;

@@ -196,7 +196,7 @@ export async function updateParcoursStatus(parcoursId, newStatus) {
  * @returns {Promise<{success:boolean, error:boolean}>}
  */
 export async function updateParcoursFields(parcoursId, fields) {
-  const allowed = ['name', 'description', 'targetAudience', 'color', 'icon', 'competencies', 'sourceIds', 'directQuestionIds', 'accessTier', 'organizationId', 'featured'];
+  const allowed = ['name', 'description', 'targetAudience', 'color', 'icon', 'competencies', 'sourceIds', 'directQuestionIds', 'accessTier', 'organizationId', 'featured', 'featuredStartDate', 'featuredEndDate'];
   const payload = {};
   allowed.forEach(function(key) {
     if (fields && Object.prototype.hasOwnProperty.call(fields, key)) payload[key] = fields[key];
