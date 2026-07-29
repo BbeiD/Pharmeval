@@ -138,6 +138,36 @@ export async function getOpenReportCounts(pedagogicalIds) {
 }
 
 /**
+ * Liste TOUS les signalements (toutes questions confondues), filtres sur
+ * le statut - reserve a l'administration. AJOUT (demande directe de David,
+ * 29/07/2026, "un menu d'ouverture de ticket dans le menu Admin") :
+ * getReportsForQuestion() ci-dessus n'offre qu'une vue par question, pas de
+ * vue d'ensemble - voir admin/reports.js, seul appelant.
+ *
+ * @param {{status?:'open'|'resolved'|'all'}} [options]
+ * @returns {Promise<{items:Array<object>, error:boolean, authorized:boolean}>}
+ */
+export async function listAllQuestionReports(options) {
+  if (!hasPermission(PERMISSIONS.MANAGE_QUESTIONS)) return { items: [], error: false, authorized: false };
+  const status = (options && options.status) || 'open';
+  try {
+    if (!auth.currentUser) return { items: [], error: false, authorized: false };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-reports/all?status=${encodeURIComponent(status)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logReportError('liste des signalements (API ' + res.status + ')', null);
+      return { items: [], error: true, authorized: true };
+    }
+    return await res.json();
+  } catch (err) {
+    logReportError('liste des signalements', err);
+    return { items: [], error: true, authorized: true };
+  }
+}
+
+/**
  * Marque un signalement comme resolu - reserve a l'administration. Ne
  * modifie jamais la question elle-meme (voir en-tete de fichier).
  * @param {string} reportId

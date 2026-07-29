@@ -3011,6 +3011,48 @@ app.get("/api/question-reports", requireAuth, async (req, res) => {
   }
 });
 
+const QUESTION_REPORTS_LIST_LIMIT = 300;
+
+// AJOUT (demande directe de David, 29/07/2026, "un menu d'ouverture de
+// ticket dans le menu Admin") : la route ci-dessus ne renvoie que les
+// signalements d'UNE question precise (pedagogicalId obligatoire) - aucune
+// vue d'ensemble n'existait. Cette route liste TOUS les signalements
+// (toutes questions confondues), filtres sur le statut. Deux requetes
+// distinctes SANS jamais les combiner (where + orderBy sur des champs
+// differents exigerait un index compose) : `status=open|resolved` fait un
+// simple where() (tri fait cote client, meme principe que la route
+// ci-dessus) ; `status=all` fait un orderBy(createdAt) seul (fonctionne
+// sans index compose), borne a QUESTION_REPORTS_LIST_LIMIT.
+app.get("/api/question-reports/all", requireAuth, async (req, res) => {
+  const status = ["open", "resolved", "all"].includes(req.query.status) ? req.query.status : "open";
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.json({ items: [], error: false, authorized: false });
+    }
+    let snap;
+    if (status === "all") {
+      snap = await admin
+        .firestore()
+        .collection(QUESTION_REPORTS_COLLECTION)
+        .orderBy("createdAt", "desc")
+        .limit(QUESTION_REPORTS_LIST_LIMIT)
+        .get();
+    } else {
+      snap = await admin
+        .firestore()
+        .collection(QUESTION_REPORTS_COLLECTION)
+        .where("status", "==", status)
+        .get();
+    }
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    res.json({ items: items.slice(0, QUESTION_REPORTS_LIST_LIMIT), error: false, authorized: true });
+  } catch (err) {
+    console.error("[question-reports/all]", err && err.code, err);
+    res.status(500).json({ items: [], error: true, authorized: true });
+  }
+});
+
 const REPORT_REASONS = ["wrong_answer", "inconsistency", "duplicate", "typo", "other"];
 const REPORT_COMMENT_MAX_LENGTH = 1000;
 const QUESTION_REPORT_COUNTERS_COLLECTION = "question_report_counters";
