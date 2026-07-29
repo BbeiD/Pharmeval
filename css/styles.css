@@ -337,7 +337,11 @@
      d'une colonne (gauche) a une rangee (bas), le logo disparait (plus de
      place utile, l'utilisateur sait deja ou il est une fois connecte). */
   @media (max-width: 780px) {
-    :root { --bottom-nav-height: 60px; }
+    /* AJOUT (demande directe de David, 29/07/2026, "sur la version mobile
+       éclaircis un tout petit peu les cadres") : cartes legerement plus
+       claires qu'au format desktop - se distinguent mieux du fond de page
+       sur un petit ecran, jamais un changement de theme (desktop inchange). */
+    :root { --bottom-nav-height: 60px; --surface: #263449; --surface2: #2E3D54; }
     body { padding-left: 0; padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)); }
 
     .site-sidebar {

@@ -56,10 +56,10 @@
     <!-- AJOUT ("Test me", demande directe de David) : raccourci qui
          court-circuite tout le formulaire ci-dessous - 10 questions
          reparties sur l'ensemble des themes actifs, sans configuration. -->
-    <div id="etl-testme-card" class="import-card" style="text-align:center;">
+    <div id="etl-testme-card" class="import-card" style="text-align:center;border-top:3px solid var(--green);">
       <h3><span class="page-header-icon page-header-icon-green"><i class="ti ti-bolt" aria-hidden="true"></i></span> Envie d'un test rapide ?</h3>
-      <p class="pv-list-empty" style="margin-bottom:14px;">10 questions tirées au hasard sur l'ensemble des thèmes disponibles — aucune configuration nécessaire.</p>
-      <button class="btn-primary" id="etl-testme-btn">Test me !</button>
+      <p class="pv-list-empty" style="margin-bottom:14px;">10 questions au hasard.</p>
+      <button class="btn-primary" id="etl-testme-btn">Me tester !</button>
     </div>
 
     <p class="admin-users-disclaimer" style="text-align:center;margin:14px 0;">— ou configurez précisément votre entraînement ci-dessous —</p>
@@ -67,13 +67,13 @@
     <!-- FORMULAIRE DE FILTRES -->
     <div id="etl-form-card">
 
-      <div class="import-card">
+      <div class="import-card" style="border-top:3px solid var(--green);">
         <h3><span class="page-header-icon page-header-icon-green"><i class="ti ti-book-2" aria-hidden="true"></i></span> Thème(s)</h3>
         <p class="pv-list-empty" style="margin-bottom:10px;">Sélectionnez un ou plusieurs thèmes (choix multiple).</p>
         <div id="etl-source-icons" class="source-tile-grid"></div>
       </div>
 
-      <div class="import-card">
+      <div class="import-card" style="border-top:3px solid var(--green);">
         <h3>Nombre de questions souhaité</h3>
         <input type="number" id="etl-count" class="bank-select" style="max-width:120px;" value="10" min="1" step="1">
         <div class="btn-row">

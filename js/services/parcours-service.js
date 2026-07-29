@@ -147,11 +147,22 @@ export async function getSelfServiceCatalogParcours() {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return { authorized: false, message: 'Vous devez être connecté pour consulter les parcours.', items: [] };
 
-  const result = await queryParcoursPage({ filters: { status: 'published', organizationId: null }, pageSize: 100 });
+  // CORRECTIF (tuiles "Thème(s)" vides en entraînement libre, demande
+  // directe de David, 29/07/2026) : un filtre serveur `organizationId==null`
+  // ne cible QUE les documents portant explicitement `organizationId: null`
+  // (comportement natif de Firestore) - il exclut silencieusement tout
+  // document ou ce champ est simplement ABSENT, ce qui est le cas de TOUS
+  // les Parcours generes par generate-leveled-parcours.mjs (jamais
+  // renseigne). Filtre desormais uniquement sur status cote serveur, et
+  // ecarte cote CLIENT tout parcours REELLEMENT rattache a une
+  // organisation (`!p.organizationId` est vrai aussi bien pour `null` que
+  // pour un champ absent, jamais pour une vraie chaine d'organisation).
+  const result = await queryParcoursPage({ filters: { status: 'published' }, pageSize: 100 });
   if (result.error) {
     return { authorized: true, error: true, message: 'Impossible de charger le catalogue de parcours pour le moment. Réessayez plus tard.', items: [] };
   }
-  return { authorized: true, error: false, items: result.items };
+  const items = (result.items || []).filter(function(p) { return !p.organizationId; });
+  return { authorized: true, error: false, items: items };
 }
 
 /**
