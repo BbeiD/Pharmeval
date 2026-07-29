@@ -47,6 +47,15 @@ export const BANK_TO_THEME = Object.freeze({
   BAPCOC_QDB: 'bapcoc',
   ETUDIANT_QDB: 'etudiant',
   LEG_QDB: 'legislation',
+  // AJOUT (chantier "Parcours à la une" 2026-2027, demande directe de
+  // David, 29/07/2026) : nouvelles questions Gold Standard generees pour le
+  // calendrier editorial "à la une" (voir Pharmeval_Parcours_2026_2027.zip)
+  // - banques dediees a ce lot precis (traçables, jamais melangees aux
+  // banques legacy historiques ci-dessus qui designent chacune un import
+  // reel distinct).
+  ALAUNE_BAPCOC: 'bapcoc',
+  ALAUNE_CONSEIL: 'conseil',
+  ALAUNE_MEDICAMENTS: 'medicaments',
   GAL_QDB: 'galenique',
   ADM_QDB: 'adm',
 });
