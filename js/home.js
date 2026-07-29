@@ -248,15 +248,24 @@ function cardHtml(entry, attempts) {
   const hex = (p.color ? resolveParcoursColorHex(p.color) : null) || '#1D9E75';
   const mandatoryBadge = entry.assignment && entry.assignment.mandatory
     ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
+
+  // AJOUT (demande directe de David, 29/07/2026) : meme medaille + teinte
+  // "reussi" que js/mes-parcours.js#cardHtml() - un parcours termine a
+  // 100% doit le montrer partout ou il apparait, pas seulement sur "Mes
+  // parcours".
+  const isMastered = !!(attempts && attempts.bestPercent === 100);
+  const masteredCls = isMastered ? ' mesparcours-card-mastered' : '';
+  const medalBadge = isMastered ? '<i class="ti ti-medal mesparcours-medal" title="Parcours réussi à 100%"></i>' : '';
+
   return (
-    '<div class="mesparcours-card">' +
+    '<div class="mesparcours-card' + masteredCls + '">' +
       '<div class="mesparcours-card-stripe" style="background:' + escapeHtml(hex) + ';"></div>' +
       '<div class="mesparcours-card-body">' +
         '<div class="mesparcours-card-header">' +
           '<div class="mesparcours-card-icon" style="background:' + escapeHtml(hex) + '22;color:' + escapeHtml(hex) + ';">' +
             renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 22 }) +
           '</div>' +
-          '<h3>' + escapeHtml(p.name) + '</h3>' +
+          '<h3>' + escapeHtml(p.name) + '</h3>' + medalBadge +
         '</div>' +
         '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts) + '</div>' +
