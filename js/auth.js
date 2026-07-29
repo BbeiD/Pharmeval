@@ -14,6 +14,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
@@ -57,7 +58,14 @@ function clearAuthError() {
 // Traduction des erreurs Firebase en messages francais comprehensibles.
 // Ne revele jamais si un compte precis existe ou non (message generique
 // pour identifiants incorrects).
-function mapAuthError(err) {
+//
+// CORRECTIF (ajout de la connexion Microsoft, demande directe de David,
+// 29/07/2026) : `providerLabel` ("Google"/"Microsoft") remplace le "Google"
+// autrefois fige en dur dans les deux messages de popup - jamais un
+// message qui dirait "Google" pour une annulation Microsoft, ou l'inverse.
+// Comportement inchange pour l'appelant existant (doGoogleSignIn()), qui
+// passe "Google" explicitement.
+function mapAuthError(err, providerLabel) {
   var code = (err && err.code) || '';
   switch (code) {
     case 'auth/invalid-email':
@@ -78,9 +86,11 @@ function mapAuthError(err) {
       return "Problème de connexion réseau. Vérifiez votre connexion internet.";
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
-      return "Connexion Google annulée.";
+      return "Connexion " + (providerLabel || 'Google') + " annulée.";
     case 'auth/popup-blocked':
-      return "La fenêtre de connexion Google a été bloquée par le navigateur.";
+      return "La fenêtre de connexion " + (providerLabel || 'Google') + " a été bloquée par le navigateur.";
+    case 'auth/account-exists-with-different-credential':
+      return "Un compte existe déjà avec cette adresse e-mail via un autre mode de connexion.";
     default:
       return "Une erreur est survenue. Veuillez réessayer.";
   }
@@ -118,7 +128,27 @@ async function doGoogleSignIn() {
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   } catch (err) {
-    showAuthError(mapAuthError(err));
+    showAuthError(mapAuthError(err, 'Google'));
+  }
+}
+
+// AJOUT (demande directe de David, 29/07/2026, "ajouter de nouvelles
+// méthodes de connexion") : meme principe exact que doGoogleSignIn()
+// ci-dessus - OAuthProvider('microsoft.com') est le provider generique
+// Firebase pour Microsoft/Azure AD (comptes professionnels Office 365 ET
+// comptes Microsoft personnels, selon la configuration cote Azure/Firebase
+// Console - hors perimetre de ce fichier, voir RAPPORT correspondant).
+// NE FONCTIONNERA PAS tant que le provider "Microsoft" n'est pas active
+// cote Firebase Console (Authentication > Sign-in method), avec un
+// Application ID + Client Secret crees prealablement dans Azure Portal -
+// echoue alors proprement via mapAuthError() ci-dessus, jamais un crash.
+async function doMicrosoftSignIn() {
+  clearAuthError();
+  try {
+    const provider = new OAuthProvider('microsoft.com');
+    await signInWithPopup(auth, provider);
+  } catch (err) {
+    showAuthError(mapAuthError(err, 'Microsoft'));
   }
 }
 
@@ -240,6 +270,7 @@ onAuthStateChanged(auth, async function(user) {
 window.toggleAuthMode = toggleAuthMode;
 window.handleAuthSubmit = handleAuthSubmit;
 window.doGoogleSignIn = doGoogleSignIn;
+window.doMicrosoftSignIn = doMicrosoftSignIn;
 window.doSignOut = doSignOut;
 
 export { revealApp };
