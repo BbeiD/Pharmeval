@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, ACCESS_TIERS } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
 import { calculateOverview } from "./services/statistics-service.js";
@@ -243,6 +243,21 @@ function progressPillsHtml(attempts) {
     '<span class="mesparcours-pill mesparcours-pill-strong">Meilleur score ' + attempts.bestPercent + ' %</span>';
 }
 
+/**
+ * AJOUT (demande directe de David, 29/07/2026) : aucune page/flux d'achat
+ * n'existe encore (hors perimetre, "à termes") - message informatif
+ * seulement, jamais un lien mort vers une page inexistante. Meme
+ * principe que js/mes-parcours.js#showPremiumUpsell().
+ */
+export function showPremiumUpsell() {
+  const el = document.getElementById('home-parcours-message');
+  if (!el) return;
+  el.className = 'admin-message admin-message-denied';
+  el.textContent = 'Les parcours premium ne sont pas encore disponibles à l\'achat. Revenez bientôt !';
+  el.style.display = 'block';
+}
+window.showPremiumUpsell = showPremiumUpsell;
+
 function cardHtml(entry, attempts) {
   const p = entry.parcours;
   const hex = (p.color ? resolveParcoursColorHex(p.color) : null) || '#1D9E75';
@@ -257,6 +272,16 @@ function cardHtml(entry, attempts) {
   const masteredCls = isMastered ? ' mesparcours-card-mastered' : '';
   const medalBadge = isMastered ? '<i class="ti ti-medal mesparcours-medal" title="Parcours réussi à 100%"></i>' : '';
 
+  // AJOUT (demande directe de David, 29/07/2026, "flag gratuit") : meme
+  // traitement que js/mes-parcours.js#cardHtml() - visible mais invite a
+  // passer premium plutot que d'ouvrir directement.
+  const isPremium = p.accessTier === ACCESS_TIERS.PREMIUM;
+  const premiumBadge = isPremium
+    ? '<span class="bank-chip" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 13 }) + ' Premium</span>' : '';
+  const actionBtn = isPremium
+    ? '<button class="btn-secondary" onclick="showPremiumUpsell()">' + icon('highlight-star-premium', { size: 14 }) + ' Passer premium</button>'
+    : '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</a>';
+
   return (
     '<div class="mesparcours-card' + masteredCls + '">' +
       '<div class="mesparcours-card-stripe" style="background:' + escapeHtml(hex) + ';"></div>' +
@@ -267,9 +292,9 @@ function cardHtml(entry, attempts) {
           '</div>' +
           '<h3>' + escapeHtml(p.name) + '</h3>' + medalBadge +
         '</div>' +
-        '<div class="bank-detail-tags-row">' + mandatoryBadge + '</div>' +
+        '<div class="bank-detail-tags-row">' + premiumBadge + mandatoryBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts) + '</div>' +
-        '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</a>' +
+        actionBtn +
       '</div>' +
     '</div>'
   );

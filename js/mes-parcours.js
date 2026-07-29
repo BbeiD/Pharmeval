@@ -21,7 +21,7 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { getSelfServiceCatalogParcours, getOrganizationParcours } from "./services/parcours-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
@@ -379,6 +379,18 @@ function cardHtml(entry, attempts, hasActiveSession) {
   const masteredCls = isMastered ? ' mesparcours-card-mastered' : '';
   const medalBadge = isMastered ? '<i class="ti ti-medal mesparcours-medal" title="Parcours réussi à 100%"></i>' : '';
 
+  // AJOUT (demande directe de David, 29/07/2026, "flag gratuit") : un
+  // parcours premium reste VISIBLE dans la liste (jamais masque) mais son
+  // bouton invite a passer premium plutot que d'ouvrir directement -
+  // AUCUNE restriction reelle n'existe encore (pas de palier payant
+  // fonctionnel), seulement cette indication visuelle preparatoire.
+  const isPremium = p.accessTier === ACCESS_TIERS.PREMIUM;
+  const premiumBadge = isPremium
+    ? '<span class="bank-chip" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 13 }) + ' Premium</span>' : '';
+  const actionBtn = isPremium
+    ? '<button class="btn-secondary" onclick="event.stopPropagation(); showPremiumUpsell()">' + icon('highlight-star-premium', { size: 14 }) + ' Passer premium</button>'
+    : '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</button>';
+
   return (
     '<div class="mesparcours-card' + masteredCls + '">' +
       '<div class="mesparcours-card-stripe" style="background:' + escapeHtml(hex) + ';"></div>' +
@@ -389,13 +401,23 @@ function cardHtml(entry, attempts, hasActiveSession) {
           '</div>' +
           '<h3>' + escapeHtml(p.name) + '</h3>' + medalBadge +
         '</div>' +
-        '<div class="bank-detail-tags-row">' + featuredBadge + mandatoryBadge + dueBadge + '</div>' +
+        '<div class="bank-detail-tags-row">' + featuredBadge + premiumBadge + mandatoryBadge + dueBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts, hasActiveSession) + '</div>' +
-        '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</button>' +
+        actionBtn +
       '</div>' +
     '</div>'
   );
 }
+
+/**
+ * AJOUT (demande directe de David, 29/07/2026) : aucune page/flux d'achat
+ * n'existe encore (hors perimetre, "à termes") - message informatif
+ * seulement, jamais un lien mort vers une page inexistante.
+ */
+export function showPremiumUpsell() {
+  showMessage('denied', 'Les parcours premium ne sont pas encore disponibles à l\'achat. Revenez bientôt !');
+}
+window.showPremiumUpsell = showPremiumUpsell;
 
 // AJOUT (demande directe de David, 28/07/2026 - "je veux que le parcours
 // commence directement") : "Ouvrir" demarre desormais l'evaluation tout de

@@ -34,6 +34,19 @@ export const PARCOURS_STATUSES = Object.freeze({
   TRASH: 'trash',
 });
 
+/**
+ * Paliers d'acces d'un Parcours (demande directe de David, 29/07/2026) :
+ * `accessTier` existait deja dans le modele ("prepare un futur palier
+ * payant", 28/07/2026) mais sans logique ni interface - CE correctif
+ * construit dessus, jamais un nouveau champ. 'free' reste le defaut de
+ * completeParcoursMetadata() ci-dessous - un parcours non explicitement
+ * marque 'premium' reste accessible a tous, comme avant.
+ */
+export const ACCESS_TIERS = Object.freeze({
+  FREE: 'free',
+  PREMIUM: 'premium',
+});
+
 const ID_PREFIX_PARCOURS = 'PARC';
 const ID_PREFIX_COMPETENCY = 'COMP';
 

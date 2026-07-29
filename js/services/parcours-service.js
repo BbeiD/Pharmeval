@@ -24,6 +24,7 @@ import { getCurrentUserContext } from "./app-context.js";
 import {
   PARCOURS_STATUSES,
   PARCOURS_COLORS,
+  ACCESS_TIERS,
   completeParcoursMetadata,
   completeCompetency,
   validateParcoursMetadata,
@@ -390,6 +391,42 @@ export async function setParcoursFeatured(parcours, featured, dates) {
   }).catch(function() {});
 
   return success(next ? 'Parcours mis en avant.' : 'Mise en avant retirée.');
+}
+
+/**
+ * Change le palier d'acces d'un parcours (`accessTier`, demande directe
+ * de David, 29/07/2026 - "à termes je ne rendrai visible que certains
+ * parcours, pour avoir accès aux autres, il faudra être premium") -
+ * construit sur le champ `accessTier` deja present dans le modele
+ * (28/07/2026) mais jusqu'ici jamais exploite. Controle manuel par un
+ * administrateur, meme principe que setParcoursFeatured() ci-dessus -
+ * AUCUNE restriction d'acces reelle n'existe encore cote client (voir
+ * mes-parcours.js/home.js : un parcours 'premium' reste VISIBLE, marque
+ * "Passer premium" au lieu d'un bouton "Ouvrir" - jamais masque).
+ * @param {object} parcours
+ * @param {string} accessTier - ACCESS_TIERS.FREE ou ACCESS_TIERS.PREMIUM
+ * @returns {Promise<object>}
+ */
+export async function setParcoursAccessTier(parcours, accessTier) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  const next = accessTier === ACCESS_TIERS.PREMIUM ? ACCESS_TIERS.PREMIUM : ACCESS_TIERS.FREE;
+  const current = parcours.accessTier || ACCESS_TIERS.FREE;
+  if (current === next) {
+    return denied(next === ACCESS_TIERS.PREMIUM ? 'Ce parcours est déjà premium.' : 'Ce parcours est déjà gratuit.');
+  }
+
+  const result = await updateParcoursFields(parcours.id, { accessTier: next });
+  if (!result.success) return errorResult('La mise à jour a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'edit_access_tier', oldValue: current, newValue: next,
+  }).catch(function() {});
+
+  return success(next === ACCESS_TIERS.PREMIUM ? 'Parcours marqué premium.' : 'Parcours marqué gratuit.');
 }
 
 // ---------------------------------------------------------------------------

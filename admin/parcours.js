@@ -19,10 +19,12 @@ import {
   PARCOURS_COLOR_HEX, resolveParcoursColorHex,
   PARCOURS_ICON_PICKER_CHOICES, PARCOURS_DEFAULT_ICON, resolveParcoursIconKey,
   isParcoursCurrentlyFeatured,
+  ACCESS_TIERS,
 } from "../js/services/parcours-metadata-service.js";
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
   moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours, setParcoursFeatured,
+  setParcoursAccessTier,
   editParcoursMetadata, removeCompetency, moveCompetency,
   linkQuestionToCompetency, unlinkQuestionFromCompetency, searchQuestionsForLinking,
   addCompetencyFromBank, resolveParcoursCompetenciesDisplay,
@@ -218,6 +220,8 @@ function rowHtml(p) {
   const competencyCount = (p.competencies || []).length + (state.derivedCompetencyCounts.get(p.id) || 0);
   const checked = state.selectedIds.has(p.id) ? ' checked' : '';
   const starTitle = p.featured ? 'Retirer la mise en avant' : 'Mettre en avant';
+  const isPremium = p.accessTier === ACCESS_TIERS.PREMIUM;
+  const tierTitle = isPremium ? 'Repasser en gratuit' : 'Marquer comme premium';
 
   // AJOUT (onglet "À la une", demande directe de David, 29/07/2026) : le
   // badge distingue "à la une aujourd'hui" (fenetre active ou permanente)
@@ -233,6 +237,13 @@ function rowHtml(p) {
       (isCurrent ? ' À la une' : ' Mis en avant (hors période)') + range + '</span>';
   }
 
+  // AJOUT (demande directe de David, 29/07/2026, "flag gratuit") :
+  // construit sur accessTier (deja present, jamais exploite jusqu'ici) -
+  // 'free' reste silencieux (comportement historique, tout est gratuit),
+  // seul 'premium' est signale explicitement.
+  const tierBadge = isPremium
+    ? ' <span class="bank-badge" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 12 }) + ' Premium</span>' : '';
+
   return (
     '<div class="parcours-row' + selected + '">' +
       '<label class="parcours-row-checkbox-wrap" onclick="event.stopPropagation()">' +
@@ -243,9 +254,10 @@ function rowHtml(p) {
           '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
           '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
         '</div>' +
-        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' + featuredBadge +
+        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' + featuredBadge + tierBadge +
         '</div>' +
       '</div>' +
+      '<button type="button" class="parcours-row-star' + (isPremium ? ' parcours-row-star-active' : '') + '" title="' + tierTitle + '" onclick="event.stopPropagation(); toggleParcoursAccessTierQuick(\'' + escapeHtml(p.id) + '\')">' + icon('highlight-star-premium', { size: 16 }) + '</button>' +
       '<button type="button" class="parcours-row-star' + (p.featured ? ' parcours-row-star-active' : '') + '" title="' + starTitle + '" onclick="event.stopPropagation(); toggleParcoursFeaturedQuick(\'' + escapeHtml(p.id) + '\')">' + (p.featured ? '★' : '☆') + '</button>' +
     '</div>'
   );
@@ -283,6 +295,21 @@ export async function toggleParcoursFeaturedQuick(id) {
   document.getElementById('parcours-confirm-message').textContent = 'Mettre en avant le parcours « ' + p.name + ' » ?';
   showFeaturedDatesFields(true);
   document.getElementById('parcours-confirm-overlay').style.display = 'flex';
+}
+
+// AJOUT (demande directe de David, 29/07/2026, "flag gratuit") : bascule
+// immediate (aucune date, contrairement a la mise en avant ci-dessus -
+// un palier d'acces n'est pas temporaire) entre gratuit et premium.
+export async function toggleParcoursAccessTierQuick(id) {
+  const p = state.items.find(function(item) { return item.id === id; });
+  if (!p) return;
+  const next = p.accessTier === ACCESS_TIERS.PREMIUM ? ACCESS_TIERS.FREE : ACCESS_TIERS.PREMIUM;
+  const result = await setParcoursAccessTier(p, next);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    p.accessTier = next;
+    renderList(state.items);
+  }
 }
 
 /**
@@ -350,7 +377,9 @@ function renderBulkBar() {
         '<button type="button" class="btn-secondary bank-trash-btn" onclick="requestBulkParcoursAction(\'delete\')">' + icon('action-delete', { size: 14 }) + ' Supprimer</button>'
     ) +
     '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_on\')">★ Mettre en avant</button>' +
-    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_off\')">☆ Retirer la mise en avant</button>';
+    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'feature_off\')">☆ Retirer la mise en avant</button>' +
+    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'tier_premium\')">Marquer premium</button>' +
+    '<button type="button" class="btn-secondary" onclick="requestBulkParcoursAction(\'tier_free\')">Marquer gratuit</button>';
 }
 
 export async function requestBulkParcoursAction(kind) {
@@ -369,6 +398,9 @@ export async function requestBulkParcoursAction(kind) {
     pendingAction = { kind: 'bulk_feature', ids: ids, featured: kind === 'feature_on' };
     message = (kind === 'feature_on' ? 'Mettre en avant' : 'Retirer la mise en avant pour') + ' les ' + ids.length + ' parcours sélectionnés ?';
     showFeaturedDatesFields(kind === 'feature_on');
+  } else if (kind === 'tier_premium' || kind === 'tier_free') {
+    pendingAction = { kind: 'bulk_access_tier', ids: ids, accessTier: kind === 'tier_premium' ? ACCESS_TIERS.PREMIUM : ACCESS_TIERS.FREE };
+    message = 'Marquer les ' + ids.length + ' parcours sélectionnés comme ' + (kind === 'tier_premium' ? 'premium' : 'gratuits') + ' ?';
   } else if (kind === 'publish') {
     pendingAction = { kind: 'bulk_publish', ids: ids };
     message = 'Voulez-vous vraiment publier les ' + ids.length + ' parcours sélectionnés ? Ils deviendront visibles par tous les utilisateurs.';
@@ -1592,7 +1624,7 @@ export async function confirmParcoursAction() {
   // boucle sequentielle sur chaque id selectionne - reutilise les memes
   // fonctions de service unitaires (jamais de route "bulk" cote serveur,
   // jamais de logique metier dupliquee ici).
-  if (action.kind === 'bulk_delete' || action.kind === 'bulk_restore' || action.kind === 'bulk_feature' || action.kind === 'bulk_publish') {
+  if (action.kind === 'bulk_delete' || action.kind === 'bulk_restore' || action.kind === 'bulk_feature' || action.kind === 'bulk_access_tier' || action.kind === 'bulk_publish') {
     let successCount = 0, failCount = 0;
     for (const id of action.ids) {
       const p = state.items.find(function(item) { return item.id === id; });
@@ -1604,6 +1636,9 @@ export async function confirmParcoursAction() {
       } else if (action.kind === 'bulk_feature') {
         itemResult = await setParcoursFeatured(p, action.featured, { startDate: featuredStartDate, endDate: featuredEndDate });
         if (itemResult && itemResult.status === 'success') { p.featuredStartDate = action.featured ? featuredStartDate : null; p.featuredEndDate = action.featured ? featuredEndDate : null; }
+      } else if (action.kind === 'bulk_access_tier') {
+        itemResult = await setParcoursAccessTier(p, action.accessTier);
+        if (itemResult && itemResult.status === 'success') p.accessTier = action.accessTier;
       } else if (action.kind === 'bulk_publish') {
         itemResult = await publishParcours(p);
       } else if (p.status === PARCOURS_STATUSES.TRASH) {
@@ -1624,7 +1659,7 @@ export async function confirmParcoursAction() {
     }
 
     state.selectedIds.clear();
-    const verb = action.kind === 'bulk_restore' ? 'restauré(s)' : action.kind === 'bulk_feature' ? 'mis à jour' : action.kind === 'bulk_publish' ? 'publié(s)' : 'traité(s)';
+    const verb = action.kind === 'bulk_restore' ? 'restauré(s)' : (action.kind === 'bulk_feature' || action.kind === 'bulk_access_tier') ? 'mis à jour' : action.kind === 'bulk_publish' ? 'publié(s)' : 'traité(s)';
     showParcoursMessage(
       failCount === 0 ? 'success' : 'error',
       successCount + ' parcours ' + verb + (failCount > 0 ? ', ' + failCount + ' échec(s).' : '.')
@@ -1724,6 +1759,7 @@ window.pickAssignmentTarget = pickAssignmentTarget;
 window.confirmAssignmentPicker = confirmAssignmentPicker;
 window.requestRemoveAssignment = requestRemoveAssignment;
 window.toggleParcoursFeaturedQuick = toggleParcoursFeaturedQuick;
+window.toggleParcoursAccessTierQuick = toggleParcoursAccessTierQuick;
 window.toggleParcoursSelection = toggleParcoursSelection;
 window.toggleParcoursSelectAll = toggleParcoursSelectAll;
 window.clearParcoursSelection = clearParcoursSelection;
