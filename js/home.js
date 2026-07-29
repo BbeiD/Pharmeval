@@ -106,6 +106,17 @@ onAuthStateChanged(auth, async function(user) {
   ]);
 });
 
+// CORRECTIF (bouton du défi du jour bloque sur "Préparation…", signale
+// par David, 29/07/2026) : le clic sur "Commencer le défi" desactive le
+// bouton puis navigue vers evaluation.html - un retour en arriere ("Précédent"
+// du navigateur) peut restaurer cette page DEPUIS LE BFCACHE (DOM fige tel
+// qu'au depart, aucun script ne se ré-execute), laissant le bouton bloque
+// a l'etat "en preparation" pour toujours. Re-rendre la carte du défi a
+// chaque restauration bfcache (event.persisted) repare ce cas.
+window.addEventListener('pageshow', function(event) {
+  if (event.persisted) renderHero();
+});
+
 function renderWelcomeTitle() {
   const el = document.getElementById('home-welcome-title');
   if (!el) return;

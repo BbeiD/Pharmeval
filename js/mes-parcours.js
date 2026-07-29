@@ -223,8 +223,8 @@ function renderStatsGrid() {
 
   const tiles = [
     { icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(total), label: 'Parcours disponibles' },
-    { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange', value: String(enCours), label: 'En cours' },
-    { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-green', accentCls: '', value: String(terminees), label: 'Terminés au moins une fois' },
+    { icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(enCours), label: 'En cours' },
+    { icon: icon('status-published-active', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue', value: String(terminees), label: 'Terminés au moins une fois' },
   ];
 
   gridEl.innerHTML = tiles.map(function(t) {
@@ -297,19 +297,25 @@ function cardHtml(entry, attempts, hasActiveSession) {
   const featuredBadge = p.featured
     ? '<span class="bank-chip parcours-featured-badge">' + icon('highlight-star-filled', { size: 13 }) + ' Recommandé</span>' : '';
 
+  // AJOUT (demande directe de David, 29/07/2026) : "medaille" des qu'un
+  // parcours a deja ete reussi a 100% (meilleur score - meme donnee que
+  // les pills ci-dessous, jamais une metrique inventee) - la carte prend
+  // en plus une teinte legerement verte et grisee pour signaler l'acquis.
+  const isMastered = !!(attempts && attempts.bestPercent === 100);
+  const masteredCls = isMastered ? ' mesparcours-card-mastered' : '';
+  const medalBadge = isMastered ? '<i class="ti ti-medal mesparcours-medal" title="Parcours réussi à 100%"></i>' : '';
+
   return (
-    '<div class="mesparcours-card">' +
+    '<div class="mesparcours-card' + masteredCls + '">' +
       '<div class="mesparcours-card-stripe" style="background:' + escapeHtml(hex) + ';"></div>' +
       '<div class="mesparcours-card-body">' +
         '<div class="mesparcours-card-header">' +
           '<div class="mesparcours-card-icon" style="background:' + escapeHtml(hex) + '22;color:' + escapeHtml(hex) + ';">' +
             renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 22 }) +
           '</div>' +
-          '<h3>' + escapeHtml(p.name) + '</h3>' +
+          '<h3>' + escapeHtml(p.name) + '</h3>' + medalBadge +
         '</div>' +
-        '<div class="bank-detail-tags-row">' +
-          '<span class="bank-chip bank-badge-published">' + icon('status-published-active', { size: 13 }) + ' Publié</span>' + featuredBadge + mandatoryBadge + dueBadge +
-        '</div>' +
+        '<div class="bank-detail-tags-row">' + featuredBadge + mandatoryBadge + dueBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts, hasActiveSession) + '</div>' +
         '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +
       '</div>' +

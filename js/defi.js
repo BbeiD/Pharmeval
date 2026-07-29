@@ -51,6 +51,19 @@ onAuthStateChanged(auth, async function(user) {
   await loadState();
 });
 
+// CORRECTIF (bouton bloque sur "Préparation du défi…", signale par David,
+// 29/07/2026) : startDefi() desactive le bouton puis navigue vers
+// evaluation.html - si l'utilisateur revient ensuite en arriere (bouton
+// "Precedent" du navigateur), le navigateur peut restaurer cette page
+// DEPUIS LE BFCACHE (DOM fige tel qu'au moment du depart, aucun script
+// ne se ré-execute) plutot que de la recharger - le bouton restait donc
+// affiche a l'etat "en preparation", desactive, pour toujours. Recharger
+// l'etat reel a chaque restauration bfcache (event.persisted) repare ce
+// cas sans jamais recharger inutilement une page normalement chargee.
+window.addEventListener('pageshow', function(event) {
+  if (event.persisted) loadState();
+});
+
 async function loadState() {
   const el = qs('defi-card');
   el.innerHTML = '<div class="bank-list-loading">Chargement…</div>';

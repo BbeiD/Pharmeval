@@ -4,10 +4,6 @@
 // elle-même (js/services/parcours-completion-service.js) est déclenchée
 // par js/history.js, jamais depuis ce fichier.
 
-import { icon } from "./icons.js";
-
-const BUCKET_ICONS = { competency: 'content-skills', source: 'content-sources-catalog', question: 'content-question' };
-
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -31,22 +27,10 @@ function progressBarHtml(percent) {
 function parcoursNodeHtml(item) {
   let html = '<div class="mpc-parcours-card">';
   html += '<div class="mpc-parcours-header">';
-  html += '<a href="parcours-detail.html?id=' + encodeURIComponent(item.parcoursId) + '"><strong>' + escapeHtml(item.name) + '</strong></a>';
+  html += '<a class="mpc-parcours-link" href="parcours-detail.html?id=' + encodeURIComponent(item.parcoursId) + '">' + escapeHtml(item.name) + '</a>';
   html += '<span class="bank-chip">' + item.questionCount + ' question(s)</span>';
   html += '</div>';
   html += progressBarHtml(item.percent);
-
-  if (item.buckets.length > 0) {
-    html += '<div class="mpc-bucket-list">' + item.buckets.map(function(b) {
-      return (
-        '<div class="mpc-bucket-row">' +
-          '<span class="mpc-bucket-label">' + (BUCKET_ICONS[b.type] ? icon(BUCKET_ICONS[b.type], { size: 14 }) : '') + ' ' + escapeHtml(b.label) + ' (' + b.count + ')</span>' +
-          progressBarHtml(b.percent) +
-        '</div>'
-      );
-    }).join('') + '</div>';
-  }
-
   html += '</div>';
   return html;
 }
