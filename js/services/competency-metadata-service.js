@@ -55,13 +55,16 @@ export const COMPETENCY_COLORS = Object.freeze({
  * PARCOURS_COLOR_HEX) - admin/competencies.js et admin/parcours.js (pour
  * l'affichage d'une competence liee) l'utilisent pour peindre les pastilles
  * et les badges de couleur. */
+// CORRECTIF (theme sombre, demande directe de David, 29/07/2026) : memes
+// teintes eclaircies que PARCOURS_COLOR_HEX (voir sa note) - lisibles en
+// texte sur le nouveau fond sombre au lieu du theme clair d'origine.
 export const COMPETENCY_COLOR_HEX = Object.freeze({
-  rouge: '#C62828',
-  orange: '#E65100',
-  jaune: '#F9A825',
-  vert: '#2E7D32',
-  bleu: '#1565C0',
-  violet: '#6A1B9A',
+  rouge: '#EF5350',
+  orange: '#FFA726',
+  jaune: '#FFCA28',
+  vert: '#66BB6A',
+  bleu: '#42A5F5',
+  violet: '#BA68C8',
 });
 
 /**

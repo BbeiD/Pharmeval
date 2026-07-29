@@ -59,13 +59,18 @@ export const PARCOURS_COLORS = Object.freeze({
  * fermee. Seul point de verite pour la correspondance valeur technique ->
  * rendu visuel (voir admin/parcours.js, qui l'utilise pour peindre les
  * pastilles cliquables et l'apercu de la couleur choisie). */
+// CORRECTIF (theme sombre, demande directe de David, 29/07/2026) : ces
+// teintes etaient pensees pour rester lisibles en texte sur un fond blanc
+// (theme clair d'origine) - eclaircies pour rester lisibles en texte sur
+// le nouveau fond sombre (voir :root, css/styles.css) ET sur la pastille
+// translucide (hex+'22') qui les accompagne, sans changer la teinte elle-meme.
 export const PARCOURS_COLOR_HEX = Object.freeze({
-  vert: '#2E7D32',
-  bleu: '#1565C0',
-  orange: '#E65100',
-  violet: '#6A1B9A',
-  rouge: '#C62828',
-  gris: '#616161',
+  vert: '#66BB6A',
+  bleu: '#42A5F5',
+  orange: '#FFA726',
+  violet: '#BA68C8',
+  rouge: '#EF5350',
+  gris: '#B0BEC5',
 });
 
 /**
