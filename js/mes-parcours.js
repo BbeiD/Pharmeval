@@ -152,10 +152,18 @@ function statusForEntry(parcoursId) {
 // id, la version ATTRIBUEE gagne quand un parcours existe dans les deux
 // (garde le badge "Obligatoire"/l'echeance, jamais perdus).
 async function loadEntriesForActiveTopTab(ctx) {
+  const today = todayDateStr();
+
   if (state.activeTopTab === 'organisation') {
     const result = await getOrganizationParcours();
     if (result.error) return { error: true, items: [] };
-    return { error: false, items: result.items.map(function(p) { return { parcours: p, assignment: null }; }) };
+    // CORRECTIF (demande directe de David, 29/07/2026, "un parcours à la
+    // une ne doit apparaitre QUE dans à la une") : exclu ici, jamais un
+    // parcours a la fois dans "Mon organisation" ET "À la une".
+    const items = result.items
+      .filter(function(p) { return !isParcoursCurrentlyFeatured(p, today); })
+      .map(function(p) { return { parcours: p, assignment: null }; });
+    return { error: false, items: items };
   }
 
   const [assignedResult, catalogResult] = await Promise.all([
@@ -177,12 +185,16 @@ async function loadEntriesForActiveTopTab(ctx) {
   // "à la une" reste avant tout un parcours normalement accessible a
   // l'utilisateur, juste filtre en plus sur sa fenetre de mise en avant.
   if (state.activeTopTab === 'a-la-une') {
-    const today = todayDateStr();
     const items = Array.from(byId.values()).filter(function(entry) { return isParcoursCurrentlyFeatured(entry.parcours, today); });
     return { error: false, items: items };
   }
 
-  return { error: false, items: Array.from(byId.values()) };
+  // CORRECTIF (demande directe de David, 29/07/2026) : un parcours "à la
+  // une" ne doit apparaitre QUE dans cet onglet, jamais aussi dans "Mes
+  // parcours" - exclu ici (jamais l'inverse : "Mes parcours" reste le
+  // bassin source de "À la une" ci-dessus, calcule AVANT ce filtre).
+  const items = Array.from(byId.values()).filter(function(entry) { return !isParcoursCurrentlyFeatured(entry.parcours, today); });
+  return { error: false, items: items };
 }
 
 async function loadMyParcours() {
@@ -191,6 +203,13 @@ async function loadMyParcours() {
   const emptyEl = document.getElementById('mesparcours-empty');
   gridEl.innerHTML = '<div class="bank-list-loading">Chargement de vos parcours…</div>';
   emptyEl.style.display = 'none';
+  // CORRECTIF (bandeau d'erreur qui restait affiche apres un changement
+  // d'onglet reussi, demande directe de David, 29/07/2026) : un message
+  // d'une PRECEDENTE tentative en echec n'etait jamais efface au debut
+  // d'un nouveau chargement - persistait jusqu'au rechargement complet de
+  // la page, meme apres un chargement reussi. Efface systematiquement ici,
+  // avant meme de savoir si CE chargement va reussir.
+  showMessage(null, null);
 
   const [entriesResult, attemptResult] = await Promise.all([
     loadEntriesForActiveTopTab(ctx),

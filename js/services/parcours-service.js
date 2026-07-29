@@ -182,11 +182,20 @@ export async function getOrganizationParcours() {
   const organizationId = (userDoc && userDoc.organizationId) || null;
   if (!organizationId) return { authorized: true, error: false, items: [], organizationId: null };
 
-  const result = await queryParcoursPage({ filters: { status: 'published', organizationId: organizationId }, pageSize: 100 });
+  // CORRECTIF (bandeau rouge persistant sur "Mon organisation", demande
+  // directe de David, 29/07/2026) : un filtre serveur combinant
+  // status==published ET organizationId==X, ordonne par createdAt, exige
+  // un index compose (status, organizationId, createdAt) qui n'existe pas
+  // (voir firestore.indexes.json) - la requete echouait donc SYSTEMATIQUEMENT
+  // (jamais "vide legitimement", une vraie erreur Firestore a chaque appel).
+  // Meme correctif que getSelfServiceCatalogParcours() ci-dessus : filtre
+  // uniquement sur status cote serveur, organizationId cote CLIENT.
+  const result = await queryParcoursPage({ filters: { status: 'published' }, pageSize: 100 });
   if (result.error) {
     return { authorized: true, error: true, message: 'Impossible de charger les parcours de votre organisation pour le moment. Réessayez plus tard.', items: [], organizationId: organizationId };
   }
-  return { authorized: true, error: false, items: result.items, organizationId: organizationId };
+  const items = (result.items || []).filter(function(p) { return p.organizationId === organizationId; });
+  return { authorized: true, error: false, items: items, organizationId: organizationId };
 }
 
 // ---------------------------------------------------------------------------
