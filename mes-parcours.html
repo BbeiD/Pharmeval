@@ -29,9 +29,17 @@
 
   <div id="mesparcours-message" class="admin-message" style="display:none;"></div>
 
-  <div class="card">
-    <div id="mesparcours-top-tabs" class="bank-tabs" style="margin-bottom:var(--space-2);"></div>
-    <div id="mesparcours-tabs" class="bank-tabs"></div>
+  <!-- AJOUT (demande directe de David, 29/07/2026, capture d'un module
+       "Navigation" a onglets fourni en reference) : "Mes parcours"/"Mon
+       organisation" sont desormais de vrais onglets "en fiche cartonnee" -
+       accroches au-dessus du panneau (folder-tabs), l'onglet actif se
+       fond visuellement avec le panneau (meme couleur de fond), les
+       inactifs restent en retrait - plutot que des pilules identiques
+       aux filtres de statut juste en-dessous (Toutes/En cours/...),
+       jusqu'ici visuellement indiscernables des deux. -->
+  <div id="mesparcours-top-tabs" class="folder-tabs"></div>
+  <div class="card mesparcours-panel">
+    <div id="mesparcours-tabs" class="bank-tabs" style="margin-bottom:var(--space-3);"></div>
 
     <div id="mesparcours-empty" class="bank-list-empty" style="display:none;"></div>
 

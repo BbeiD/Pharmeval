@@ -101,8 +101,8 @@ function renderTopTabs() {
   const el = document.getElementById('mesparcours-top-tabs');
   if (!el) return;
   el.innerHTML = TOP_TABS.map(function(t) {
-    const activeCls = t.key === state.activeTopTab ? ' bank-tab-active' : '';
-    return '<button type="button" class="bank-tab' + activeCls + '" onclick="selectMesFormationsTopTab(\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
+    const activeCls = t.key === state.activeTopTab ? ' folder-tab-active' : '';
+    return '<button type="button" class="folder-tab' + activeCls + '" onclick="selectMesFormationsTopTab(\'' + t.key + '\')">' + escapeHtml(t.label) + '</button>';
   }).join('');
 }
 

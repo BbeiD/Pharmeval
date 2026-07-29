@@ -1667,6 +1667,25 @@
   .bank-tab:hover { border-color: var(--green); color: var(--green-dark); }
   .bank-tab-active { background: var(--green); border-color: var(--green); color: white; font-weight: 600; }
 
+  /* ---- AJOUT (demande directe de David, 29/07/2026, "un systeme comme
+     la capture" - module de navigation a onglets fourni en reference) :
+     onglets "en fiche cartonnee" accroches au-dessus d'un panneau (voir
+     mes-parcours.html/js) - l'onglet actif se fond avec le panneau
+     (meme fond, aucune bordure basse), les inactifs restent en retrait
+     (fond --bg, legerement recules). Volontairement DISTINCT de
+     .bank-tab (pilules) juste en-dessous - deux niveaux de filtre
+     differents ne doivent jamais se ressembler au point d'etre confondus. ---- */
+  .folder-tabs { display: flex; gap: 3px; padding-left: var(--space-3); margin-bottom: -1px; position: relative; z-index: 1; }
+  .folder-tab {
+    padding: 10px 22px; font-size: 13px; font-weight: 700; color: var(--text2);
+    background: var(--bg); border: 1.5px solid var(--border2); border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .folder-tab:hover { color: var(--text); }
+  .folder-tab-active { color: var(--green-dark); background: var(--surface); }
+  .mesparcours-panel { position: relative; z-index: 0; }
+
 
   /* Colonne droite : fiche produit */
   .bank-detail-placeholder {
