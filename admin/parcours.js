@@ -24,7 +24,7 @@ import {
 import {
   browseParcours, createParcours, publishParcours, archiveParcours, revertParcoursToDraft,
   moveParcoursToTrash, restoreParcoursFromTrash, permanentlyDeleteParcours, setParcoursFeatured,
-  setParcoursAccessTier,
+  setParcoursAccessTier, setParcoursOrganization,
   editParcoursMetadata, removeCompetency, moveCompetency,
   linkQuestionToCompetency, unlinkQuestionFromCompetency, searchQuestionsForLinking,
   addCompetencyFromBank, resolveParcoursCompetenciesDisplay,
@@ -35,6 +35,7 @@ import {
   getParcoursTimeline,
 } from "../js/services/parcours-service.js";
 import { browseCompetencies } from "../js/services/competency-service.js";
+import { organizationsBank } from "../js/services/organizations-bank-service.js";
 import { browseDocumentSources } from "../js/services/document-source-service.js";
 import { DOCUMENT_SOURCE_TYPE_LABELS } from "../js/services/document-source-metadata-service.js";
 import { browseQuestions } from "../js/services/question-bank-service.js";
@@ -73,6 +74,11 @@ let state = {
   // filtre, tri, pagination) pour ne jamais agir sur un parcours qui n'est
   // plus dans la vue courante (voir loadPage()).
   selectedIds: new Set(),
+  // AJOUT (attribution a une organisation, demande directe de David,
+  // 29/07/2026) : liste des organisations chargee UNE SEULE FOIS (peu
+  // nombreuses, jamais paginee ici) pour peupler le selecteur de la fiche
+  // detaillee - null tant qu'elle n'a pas encore ete chargee.
+  organizations: null,
 };
 let pendingAction = null;      // { kind, parcours }
 let linkingCompetencyId = null; // competence en cours de liaison (panneau de recherche de questions)
@@ -244,6 +250,16 @@ function rowHtml(p) {
   const tierBadge = isPremium
     ? ' <span class="bank-badge" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 12 }) + ' Premium</span>' : '';
 
+  // AJOUT (attribution a une organisation, demande directe de David,
+  // 29/07/2026) : le nom reel n'est affiche que si state.organizations
+  // est deja charge (voir selectParcours()) - jamais rechargee ici, un
+  // libelle generique suffit avant la premiere ouverture d'une fiche.
+  let orgBadge = '';
+  if (p.organizationId) {
+    const org = (state.organizations || []).find(function(o) { return o.id === p.organizationId; });
+    orgBadge = ' <span class="bank-badge">' + icon('content-organisation', { size: 12 }) + ' ' + escapeHtml(org ? org.name : 'Organisation') + '</span>';
+  }
+
   return (
     '<div class="parcours-row' + selected + '">' +
       '<label class="parcours-row-checkbox-wrap" onclick="event.stopPropagation()">' +
@@ -254,7 +270,7 @@ function rowHtml(p) {
           '<span class="bank-row-id">' + renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 16 }) + ' ' + escapeHtml(p.name) + '</span>' +
           '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
         '</div>' +
-        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' + featuredBadge + tierBadge +
+        '<div class="parcours-row-meta">' + escapeHtml(p.targetAudience || '—') + ' · ' + competencyCount + ' compétence(s)' + featuredBadge + tierBadge + orgBadge +
         '</div>' +
       '</div>' +
       '<button type="button" class="parcours-row-star' + (isPremium ? ' parcours-row-star-active' : '') + '" title="' + tierTitle + '" onclick="event.stopPropagation(); toggleParcoursAccessTierQuick(\'' + escapeHtml(p.id) + '\')">' + icon('highlight-star-premium', { size: 16 }) + '</button>' +
@@ -308,6 +324,21 @@ export async function toggleParcoursAccessTierQuick(id) {
   showParcoursMessage(result.status, result.message);
   if (result.status === 'success') {
     p.accessTier = next;
+    renderList(state.items);
+  }
+}
+
+// AJOUT (attribution a une organisation, demande directe de David,
+// 29/07/2026) : selecteur de la fiche detaillee (voir detailHtml()) -
+// bascule immediate, aucune confirmation (reversible en un clic, meme
+// principe que la mise en avant/le palier d'acces ci-dessus).
+export async function onParcoursOrganizationChange(id, organizationId) {
+  const p = state.items.find(function(item) { return item.id === id; });
+  if (!p) return;
+  const result = await setParcoursOrganization(p, organizationId || null);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    p.organizationId = organizationId || null;
     renderList(state.items);
   }
 }
@@ -697,6 +728,15 @@ export async function selectParcours(id) {
   // dont la fiche Banque porte deja un `competencyId` n'affichait donc
   // jamais sa competence ici. Necessite pooledQuestionIds (resolvePooledQuestionIds),
   // calcule a partir du parcours BRUT (pas des versions deja resolues).
+  // AJOUT (attribution a une organisation, demande directe de David,
+  // 29/07/2026) : chargee UNE SEULE FOIS (state.organizations reste en
+  // cache pour les selections suivantes) - jamais rechargee a chaque
+  // ouverture de fiche.
+  if (state.organizations === null) {
+    const orgResult = await organizationsBank.browse({ filters: { status: 'published' }, pageSize: 200 });
+    state.organizations = orgResult.error ? [] : orgResult.items;
+  }
+
   const [resolvedCompetencies, resolvedDirect, pooledQuestionIds] = await Promise.all([
     resolveParcoursCompetenciesDisplay(p),
     resolveParcoursDirectContentDisplay(p),
@@ -737,6 +777,22 @@ function detailHtml(p, resolvedCompetencies, resolvedDirect, derivedCompetencies
   html += '<div class="bank-detail-row"><strong>Auteur :</strong> ' + escapeHtml(p.author || '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Créé le :</strong> ' + escapeHtml(p.createdAt ? formatDateFr(p.createdAt) : '—') + '</div>';
   html += '<div class="bank-detail-row"><strong>Modifié le :</strong> ' + escapeHtml(p.updatedAt ? formatDateFr(p.updatedAt) : '—') + '</div>';
+  html += '</div>';
+
+  // AJOUT (attribution a une organisation, demande directe de David,
+  // 29/07/2026, "un parcours puisse être attribué à une organisation -
+  // il apparait uniquement dans 'mon organisation' et toutes les
+  // personnes rattachées à cette organisation ont accès") : construit sur
+  // le champ organizationId deja present dans le modele (Sprint 20.2)
+  // mais jamais exploite depuis cet ecran jusqu'ici.
+  html += '<div class="bank-detail-section"><h4>Organisation</h4>';
+  html += '<select class="bank-select" style="width:100%;" onchange="onParcoursOrganizationChange(\'' + escapeHtml(p.id) + '\', this.value)">';
+  html += '<option value=""' + (!p.organizationId ? ' selected' : '') + '>Catalogue global (self-service, aucune organisation)</option>';
+  (state.organizations || []).forEach(function(org) {
+    html += '<option value="' + escapeHtml(org.id) + '"' + (p.organizationId === org.id ? ' selected' : '') + '>' + escapeHtml(org.name) + '</option>';
+  });
+  html += '</select>';
+  html += '<p class="admin-users-disclaimer" style="margin-top:6px;">Un parcours attribué à une organisation n\'apparaît que dans "Mon organisation", pour les personnes qui y sont rattachées.</p>';
   html += '</div>';
 
   html += '<div class="bank-detail-section"><h4>Compétences (' + competencies.length + ')</h4>';
@@ -1760,6 +1816,7 @@ window.confirmAssignmentPicker = confirmAssignmentPicker;
 window.requestRemoveAssignment = requestRemoveAssignment;
 window.toggleParcoursFeaturedQuick = toggleParcoursFeaturedQuick;
 window.toggleParcoursAccessTierQuick = toggleParcoursAccessTierQuick;
+window.onParcoursOrganizationChange = onParcoursOrganizationChange;
 window.toggleParcoursSelection = toggleParcoursSelection;
 window.toggleParcoursSelectAll = toggleParcoursSelectAll;
 window.clearParcoursSelection = clearParcoursSelection;

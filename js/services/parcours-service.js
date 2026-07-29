@@ -438,6 +438,41 @@ export async function setParcoursAccessTier(parcours, accessTier) {
   return success(next === ACCESS_TIERS.PREMIUM ? 'Parcours marqué premium.' : 'Parcours marqué gratuit.');
 }
 
+/**
+ * Attribue un parcours a une organisation (ou le remet au catalogue
+ * self-service global si `organizationId` est null) - demande directe de
+ * David, 29/07/2026 : "un parcours puisse être attribué à une organisation
+ * [...] il apparait uniquement dans 'mon organisation' et [...] toutes les
+ * personnes rattachées à cette organisation ont accès". Le champ
+ * `organizationId` existait deja dans le modele (Sprint 20.2) et est deja
+ * lu par getOrganizationParcours()/getSelfServiceCatalogParcours() - AUCUNE
+ * interface ne permettait jusqu'ici de le renseigner reellement.
+ * @param {object} parcours
+ * @param {string|null} organizationId - id d'une organisation existante, ou null
+ * @returns {Promise<object>}
+ */
+export async function setParcoursOrganization(parcours, organizationId) {
+  const access = checkAccess();
+  if (access.status !== 'authorized') return denied(access.message);
+  if (!parcours || !parcours.id) return errorResult('Parcours cible introuvable.');
+  const next = organizationId || null;
+  const current = parcours.organizationId || null;
+  if (current === next) {
+    return denied(next ? 'Ce parcours est déjà attribué à cette organisation.' : 'Ce parcours fait déjà partie du catalogue global.');
+  }
+
+  const result = await updateParcoursFields(parcours.id, { organizationId: next });
+  if (!result.success) return errorResult('La mise à jour a échoué. Veuillez réessayer.');
+
+  const ctx = getCurrentUserContext();
+  logParcoursAction({
+    adminUid: ctx && ctx.uid, adminEmail: ctx && ctx.email,
+    parcoursId: parcours.id, actionType: 'edit_organization', oldValue: current, newValue: next,
+  }).catch(function() {});
+
+  return success(next ? 'Parcours attribué à l\'organisation.' : 'Parcours remis au catalogue global.');
+}
+
 // ---------------------------------------------------------------------------
 // Edition limitee des champs du parcours
 // ---------------------------------------------------------------------------
