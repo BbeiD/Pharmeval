@@ -100,7 +100,7 @@ export function renderSiteHeader(activeKey) {
         '<img class="logo" src="' + escapeHtml(base + 'assets/brand/pharmeval-mark.png') + '" alt="">' +
         '<span class="sh-logo-text">' +
           '<span class="sh-app-name">Pharmeval</span>' +
-          '<span class="sh-app-tagline">Apprendre · Comprendre · Progresser</span>' +
+          '<span class="sh-app-tagline">Se tester. Comprendre. Progresser.</span>' +
         '</span>' +
       '</a>' +
       '<nav class="sh-nav" aria-label="Navigation principale">' + navHtml + '</nav>' +
