@@ -366,14 +366,29 @@
      au reste du site) - chaque carte se retrouvait ecrasee sur ~100px de
      large sur un telephone. Regle deplacee ici pour pouvoir la surcharger
      proprement en media query. */
-  .home-duo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-  @media (max-width: 700px) {
-    .home-duo-grid { grid-template-columns: 1fr; }
-  }
+  /* CORRECTIF (demande directe de David, 29/07/2026, "l'un a cote de
+     l'autre" meme sur mobile) : ces deux cartes restent cote a cote a
+     toutes les largeurs - l'empilement en 1 colonne sous 700px a ete
+     retire expressement. */
+  .home-duo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 
   /* VIEWS */
   #home-view { display: block; }
   #quiz-view, #results-view { display: none; }
+
+  /* AJOUT (demande directe de David, 29/07/2026) : sur mobile, "Vos
+     parcours" remonte AVANT "Votre progression globale"/"Activité
+     récente" - le reste (bienvenue, stats, entraînement libre) garde son
+     ordre naturel (order:0 par defaut, jamais touche ici). Placee APRES
+     "#home-view { display: block; }" ci-dessus (meme specificite : la
+     regle la PLUS TARDIVE dans le fichier l'emporte, y compris sous une
+     media query - jamais avant, sans quoi ce display:flex serait
+     silencieusement ecrase). */
+  @media (max-width: 780px) {
+    #home-view { display: flex; flex-direction: column; }
+    .home-parcours-card { order: 1; }
+    .home-duo-grid { order: 2; }
+  }
 
   /* HOME */
   .section-label {

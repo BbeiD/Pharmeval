@@ -26,6 +26,7 @@ import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-s
 import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+import { classificationFromParcoursName } from "./services/parcours-classification-logic.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
@@ -238,20 +239,65 @@ function renderStatsGrid() {
   }).join('');
 }
 
+// AJOUT (demande directe de David, 29/07/2026, "regroupé par thème -
+// d'abord la douleur (tous les niveaux) puis un autre thème...") : cle de
+// tri au sein d'UNE classification - Niveau 1 avant Niveau 2 avant
+// Niveau 3, puis "partie X/Y" dans l'ordre si le niveau est lui-meme
+// scinde (voir generate-leveled-parcours.mjs) - jamais un ordre issu de
+// Firestore (createdAt), imprevisible pour l'utilisateur.
+function levelSortKey(name) {
+  const s = (name || '').toString();
+  const levelMatch = /Niveau (\d+)/.exec(s);
+  const level = levelMatch ? parseInt(levelMatch[1], 10) : 99;
+  const partMatch = /partie (\d+)\/\d+/.exec(s);
+  const part = partMatch ? parseInt(partMatch[1], 10) : 0;
+  return level * 100 + part;
+}
+
+/**
+ * Regroupe des entrees (deja filtrees) par classification (voir
+ * parcours-classification-logic.js) - toutes les parties/niveaux d'UN
+ * theme restent adjacents, dans l'ordre des niveaux. Les groupes
+ * contenant un parcours mis en avant passent en tete, sinon ordre
+ * alphabetique de la classification.
+ * @param {Array<object>} entries
+ * @returns {Array<object>}
+ */
+function groupEntriesByClassification(entries) {
+  const groups = new Map();
+  entries.forEach(function(entry) {
+    const key = classificationFromParcoursName(entry.parcours.name);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+
+  const groupKeys = Array.from(groups.keys()).sort(function(a, b) {
+    const aFeatured = groups.get(a).some(function(e) { return e.parcours.featured; });
+    const bFeatured = groups.get(b).some(function(e) { return e.parcours.featured; });
+    if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
+    return a.localeCompare(b, 'fr');
+  });
+
+  const result = [];
+  groupKeys.forEach(function(key) {
+    const groupEntries = groups.get(key).slice().sort(function(a, b) {
+      return levelSortKey(a.parcours.name) - levelSortKey(b.parcours.name);
+    });
+    result.push.apply(result, groupEntries);
+  });
+  return result;
+}
+
 function renderGrid() {
   const gridEl = document.getElementById('mesparcours-grid');
   const emptyEl = document.getElementById('mesparcours-empty');
 
-  // AJOUT (mise en avant admin, demande directe de David, 28/07/2026) :
-  // les parcours mis en avant remontent en tete de liste - tri stable
-  // (Array.prototype.sort en JS moderne preserve l'ordre relatif des
-  // elements a egalite), jamais un tri secondaire invente.
-  const filtered = state.entries
-    .filter(function(entry) {
+  const filtered = groupEntriesByClassification(
+    state.entries.filter(function(entry) {
       if (state.activeTab === 'toutes') return true;
       return statusForEntry(entry.parcours.id) === state.activeTab;
     })
-    .sort(function(a, b) { return (b.parcours.featured ? 1 : 0) - (a.parcours.featured ? 1 : 0); });
+  );
 
   if (filtered.length === 0) {
     gridEl.innerHTML = '';
@@ -317,7 +363,7 @@ function cardHtml(entry, attempts, hasActiveSession) {
         '</div>' +
         '<div class="bank-detail-tags-row">' + featuredBadge + mandatoryBadge + dueBadge + '</div>' +
         '<div class="mesparcours-pills">' + progressPillsHtml(attempts, hasActiveSession) + '</div>' +
-        '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">Ouvrir</button>' +
+        '<button class="btn-primary" onclick="openParcours(\'' + escapeHtml(p.id) + '\')">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</button>' +
       '</div>' +
     '</div>'
   );
