@@ -241,14 +241,22 @@ function renderStatsGrid() {
 
 // AJOUT (demande directe de David, 29/07/2026, "regroupé par thème -
 // d'abord la douleur (tous les niveaux) puis un autre thème...") : cle de
-// tri au sein d'UNE classification - Niveau 1 avant Niveau 2 avant
-// Niveau 3, puis "partie X/Y" dans l'ordre si le niveau est lui-meme
+// tri au sein d'UNE classification - Fondamental avant Approfondi avant
+// Expert, puis "partie X/Y" dans l'ordre si le niveau est lui-meme
 // scinde (voir generate-leveled-parcours.mjs) - jamais un ordre issu de
 // Firestore (createdAt), imprevisible pour l'utilisateur.
+//
+// CORRECTIF (demande directe de David, 29/07/2026, "niveau 1 2 3 OU la
+// difficulte, pas les deux") : le nom ne porte plus "Niveau N (Xxx)" mais
+// uniquement le mot de difficulte ("Douleur... — Fondamental") - les 56
+// Parcours existants ont ete renommes en base pour retirer la
+// redondance. Cle de tri desormais basee sur ce mot, jamais un numero de
+// niveau qui n'existe plus dans le nom.
+const DIFFICULTY_SORT_ORDER = { 'Fondamental': 1, 'Approfondi': 2, 'Expert': 3 };
 function levelSortKey(name) {
   const s = (name || '').toString();
-  const levelMatch = /Niveau (\d+)/.exec(s);
-  const level = levelMatch ? parseInt(levelMatch[1], 10) : 99;
+  const difficultyMatch = /Fondamental|Approfondi|Expert/.exec(s);
+  const level = difficultyMatch ? (DIFFICULTY_SORT_ORDER[difficultyMatch[0]] || 99) : 99;
   const partMatch = /partie (\d+)\/\d+/.exec(s);
   const part = partMatch ? parseInt(partMatch[1], 10) : 0;
   return level * 100 + part;
