@@ -24,13 +24,11 @@
 // sans jamais devoir toucher a parcours-detail.js pour la logique
 // existante.
 
-import { getAssignedParcoursForUser } from "./assignment-service.js";
 import {
   resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolvePooledQuestionIds,
+  resolveAccessibleParcoursEntry,
 } from "./parcours-service.js";
-import { getParcoursById } from "./parcours-catalog-service.js";
-import { getUserByUid } from "./user-management-service.js";
-import { PARCOURS_STATUSES } from "./parcours-metadata-service.js";
+import { PREMIUM_REQUIRED_MESSAGE } from "./parcours-metadata-service.js";
 import { COMPETENCY_LEVELS } from "./competency-metadata-service.js";
 
 // Echelle numerique UNIQUEMENT interne a ce fichier (jamais stockee, jamais
@@ -100,33 +98,17 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
   if (!parcoursId) return { authorized: false, message: 'Parcours introuvable.' };
   if (!uid) return { authorized: false, message: 'Vous devez être connecté pour consulter un parcours.' };
 
-  const assigned = await getAssignedParcoursForUser(uid);
-  if (assigned.error) {
+  const resolved = await resolveAccessibleParcoursEntry(uid, parcoursId);
+  if (resolved.error) {
     return { authorized: false, error: true, message: 'Impossible de vérifier vos parcours pour le moment. Réessayez plus tard.' };
   }
 
-  let entry = assigned.items.find(function(e) { return e.parcours.id === parcoursId; });
+  const entry = resolved.entry;
 
-  // AJOUT (chantier "Mes parcours en self-service" / "Mon organisation",
-  // demande directe de David, 28/07/2026) : un parcours SANS attribution
-  // formelle reste ouvrable s'il fait partie du catalogue self-service
-  // (organizationId === null) ou de l'organisation de l'utilisateur -
-  // DECISION PRODUIT EXPLICITE, pas un contournement : ne remplace jamais
-  // la verification ci-dessus pour un parcours reellement attribue/
-  // obligatoire (toujours prioritaire quand elle existe).
   if (!entry) {
-    const candidate = await getParcoursById(parcoursId);
-    if (candidate && candidate.status === PARCOURS_STATUSES.PUBLISHED) {
-      let selfServiceAllowed = candidate.organizationId === null || candidate.organizationId === undefined;
-      if (!selfServiceAllowed) {
-        const userDoc = await getUserByUid(uid);
-        selfServiceAllowed = !!(userDoc && userDoc.organizationId && userDoc.organizationId === candidate.organizationId);
-      }
-      if (selfServiceAllowed) entry = { parcours: candidate, assignment: null };
+    if (resolved.reason === 'premium_required') {
+      return { authorized: false, message: PREMIUM_REQUIRED_MESSAGE };
     }
-  }
-
-  if (!entry) {
     return { authorized: false, message: 'Ce parcours ne vous a pas été attribué, ou n\'est plus disponible.' };
   }
 

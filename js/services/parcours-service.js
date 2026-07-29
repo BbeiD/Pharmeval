@@ -46,6 +46,8 @@ import {
 import { getCompetencyById, getCompetenciesByIds } from "./competency-catalog-service.js";
 import { getDocumentSourceById, getDocumentSourcesByIds } from "./document-source-catalog-service.js";
 import { getUserByUid } from "./user-management-service.js";
+import { getAssignedParcoursForUser } from "./assignment-service.js";
+import { getParcoursById } from "./parcours-catalog-service.js";
 
 const MIN_PARCOURS_NAME_LENGTH = 3;
 
@@ -196,6 +198,53 @@ export async function getOrganizationParcours() {
   }
   const items = (result.items || []).filter(function(p) { return p.organizationId === organizationId; });
   return { authorized: true, error: false, items: items, organizationId: organizationId };
+}
+
+// CORRECTIF (demande directe de David, 29/07/2026, "évaluation indisponible"
+// sur un parcours accessible par défaut) : parcours-view-service.js#getParcoursDetailForUser()
+// autorisait deja la CONSULTATION d'un parcours self-service (organizationId
+// null/absent) ou de l'organisation de l'utilisateur, meme sans attribution
+// formelle - mais parcours-evaluation-service.js#prepareEvaluation()/
+// prepareParcoursMixedEvaluation() ne verifiaient QUE getAssignedParcoursForUser(),
+// donc refusaient de DEMARRER l'evaluation d'un parcours pourtant ouvrable.
+// Centralise ici (SEULE source de verite, reutilisee par les deux fichiers)
+// pour ne plus jamais desynchroniser "peut consulter" et "peut demarrer".
+//
+// AJOUT (demande directe de David, 29/07/2026, "un vrai blocage" pour le
+// palier premium) : jusqu'ici `accessTier` n'etait qu'une indication
+// visuelle (bouton "Passer premium" dans la liste) sans jamais empecher
+// reellement l'ouverture - un parcours premium restait ouvrable via cette
+// meme fonction, exactement comme un parcours gratuit. Le fallback
+// self-service ci-dessous ignore desormais tout parcours premium ; UNE
+// ATTRIBUTION FORMELLE (ci-dessus) reste prioritaire et continue de donner
+// acces meme a un parcours premium - un administrateur qui attribue
+// explicitement un parcours premium a quelqu'un (test, cas particulier)
+// n'est jamais bloque par cette regle.
+/**
+ * @param {string} uid
+ * @param {string} parcoursId
+ * @returns {Promise<{error?:boolean, entry:{parcours:object, assignment:?object}|null, reason?:string}>}
+ */
+export async function resolveAccessibleParcoursEntry(uid, parcoursId) {
+  const assigned = await getAssignedParcoursForUser(uid);
+  if (assigned.error) return { error: true, entry: null };
+
+  const attributedEntry = assigned.items.find(function(e) { return e.parcours.id === parcoursId; });
+  if (attributedEntry) return { error: false, entry: attributedEntry };
+
+  const candidate = await getParcoursById(parcoursId);
+  if (candidate && candidate.status === PARCOURS_STATUSES.PUBLISHED) {
+    if (candidate.accessTier === ACCESS_TIERS.PREMIUM) {
+      return { error: false, entry: null, reason: 'premium_required' };
+    }
+    let selfServiceAllowed = candidate.organizationId === null || candidate.organizationId === undefined;
+    if (!selfServiceAllowed) {
+      const userDoc = await getUserByUid(uid);
+      selfServiceAllowed = !!(userDoc && userDoc.organizationId && userDoc.organizationId === candidate.organizationId);
+    }
+    if (selfServiceAllowed) return { error: false, entry: { parcours: candidate, assignment: null } };
+  }
+  return { error: false, entry: null };
 }
 
 // ---------------------------------------------------------------------------

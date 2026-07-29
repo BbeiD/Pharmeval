@@ -21,7 +21,7 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { getSelfServiceCatalogParcours, getOrganizationParcours } from "./services/parcours-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getActiveSession } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
@@ -400,9 +400,11 @@ function cardHtml(entry, attempts, hasActiveSession) {
 
   // AJOUT (demande directe de David, 29/07/2026, "flag gratuit") : un
   // parcours premium reste VISIBLE dans la liste (jamais masque) mais son
-  // bouton invite a passer premium plutot que d'ouvrir directement -
-  // AUCUNE restriction reelle n'existe encore (pas de palier payant
-  // fonctionnel), seulement cette indication visuelle preparatoire.
+  // bouton invite a passer premium plutot que d'ouvrir directement. CORRECTIF
+  // (meme jour, "un vrai blocage") : ce n'est plus purement visuel - meme en
+  // devinant/ouvrant directement la fiche ou en tentant de demarrer
+  // l'evaluation, resolveAccessibleParcoursEntry() (parcours-service.js)
+  // refuse desormais reellement l'acces a un parcours premium non attribue.
   const isPremium = p.accessTier === ACCESS_TIERS.PREMIUM;
   const premiumBadge = isPremium
     ? '<span class="bank-chip" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 13 }) + ' Premium</span>' : '';
@@ -434,7 +436,7 @@ function cardHtml(entry, attempts, hasActiveSession) {
  * seulement, jamais un lien mort vers une page inexistante.
  */
 export function showPremiumUpsell() {
-  showMessage('denied', 'Les parcours premium ne sont pas encore disponibles à l\'achat. Revenez bientôt !');
+  showMessage('denied', PREMIUM_REQUIRED_MESSAGE);
 }
 window.showPremiumUpsell = showPremiumUpsell;
 

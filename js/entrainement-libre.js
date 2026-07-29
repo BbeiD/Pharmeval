@@ -26,7 +26,7 @@ import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { getSelfServiceCatalogParcours } from "./services/parcours-service.js";
 import { groupParcoursByClassification } from "./services/parcours-classification-logic.js";
-import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, ACCESS_TIERS } from "./services/parcours-metadata-service.js";
 import { composeFreeTrainingPoolByIds, launchTestMeByIds } from "./services/free-training-service.js";
 import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
@@ -150,7 +150,15 @@ async function checkActiveSession() {
 
 async function populateClassifications() {
   const result = await getSelfServiceCatalogParcours();
-  const parcoursItems = (result && result.items) || [];
+  // CORRECTIF (demande directe de David, 29/07/2026, "un vrai blocage" premium) :
+  // getSelfServiceCatalogParcours() renvoie aussi les parcours premium (ils
+  // doivent rester VISIBLES, avec bouton "Passer premium", dans "Mes
+  // parcours") - mais l'entrainement libre composait son pool de questions
+  // par classification a partir de CE MEME resultat, sans jamais filtrer sur
+  // accessTier : un parcours premium restait donc entierement entrainable
+  // gratuitement via ce detour. Exclu ici, jamais dans groupParcoursByClassification()
+  // (logique pure, ne doit rien savoir du palier d'acces).
+  const parcoursItems = ((result && result.items) || []).filter(function(p) { return p.accessTier !== ACCESS_TIERS.PREMIUM; });
   state.classifications = groupParcoursByClassification(parcoursItems);
   renderClassificationTiles();
 }

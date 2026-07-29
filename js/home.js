@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey, ACCESS_TIERS } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
 import { calculateOverview } from "./services/statistics-service.js";
@@ -253,7 +253,7 @@ export function showPremiumUpsell() {
   const el = document.getElementById('home-parcours-message');
   if (!el) return;
   el.className = 'admin-message admin-message-denied';
-  el.textContent = 'Les parcours premium ne sont pas encore disponibles à l\'achat. Revenez bientôt !';
+  el.textContent = PREMIUM_REQUIRED_MESSAGE;
   el.style.display = 'block';
 }
 window.showPremiumUpsell = showPremiumUpsell;

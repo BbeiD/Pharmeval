@@ -13,10 +13,10 @@
 // service.js, comme demandé par le découpage de responsabilités du
 // cadrage).
 
-import { getAssignedParcoursForUser } from "./assignment-service.js";
 import { getCompetencyById } from "./competency-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
-import { resolvePooledQuestionIds } from "./parcours-service.js";
+import { resolvePooledQuestionIds, resolveAccessibleParcoursEntry } from "./parcours-service.js";
+import { PREMIUM_REQUIRED_MESSAGE } from "./parcours-metadata-service.js";
 import { completeQuestionSnapshot } from "./evaluation-session-metadata-service.js";
 
 /**
@@ -137,12 +137,15 @@ export async function buildOrderedQuestionSnapshots(pedagogicalIds) {
 export async function prepareEvaluation(uid, parcoursId, competencyId) {
   if (!uid) return { authorized: false, reason: 'not_authenticated', message: 'Vous devez être connecté pour démarrer une évaluation.' };
 
-  const assigned = await getAssignedParcoursForUser(uid);
-  if (assigned.error) {
+  const resolved = await resolveAccessibleParcoursEntry(uid, parcoursId);
+  if (resolved.error) {
     return { authorized: false, reason: 'error', message: 'Impossible de vérifier votre accès à ce parcours pour le moment. Réessayez plus tard.' };
   }
-  const entry = assigned.items.find(function(e) { return e.parcours.id === parcoursId; });
+  const entry = resolved.entry;
   if (!entry) {
+    if (resolved.reason === 'premium_required') {
+      return { authorized: false, reason: 'premium_required', message: PREMIUM_REQUIRED_MESSAGE };
+    }
     return { authorized: false, reason: 'not_assigned', message: 'Ce parcours ne vous a pas été attribué, ou n\'est plus disponible.' };
   }
   const parcours = entry.parcours;
@@ -196,12 +199,15 @@ export async function prepareEvaluation(uid, parcoursId, competencyId) {
 export async function prepareParcoursMixedEvaluation(uid, parcoursId) {
   if (!uid) return { authorized: false, reason: 'not_authenticated', message: 'Vous devez être connecté pour démarrer une évaluation.' };
 
-  const assigned = await getAssignedParcoursForUser(uid);
-  if (assigned.error) {
+  const resolved = await resolveAccessibleParcoursEntry(uid, parcoursId);
+  if (resolved.error) {
     return { authorized: false, reason: 'error', message: 'Impossible de vérifier votre accès à ce parcours pour le moment. Réessayez plus tard.' };
   }
-  const entry = assigned.items.find(function(e) { return e.parcours.id === parcoursId; });
+  const entry = resolved.entry;
   if (!entry) {
+    if (resolved.reason === 'premium_required') {
+      return { authorized: false, reason: 'premium_required', message: PREMIUM_REQUIRED_MESSAGE };
+    }
     return { authorized: false, reason: 'not_assigned', message: 'Ce parcours ne vous a pas été attribué, ou n\'est plus disponible.' };
   }
   const parcours = entry.parcours;

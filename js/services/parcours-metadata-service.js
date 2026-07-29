@@ -47,6 +47,13 @@ export const ACCESS_TIERS = Object.freeze({
   PREMIUM: 'premium',
 });
 
+// AJOUT (demande directe de David, 29/07/2026, "un vrai blocage" premium) :
+// message unique reutilise partout ou l'acces premium est bloque (bouton
+// "Passer premium" des listes, tentative d'ouverture/demarrage directe -
+// voir parcours-service.js#resolveAccessibleParcoursEntry) - jamais
+// reformule differemment a plusieurs endroits.
+export const PREMIUM_REQUIRED_MESSAGE = 'Fonctionnalité à venir. Pour tester l\'accès premium, contactez David Bei.';
+
 const ID_PREFIX_PARCOURS = 'PARC';
 const ID_PREFIX_COMPETENCY = 'COMP';
 
