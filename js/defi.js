@@ -84,17 +84,17 @@ function streakSummaryHtml(progress) {
   return (
     '<div class="defi-streak-row">' +
       '<div class="defi-streak-block">' +
-        '<span class="defi-streak-icon defi-streak-icon-orange">' + icon('feedback-streak-regularity', { size: 22 }) + '</span>' +
+        '<span class="defi-streak-icon defi-streak-icon-orange">' + icon('feedback-streak-regularity', { size: 16 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.currentStreak + '</span>' +
         '<span class="defi-streak-label">jour(s) de suite</span>' +
       '</div>' +
       '<div class="defi-streak-block">' +
-        '<span class="defi-streak-icon defi-streak-icon-yellow">' + icon('highlight-star-filled', { size: 20 }) + '</span>' +
+        '<span class="defi-streak-icon defi-streak-icon-yellow">' + icon('highlight-star-filled', { size: 16 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.bestStreak + '</span>' +
         '<span class="defi-streak-label">Meilleure série</span>' +
       '</div>' +
       '<div class="defi-streak-block">' +
-        '<span class="defi-streak-icon defi-streak-icon-green">' + icon('highlight-check-validated', { size: 20 }) + '</span>' +
+        '<span class="defi-streak-icon defi-streak-icon-green">' + icon('highlight-check-validated', { size: 16 }) + '</span>' +
         '<span class="defi-streak-value">' + progress.totalCompleted + '</span>' +
         '<span class="defi-streak-label">Défis relevés</span>' +
       '</div>' +

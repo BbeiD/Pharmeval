@@ -2137,7 +2137,7 @@
      colore par chiffre, meme vocabulaire visuel que .stat-card-icon-*. ---- */
   .defi-streak-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 36px; height: 36px; border-radius: 50%; margin-bottom: 4px;
+    width: 28px; height: 28px; border-radius: 50%; margin-bottom: 4px;
   }
   .defi-streak-icon-orange { background: var(--accent-orange-light); color: var(--accent-orange); }
   .defi-streak-icon-yellow { background: var(--accent-yellow-light); color: var(--accent-yellow); }
