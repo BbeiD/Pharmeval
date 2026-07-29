@@ -22,6 +22,7 @@
 // mon-profil.html (voir js/mon-profil.js, renderMenu()).
 
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
+import { icon } from "./icons.js";
 
 // Pages REELLEMENT construites aujourd'hui - a completer au fur et a
 // mesure du deploiement (sources documentaires, Mon profil : pas encore
@@ -42,11 +43,13 @@ import { hasPermission, PERMISSIONS } from "./services/authorization-service.js"
 // voir js/mon-profil.js, qui reprend EXACTEMENT les memes cibles
 // (href + viewToggle) que les entrees retirees ici.
 const NAV_ITEMS = [
-  { key: 'accueil', href: 'index.html', iconImg: 'assets/icons/nav/home.png', label: 'Accueil', viewToggle: 'goHome' },
-  { key: 'mes-parcours', href: 'mes-parcours.html', iconImg: 'assets/icons/nav/mes-parcours.png', label: 'Mes parcours' },
-  { key: 'defi', href: 'defi.html', iconImg: 'assets/icons/nav/defi.png', label: 'Défi' },
-  { key: 'entrainement-libre', href: 'entrainement-libre.html', iconImg: 'assets/icons/nav/entrainement-libre.png', label: 'Entraînement libre' },
-  { key: 'mon-profil', href: 'mon-profil.html', iconImg: 'assets/icons/nav/profil.png', label: 'Profil' },
+  { key: 'accueil', href: 'index.html', iconKey: 'nav-home', label: 'Accueil', viewToggle: 'goHome' },
+  { key: 'mes-parcours', href: 'mes-parcours.html', iconKey: 'nav-paths-formations', label: 'Mes parcours' },
+  // "l'icone defi doit toujours etre la flamme" (David, 29/07/2026) - meme
+  // cle que le streak (icons.js), jamais une autre icone pour ce concept.
+  { key: 'defi', href: 'defi.html', iconKey: 'feedback-streak-regularity', label: 'Défi' },
+  { key: 'entrainement-libre', href: 'entrainement-libre.html', iconKey: 'nav-free-training', label: 'Entraînement libre' },
+  { key: 'mon-profil', href: 'mon-profil.html', iconKey: 'nav-profile', label: 'Profil' },
 ];
 
 function escapeHtml(str) {
@@ -86,7 +89,7 @@ export function renderSiteHeader(activeKey) {
       const activeCls = item.key === activeKey ? ' sh-nav-active' : '';
       const toggleAttr = item.viewToggle ? ' data-view-toggle="' + item.viewToggle + '"' : '';
       return '<a class="sh-nav-link' + activeCls + '" href="' + escapeHtml(base + item.href) + '"' + toggleAttr + '>' +
-        '<span class="sh-nav-icon"><img class="sh-nav-icon-img" src="' + escapeHtml(base + item.iconImg) + '" alt="" aria-hidden="true"></span>' +
+        '<span class="sh-nav-icon">' + icon(item.iconKey, { size: 22 }) + '</span>' +
         '<span class="sh-nav-label">' + escapeHtml(item.label) + '</span>' +
       '</a>';
     }).join('');

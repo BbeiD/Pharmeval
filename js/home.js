@@ -153,15 +153,15 @@ async function loadHomeStats() {
 
   const tiles = [
     {
-      icon: '<img src="assets/icons/nav/mes-parcours.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue',
+      icon: icon('nav-paths-formations', { size: 20 }), iconCls: 'stat-card-icon-blue', accentCls: 'stat-card-accent-blue',
       value: String(inProgressCount), label: 'Parcours en cours', href: 'mes-parcours.html',
     },
     {
-      icon: '<img src="assets/icons/pages/evaluations.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange',
+      icon: icon('nav-evaluations-stats', { size: 20 }), iconCls: 'stat-card-icon-orange', accentCls: 'stat-card-accent-orange',
       value: String(overview.count), label: 'Évaluations réalisées', href: 'index.html?history=1',
     },
     {
-      icon: '<img src="assets/icons/pages/star.png" alt="" style="width:20px;height:20px;">', iconCls: 'stat-card-icon-green', accentCls: '',
+      icon: icon('highlight-star-filled', { size: 20 }), iconCls: 'stat-card-icon-green', accentCls: '',
       value: overview.averageScore !== null ? (overview.averageScore + '%') : '—', label: 'Score moyen', href: 'index.html?history=1',
     },
   ];

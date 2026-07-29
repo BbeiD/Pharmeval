@@ -34,6 +34,11 @@
      une classe a ajouter partout ou elle est utilisee (souvent au milieu d'un
      texte construit par concatenation de chaines, ex. badge.emoji + ' ' + badge.label). */
   svg[aria-hidden="true"][focusable="false"] { vertical-align: -3px; flex-shrink: 0; }
+  /* AJOUT (nouvelle identite visuelle sombre) : meme alignement generique
+     que ci-dessus, pour les icones Tabler (js/icons.js#icon(), balise <i>
+     plutot que <svg> depuis ce chantier) - reconnues par le meme
+     attribut aria-hidden commun. */
+  i.ti[aria-hidden="true"] { vertical-align: -3px; flex-shrink: 0; display: inline-block; line-height: 1; }
 
   /* CORRECTIF (theme sombre, demande directe de David, 29/07/2026) :
      David a vu l'ecran de connexion (fond degrade marine #0f172a->#1e293b,
@@ -166,10 +171,11 @@
     vertical-align: -9px; margin-right: 4px;
   }
   .page-header-icon img { width: 20px; height: 20px; display: block; }
-  .page-header-icon-green { background: var(--green-light); }
-  .page-header-icon-orange { background: var(--accent-orange-light); }
-  .page-header-icon-blue { background: var(--accent-blue-light); }
-  .page-header-icon-purple { background: var(--accent-purple-light); }
+  .page-header-icon i { font-size: 18px; }
+  .page-header-icon-green { background: var(--green-light); color: var(--green-dark); }
+  .page-header-icon-orange { background: var(--accent-orange-light); color: var(--accent-orange); }
+  .page-header-icon-blue { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .page-header-icon-purple { background: var(--accent-purple-light); color: var(--accent-purple); }
 
   .stat-card-icon {
     width: 40px; height: 40px;
@@ -230,13 +236,13 @@
   .source-tile {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     width: 96px; padding: var(--space-2); border: 1.5px solid var(--border2); border-radius: var(--radius);
-    background: var(--surface); cursor: pointer; text-align: center; position: relative;
+    background: var(--surface2); color: var(--text); cursor: pointer; text-align: center; position: relative;
   }
   .source-tile:hover { border-color: var(--green); }
   .source-tile-emoji { font-size: 24px; }
-  .source-tile-name { font-size: 11px; color: var(--text2); line-height: 1.3; word-break: break-word; }
+  .source-tile-name { font-size: 11px; color: var(--text); font-weight: 500; line-height: 1.3; word-break: break-word; }
   .source-tile.source-tile-selected { border-color: var(--green); background: var(--green-light); }
-  .source-tile.source-tile-selected .source-tile-name { color: var(--green-dark); font-weight: 600; }
+  .source-tile.source-tile-selected .source-tile-name { color: var(--green-dark); font-weight: 700; }
   .source-tile-status-dot { position: absolute; top: 4px; right: 6px; font-size: 10px; }
   /* AJOUT (demande directe de David, 22/07/2026) : pastille "masquée de
      l'entraînement libre" - coin OPPOSE du badge de statut ci-dessus,
@@ -291,9 +297,8 @@
   }
   .sh-nav-link:hover { background: var(--surface2); color: var(--text); }
   .sh-nav-link.sh-nav-active { background: var(--green-light); color: var(--green-dark); font-weight: 700; }
-  .sh-nav-icon { display: flex; flex-shrink: 0; }
+  .sh-nav-icon { display: flex; flex-shrink: 0; align-items: center; }
   .sh-nav-icon svg { display: block; }
-  .sh-nav-icon-img { display: block; width: 22px; height: 22px; object-fit: contain; }
 
   /* AJOUT : grand avatar de la page "Mon profil" (le pied de sidebar avec
      un avatar plus petit a ete retire - chantier graphique, demande
@@ -525,9 +530,10 @@
     border: none; border-radius: var(--radius);
     padding: 11px 22px; font-size: 15px; font-weight: 600;
     cursor: pointer; display:inline-flex; align-items:center; gap:7px;
+    text-decoration: none;
     transition: background .15s, box-shadow .15s, transform .15s;
   }
-  .btn-primary:hover { background: var(--green-dark); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .btn-primary:hover { background: var(--green-dark); box-shadow: var(--shadow-sm); transform: translateY(-1px); text-decoration: none; }
   .btn-primary:active { transform: translateY(0); box-shadow: none; }
   .btn-secondary {
     background: var(--surface); color: var(--text);
@@ -535,9 +541,10 @@
     border-radius: var(--radius);
     padding: 10px 20px; font-size: 14px; font-weight: 500;
     cursor: pointer; display:inline-flex; align-items:center; gap:7px;
+    text-decoration: none;
     transition: all .15s;
   }
-  .btn-secondary:hover { border-color: var(--green); color: var(--green); box-shadow: var(--shadow-xs); }
+  .btn-secondary:hover { border-color: var(--green); color: var(--green); box-shadow: var(--shadow-xs); text-decoration: none; }
 
   /* QUIZ VIEW */
   .quiz-panel { }
@@ -1860,6 +1867,7 @@
   .pv-evaluation-row {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 16px;
+    text-decoration: none; color: inherit;
     transition: border-color .15s, background-color .15s;
   }
   /* AJOUT (historique des tentatives, demande directe de David) : ces

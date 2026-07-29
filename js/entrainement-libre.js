@@ -10,23 +10,36 @@
 // tronque" (cadrage Phase B0, point 4) : composeFreeTrainingPool() gere
 // deja cette regle (evaluateTrainingPoolReadiness) - cette page se
 // contente d'afficher fidelement son resultat, jamais de le contourner.
+//
+// CORRECTIF (demande directe de David, 29/07/2026, "je préférerais que tu
+// partes sur les grandes classifications qu'on a mis dans les parcours") :
+// les tuiles "Thème(s)" reposaient jusqu'ici sur les document_sources
+// brutes (noms parfois peu clairs, ex. "A-4"/"A-5") - remplacees par les
+// grandes classifications deja utilisees pour regrouper les Parcours
+// (voir parcours-classification-logic.js), beaucoup plus lisibles ("Douleur,
+// AINS & rhumatologie", "Cardiovasculaire"...). Plus de sous-theme (section) :
+// une classification est un regroupement a plat, sans arborescence.
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
-import { browseActiveDocumentSources } from "./services/document-source-service.js";
-import { getActiveSectionTree } from "./services/document-section-service.js";
-import { composeFreeTrainingPool, launchTestMe } from "./services/free-training-service.js";
+import { getSelfServiceCatalogParcours } from "./services/parcours-service.js";
+import { groupParcoursByClassification } from "./services/parcours-classification-logic.js";
+import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
+import { composeFreeTrainingPoolByIds, launchTestMeByIds } from "./services/free-training-service.js";
 import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
 } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
-import { resolveSourceIconKey } from "./services/document-source-metadata-service.js";
-import { renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
+import { icon } from "./icons.js";
 
-const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
+// Icone unique pour toute classification (aucune icone propre stockee,
+// voir parcours-classification-logic.js - seule sa couleur, deja portee
+// par les Parcours generes, varie d'une classification a l'autre).
+const CLASSIFICATION_ICON_KEY = 'content-tag-label';
+const DEFAULT_CLASSIFICATION_HEX = '#94A3B8';
 
 function qs(id) { return document.getElementById(id); }
 function escapeHtml(s) {
@@ -47,14 +60,13 @@ function showMessage(status, message) {
 // remplacer un entrainement en cours (voir etl-replace-btn) - determine
 // alors si le lancement appelle startNewFreeTrainingSession() ou
 // restartFreeTrainingSession(), jamais les deux a la fois.
-// state.selectedSourceIds : selection MULTIPLE (tuiles a icones, decision
-// validee avec David) - remplace l'ancien <select> a choix unique.
-// state.selectedSectionId : selection UNIQUE du sous-theme (chantier
-// graphique, demande directe de David, 28/07/2026) - remplace l'ancien
-// <select> par des tuiles a icones, chaque sous-theme herite de l'icone
-// de son theme (source) parent, jamais une icone propre (n'existe pas
-// dans le modele de donnees - voir document-section-metadata-service.js).
-let state = { pool: null, replacingSessionId: null, sources: [], selectedSourceIds: new Set(), selectedSectionId: '', sections: [] };
+// state.classifications : une entree par grande classification (voir
+// groupParcoursByClassification()), chacune avec l'union deduplicee de ses
+// `directQuestionIds`. state.selectedClassifications : selection MULTIPLE
+// (tuiles a icones, meme principe que l'ancienne selection de sources) -
+// identifiee par le NOM de la classification (seule cle stable disponible,
+// aucune collection Firestore dediee ne lui attribue d'id).
+let state = { pool: null, replacingSessionId: null, classifications: [], selectedClassifications: new Set() };
 
 
 // ---------------------------------------------------------------------------
@@ -104,7 +116,7 @@ onAuthStateChanged(auth, async function(user) {
 });
 
 async function init() {
-  await Promise.all([checkActiveSession(), populateSources()]);
+  await Promise.all([checkActiveSession(), populateClassifications()]);
   wireEvents();
 }
 
@@ -133,109 +145,57 @@ async function checkActiveSession() {
 }
 
 // ---------------------------------------------------------------------------
-// Peuplement des selecteurs (memes fonctions que admin/import.js)
+// Peuplement des tuiles de classification
 // ---------------------------------------------------------------------------
 
-async function populateSources() {
-  const result = await browseActiveDocumentSources();
-  state.sources = (result && result.items) || [];
-  renderSourceIcons();
+async function populateClassifications() {
+  const result = await getSelfServiceCatalogParcours();
+  const parcoursItems = (result && result.items) || [];
+  state.classifications = groupParcoursByClassification(parcoursItems);
+  renderClassificationTiles();
 }
 
-function renderSourceIcons() {
+function renderClassificationTiles() {
   const container = qs('etl-source-icons');
-  container.innerHTML = state.sources.map(function(s) {
-    const selectedCls = state.selectedSourceIds.has(s.id) ? ' source-tile-selected' : '';
-    // Icone personnalisee par l'administration (display.icon, voir
-    // admin/document-sources.js#saveSourceIcon) si renseignee, sinon repli
-    // sur l'icone par type de source - meme regle de resolution que cote
-    // admin (resolveSourceIconKey), jamais dupliquee.
-    const iconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
+  container.innerHTML = state.classifications.map(function(c) {
+    const selectedCls = state.selectedClassifications.has(c.classification) ? ' source-tile-selected' : '';
+    const hex = resolveParcoursColorHex(c.color) || DEFAULT_CLASSIFICATION_HEX;
     return (
-      '<button type="button" class="source-tile' + selectedCls + '" onclick="toggleEtlSource(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSourceIds.has(s.id) ? 'true' : 'false') + '">' +
-        '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
-        '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
+      '<button type="button" class="source-tile' + selectedCls + '" onclick="toggleEtlClassification(\'' + escapeHtml(c.classification) + '\')" aria-pressed="' + (state.selectedClassifications.has(c.classification) ? 'true' : 'false') + '">' +
+        '<span class="source-tile-emoji" aria-hidden="true" style="color:' + escapeHtml(hex) + ';">' + icon(CLASSIFICATION_ICON_KEY, { size: 24 }) + '</span>' +
+        '<span class="source-tile-name">' + escapeHtml(c.classification) + '</span>' +
       '</button>'
     );
   }).join('');
 }
 
-export function toggleEtlSource(sourceId) {
-  if (state.selectedSourceIds.has(sourceId)) state.selectedSourceIds.delete(sourceId);
-  else state.selectedSourceIds.add(sourceId);
-  renderSourceIcons();
-  onSourceSelectionChange();
+export function toggleEtlClassification(classification) {
+  if (state.selectedClassifications.has(classification)) state.selectedClassifications.delete(classification);
+  else state.selectedClassifications.add(classification);
+  renderClassificationTiles();
+  onClassificationSelectionChange();
 }
-window.toggleEtlSource = toggleEtlSource;
+window.toggleEtlClassification = toggleEtlClassification;
 
-async function onSourceSelectionChange() {
+function onClassificationSelectionChange() {
   resetDownstream();
-  const sectionWrap = qs('etl-section-wrap');
-  const composeBtn = qs('etl-compose-btn');
-
-  const selectedIds = Array.from(state.selectedSourceIds);
-  state.selectedSectionId = '';
-  state.sections = [];
-
-  if (selectedIds.length === 0) {
-    sectionWrap.style.display = 'none';
-    composeBtn.disabled = true;
-    return;
-  }
-
-  composeBtn.disabled = false;
-
-  // Le sous-theme n'a de sens QUE si un seul theme est selectionne - un
-  // sous-theme appartient a UN theme precis (voir composeFreeTrainingPool,
-  // meme regle cote service) : masque/reinitialise des que plusieurs
-  // themes sont choisis, jamais laisse visible dans un etat ambigu.
-  if (selectedIds.length === 1) {
-    sectionWrap.style.display = 'block';
-    const result = await getActiveSectionTree(selectedIds[0]);
-    state.sections = (result && result.items) || [];
-    // AJOUT : l'icone du sous-theme est TOUJOURS celle du theme (source)
-    // parent - un sous-theme n'a pas sa propre icone dans le modele de
-    // donnees, jamais une icone generique/inventee ici.
-    const parentSource = state.sources.find(function(s) { return s.id === selectedIds[0]; });
-    state.selectedSectionIconKey = parentSource ? resolveSourceIconKey(parentSource, KNOWN_ICON_KEYS) : 'content-sources-catalog';
-    renderSectionIcons();
-  } else {
-    sectionWrap.style.display = 'none';
-  }
+  qs('etl-compose-btn').disabled = state.selectedClassifications.size === 0;
 }
-
-function renderSectionIcons() {
-  const container = qs('etl-section-icons');
-  if (!container) return;
-  const iconKey = state.selectedSectionIconKey;
-
-  const allChip =
-    '<button type="button" class="source-tile' + (state.selectedSectionId === '' ? ' source-tile-selected' : '') + '" onclick="selectEtlSection(\'\')" aria-pressed="' + (state.selectedSectionId === '' ? 'true' : 'false') + '">' +
-      '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
-      '<span class="source-tile-name">Tout le thème</span>' +
-    '</button>';
-
-  container.innerHTML = allChip + state.sections.map(function(s) {
-    const selectedCls = state.selectedSectionId === s.id ? ' source-tile-selected' : '';
-    return (
-      '<button type="button" class="source-tile' + selectedCls + '" onclick="selectEtlSection(\'' + escapeHtml(s.id) + '\')" aria-pressed="' + (state.selectedSectionId === s.id ? 'true' : 'false') + '">' +
-        '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
-        '<span class="source-tile-name">' + '— '.repeat(s.level) + escapeHtml(s.name) + '</span>' +
-      '</button>'
-    );
-  }).join('');
-}
-
-export function selectEtlSection(sectionId) {
-  state.selectedSectionId = sectionId;
-  renderSectionIcons();
-}
-window.selectEtlSection = selectEtlSection;
 
 function resetDownstream() {
   state.pool = null;
   qs('etl-errors-card').style.display = 'none';
   qs('etl-preview-card').style.display = 'none';
+}
+
+/** Union dedupliquee des `questionIds` des classifications actuellement
+ * sélectionnées (state.selectedClassifications). */
+function selectedQuestionIds() {
+  const ids = new Set();
+  state.classifications
+    .filter(function(c) { return state.selectedClassifications.has(c.classification); })
+    .forEach(function(c) { c.questionIds.forEach(function(id) { ids.add(id); }); });
+  return Array.from(ids);
 }
 
 // ---------------------------------------------------------------------------
@@ -247,12 +207,7 @@ async function onComposeClick() {
   const composeBtn = qs('etl-compose-btn');
   composeBtn.disabled = true;
 
-  const filters = {
-    documentSourceIds: Array.from(state.selectedSourceIds),
-    documentSectionId: state.selectedSectionId || undefined,
-  };
-
-  const result = await composeFreeTrainingPool(filters);
+  const result = await composeFreeTrainingPoolByIds(selectedQuestionIds());
   composeBtn.disabled = false;
 
   if (!result.ready) {
@@ -311,11 +266,9 @@ async function onLaunchClick() {
 // ---------------------------------------------------------------------------
 
 // AJOUT ("Test me", demande directe de David) : raccourci qui court-circuite
-// tout le formulaire de filtres - 10 questions reparties sur l'ensemble
-// des themes (sources) actifs, aucune configuration prealable. Reutilise
-// TOUTES les sources deja chargees par populateSources() (state.sources,
-// deja filtrees "actives ET non masquees de l'entrainement libre" par
-// browseActiveDocumentSources() - jamais un second filtre duplique ici).
+// tout le formulaire de filtres - 10 questions reparties sur l'ensemble des
+// classifications connues, aucune configuration prealable. Reutilise TOUTES
+// les classifications deja chargees par populateClassifications().
 const TEST_ME_QUESTION_COUNT = 10;
 
 async function onTestMeClick() {
@@ -323,8 +276,22 @@ async function onTestMeClick() {
   btn.disabled = true;
   btn.textContent = 'Préparation du test…';
 
-  const activeSourceIds = state.sources.map(function(s) { return s.id; });
-  const result = await launchTestMe(activeSourceIds, TEST_ME_QUESTION_COUNT);
+  // Lookup id -> classification (chaque question n'appartient qu'a UNE
+  // seule classification, voir generate-leveled-parcours.mjs) - necessaire
+  // pour que launchTestMeByIds() puisse repartir le tirage par classification
+  // plutot qu'un tirage uniformement aleatoire sur l'union complete.
+  const classificationByQuestionId = new Map();
+  const allIds = [];
+  state.classifications.forEach(function(c) {
+    c.questionIds.forEach(function(id) {
+      classificationByQuestionId.set(id, c.classification);
+      allIds.push(id);
+    });
+  });
+
+  const result = await launchTestMeByIds(allIds, TEST_ME_QUESTION_COUNT, function(q) {
+    return classificationByQuestionId.get(q.pedagogicalId) || '(inconnue)';
+  });
 
   btn.disabled = false;
   btn.textContent = 'Test me !';
