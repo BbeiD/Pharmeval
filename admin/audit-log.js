@@ -232,6 +232,55 @@ export function onAuditSearchInput() {
   renderList();
 }
 
+// ── Helpers pour le rendu amélioré ───────────────────────────────────────────
+
+function dayKey(entry) {
+  const ms = toMillis(entry.date);
+  if (!ms) return '0000-00-00';
+  const d = new Date(ms);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function dayLabel(key) {
+  if (!key || key === '0000-00-00') return 'Date inconnue';
+  const today = new Date();
+  const pad = function(n) { return String(n).padStart(2, '0'); };
+  const todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const yesterdayKey = yest.getFullYear() + '-' + pad(yest.getMonth() + 1) + '-' + pad(yest.getDate());
+  if (key === todayKey) return 'Aujourd\'hui';
+  if (key === yesterdayKey) return 'Hier';
+  try {
+    return new Date(key + 'T12:00:00').toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (e) { return key; }
+}
+
+function timeLabel(entry) {
+  const ms = toMillis(entry.date);
+  if (!ms) return '';
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function getEntryColor(tabKey, entry) {
+  const at = entry.actionType || '';
+  if (at === 'purge' || (at === 'status_change' && entry.newValue === 'trash')) return 'red';
+  if (at === 'creation' || at === 'account_created') return 'green';
+  if (at === 'bulk_publish') return 'green';
+  if (at === 'status_change') {
+    if (entry.newValue === 'published') return 'green';
+    if (entry.newValue === 'archived') return 'orange';
+    if (entry.newValue === 'trash') return 'red';
+    return 'purple';
+  }
+  if (at === 'role_change') return 'orange';
+  if (at.indexOf('edit_') === 0 || at.indexOf('business_profile_edit_') === 0) return 'blue';
+  if (at === 'assign' || at === 'unassign' || at === 'link_question' || at === 'unlink_question') return 'purple';
+  if (at.indexOf('add_') === 0 || at.indexOf('remove_') === 0 || at === 'reorder_competency') return 'blue';
+  if (at === 'evaluation_completed') return 'neutral';
+  return 'neutral';
+}
+
 function renderList() {
   const listEl = document.getElementById('al-list');
   const emptyEl = document.getElementById('al-list-empty');
@@ -256,14 +305,40 @@ function renderList() {
   }
   emptyEl.style.display = 'none';
 
-  listEl.innerHTML = '<ul class="bank-timeline-list">' + filtered.map(function(entry) {
-    const dateLabel = entry.date ? formatDateFr(entry.date) : '—';
-    const who = entry.adminEmail ? ' — ' + escapeHtml(entry.adminEmail) : '';
-    const target = entry[tabConfig.targetField];
-    const targetLabel = target ? ' <span class="bank-row-id">' + escapeHtml(target) + '</span>' : '';
-    return '<li class="bank-timeline-item"><div class="bank-timeline-date">' + escapeHtml(dateLabel) + '</div>' +
-      '<div class="bank-timeline-label">' + escapeHtml(describeEntry(state.activeTab, entry)) + who + targetLabel + '</div></li>';
-  }).join('') + '</ul>';
+  // Grouper par jour
+  const groups = [];
+  const groupMap = {};
+  filtered.forEach(function(entry) {
+    const key = dayKey(entry);
+    if (!groupMap[key]) { groupMap[key] = []; groups.push({ key: key, items: groupMap[key] }); }
+    groupMap[key].push(entry);
+  });
+
+  listEl.innerHTML = groups.map(function(group) {
+    const items = group.items.map(function(entry) {
+      const color  = getEntryColor(state.activeTab, entry);
+      const label  = escapeHtml(describeEntry(state.activeTab, entry));
+      const time   = escapeHtml(timeLabel(entry));
+      const actor  = entry.adminEmail || entry.targetEmail || '';
+      const target = entry[tabConfig.targetField];
+
+      const whoHtml    = actor  ? '<span class="al-who">' + escapeHtml(actor) + '</span>' : '';
+      const targetHtml = target ? '<span class="al-target">' + escapeHtml(String(target)) + '</span>' : '';
+      const timeHtml   = time   ? '<span class="al-time">' + time + '</span>' : '';
+
+      return '<li class="bank-timeline-item bank-timeline-item-' + color + '">' +
+        '<div class="bank-timeline-content">' +
+          '<div class="bank-timeline-label">' + label + '</div>' +
+          '<div class="bank-timeline-meta">' + whoHtml + targetHtml + timeHtml + '</div>' +
+        '</div>' +
+      '</li>';
+    }).join('');
+
+    return '<div class="al-day-group">' +
+      '<div class="al-day-header">' + escapeHtml(dayLabel(group.key)) + '</div>' +
+      '<ul class="bank-timeline-list">' + items + '</ul>' +
+    '</div>';
+  }).join('');
 }
 
 window.switchAuditTab = switchAuditTab;

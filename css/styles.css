@@ -1845,6 +1845,34 @@
   .parcours-bulk-duplicates { color: #FBBF24; }
   .bank-timeline-partial-note { font-size: 11px; color: var(--text2); font-style: italic; margin-top: 6px; }
 
+  /* ── Audit log : couleurs de points ── */
+  .bank-timeline-item-green::before  { background: var(--green); }
+  .bank-timeline-item-blue::before   { background: var(--accent-blue); }
+  .bank-timeline-item-orange::before { background: var(--accent-orange); }
+  .bank-timeline-item-red::before    { background: var(--red); }
+  .bank-timeline-item-purple::before { background: var(--accent-purple); }
+  .bank-timeline-item-neutral::before { background: var(--text2); }
+
+  /* ── Audit log : regroupement par jour ── */
+  .al-day-group { margin-bottom: 20px; }
+  .al-day-header {
+    font-size: 11px; font-weight: 700; color: var(--text2);
+    text-transform: uppercase; letter-spacing: .06em;
+    padding-bottom: 8px;
+  }
+  .bank-timeline-content { display: flex; flex-direction: column; gap: 2px; }
+  .bank-timeline-meta {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  }
+  .al-who  { font-size: 11px; color: var(--text2); }
+  .al-target {
+    font-size: 10px; color: var(--text2); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+    font-family: monospace; max-width: 180px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle;
+  }
+  .al-time { font-size: 11px; color: var(--text2); margin-left: auto; }
+
   /* ---- NOUVEAU (Sprint 15) : cartes "Mes parcours" (espace utilisateur) ---- */
   .mesparcours-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
   .mesparcours-card {
