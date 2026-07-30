@@ -1989,7 +1989,7 @@
   .mpc-progress-row { display: flex; align-items: center; gap: 10px; }
   .mpc-progress-row .ev-progress-bar-track { flex: 1; }
   .mpc-progress-label { font-size: 12px; color: var(--text2); min-width: 40px; text-align: right; }
-  .mpc-medal-img { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+  .mpc-medal-img { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
   .ev-progress-bar-fill-gold { background: #FBBF24; }
 
   .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }
