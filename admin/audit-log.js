@@ -85,9 +85,15 @@ const ROLE_LABELS = {
   user: 'Utilisateur', admin: 'Administrateur', manager: 'Manager',
 };
 const BUSINESS_FIELD_LABELS = {
-  organizationType: 'type d\'organisation', organizationName: 'nom de l\'organisation',
-  organizationId: 'organisation', firstName: 'prénom', lastName: 'nom',
-  profileId: 'profil', groupIds: 'groupes', role: 'rôle', status: 'statut',
+  organizationType:    'Modification du type d\'organisation',
+  organizationName:    'Modification du nom de l\'organisation',
+  organizationId:      'Modification de l\'organisation (rattachement)',
+  firstName:           'Modification du prénom',
+  lastName:            'Modification du nom de famille',
+  profileId:           'Modification du profil',
+  groupIds:            'Modification des groupes',
+  role:                'Modification du rôle',
+  status:              'Modification du statut',
 };
 const PARCOURS_FIELD_LABELS = {
   name: 'nom', description: 'description', targetAudience: 'public cible',
@@ -126,12 +132,20 @@ function describeUsersEntry(entry) {
   }
   if (entry.actionType && entry.actionType.indexOf('business_profile_edit_') === 0) {
     const field = entry.actionType.replace('business_profile_edit_', '');
-    const fieldLabel = BUSINESS_FIELD_LABELS[field] || field;
+    const fullLabel = BUSINESS_FIELD_LABELS[field] || ('Modification : ' + field);
     const detail = (entry.newValue && entry.newValue !== entry.oldValue)
       ? ' → ' + entry.newValue
       : '';
-    return 'Modification du ' + fieldLabel + detail;
+    return fullLabel + detail;
   }
+  if (entry.actionType === 'document_source_bulk_activated') return 'Sources documentaires activées en masse';
+  if (entry.actionType === 'document_source_shown_in_training') return 'Source documentaire affichée en formation';
+  if (entry.actionType === 'document_source_hidden_from_training') return 'Source documentaire masquée des formations';
+  if (entry.actionType === 'document_source_renamed')
+    return 'Source documentaire renommée' + (entry.newValue ? ' → « ' + entry.newValue + ' »' : '');
+  if (entry.actionType === 'document_source_icon_updated') return 'Icône de source documentaire mise à jour';
+  if (entry.actionType && entry.actionType.indexOf('document_source_') === 0)
+    return 'Source documentaire : ' + entry.actionType.replace('document_source_', '').replace(/_/g, ' ');
   return null;
 }
 function describeQuestionsEntry(entry) {
@@ -338,7 +352,7 @@ function getEntryColor(tabKey, entry) {
     return 'purple';
   }
   if (at === 'role_change') return 'orange';
-  if (at.indexOf('edit_') === 0 || at.indexOf('business_profile_edit_') === 0) return 'blue';
+  if (at.indexOf('edit_') === 0 || at.indexOf('business_profile_edit_') === 0 || at.indexOf('document_source_') === 0) return 'blue';
   if (at === 'assign' || at === 'unassign' || at === 'link_question' || at === 'unlink_question') return 'purple';
   if (at.indexOf('add_') === 0 || at.indexOf('remove_') === 0 || at === 'reorder_competency') return 'blue';
   if (at === 'evaluation_completed') return 'neutral';
