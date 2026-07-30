@@ -138,7 +138,7 @@ function renderStepTerms() {
     '<h2>Dernière étape</h2>' +
     '<label class="onboarding-checkbox-row" for="ob-terms">' +
     '<input type="checkbox" id="ob-terms"' + (wizardData.acceptedTerms ? ' checked' : '') + '>' +
-    '<span>J\'accepte les conditions d\'utilisation de Pharmeval.</span>' +
+    '<span>J\'accepte les <a href="cgu.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">conditions d\'utilisation</a> de Pharmeval.</span>' +
     '</label>' +
     '<div class="onboarding-actions">' +
     '<button class="onboarding-btn-secondary" id="ob-back-4">Retour</button>' +
