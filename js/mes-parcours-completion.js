@@ -10,16 +10,26 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function progressBarHtml(percent) {
+function medalImgForName(name) {
+  const n = (name || '').toLowerCase();
+  if (n.indexOf('expert') !== -1) return 'assets/medals/medal-expert.png';
+  if (n.indexOf('approfondi') !== -1) return 'assets/medals/medal-approfondi.png';
+  return 'assets/medals/medal-fondamental.png';
+}
+
+function progressBarHtml(percent, parcoursName) {
   const hasValue = typeof percent === 'number';
   const pct = hasValue ? percent : 0;
-  const label = hasValue ? (percent + ' %') : '—';
+  const earned = pct === 100;
+  const label = earned
+    ? '<img src="' + medalImgForName(parcoursName) + '" class="mpc-medal-img" alt="Médaille obtenue" title="Médaille obtenue">'
+    : '<span class="mpc-progress-label">' + (hasValue ? (percent + ' %') : '—') + '</span>';
   return (
     '<div class="mpc-progress-row">' +
       '<div class="ev-progress-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '">' +
-        '<div class="ev-progress-bar-fill" style="width:' + pct + '%;"></div>' +
+        '<div class="ev-progress-bar-fill' + (earned ? ' ev-progress-bar-fill-gold' : '') + '" style="width:' + pct + '%;"></div>' +
       '</div>' +
-      '<span class="mpc-progress-label">' + escapeHtml(label) + '</span>' +
+      label +
     '</div>'
   );
 }
@@ -30,7 +40,7 @@ function parcoursNodeHtml(item) {
   html += '<a class="mpc-parcours-link" href="parcours-detail.html?id=' + encodeURIComponent(item.parcoursId) + '">' + escapeHtml(item.name) + '</a>';
   html += '<span class="bank-chip">' + item.questionCount + ' question(s)</span>';
   html += '</div>';
-  html += progressBarHtml(item.percent);
+  html += progressBarHtml(item.percent, item.name);
   html += '</div>';
   return html;
 }

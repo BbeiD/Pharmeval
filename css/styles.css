@@ -1989,6 +1989,8 @@
   .mpc-progress-row { display: flex; align-items: center; gap: 10px; }
   .mpc-progress-row .ev-progress-bar-track { flex: 1; }
   .mpc-progress-label { font-size: 12px; color: var(--text2); min-width: 40px; text-align: right; }
+  .mpc-medal-img { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+  .ev-progress-bar-fill-gold { background: #FBBF24; }
 
   .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }
   .ev-question-card h2 { margin: 0 0 16px 0; font-size: 17px; line-height: 1.4; }
@@ -2253,18 +2255,10 @@
   .home-medals-section-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; }
   .home-medal-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
   .home-medal-row:last-child { border-bottom: none; }
-  .home-medal-icon { font-size: 20px; flex-shrink: 0; }
-  .home-medal-row-earned .home-medal-icon { color: #FBBF24; }
-  .home-medal-row-pending .home-medal-icon { color: var(--text2); opacity: .3; }
   .home-medal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
   .home-medal-dot-earned { background: #FBBF24; }
-  .home-medal-img { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
-  .home-medal-img-pending { opacity: .2; filter: grayscale(1); }
   .home-medal-name { font-size: 13px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .home-medal-row-pending .home-medal-name { color: var(--text2); }
-  .home-medals-classic-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; }
-  .home-medals-classic-img { width: 80px; height: 80px; object-fit: contain; }
-  .home-medals-classic-tier { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #FBBF24; margin-top: 4px; }
   .home-medals-count { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
   .home-medals-total { font-size: 18px; font-weight: 600; color: var(--text2); }
   .home-medals-label { font-size: 12px; color: var(--text2); margin: 4px 0 0; }
