@@ -74,14 +74,42 @@ async function fetchTab(tabKey) {
 // vocabulaire deja utilise par chaque describeAuditEntry() prive existant.
 // ---------------------------------------------------------------------------
 
+// ── Tables de traduction ──────────────────────────────────────────────────────
+
+const STATUS_LABELS = {
+  draft: 'Brouillon', published: 'Publié', archived: 'Archivé',
+  review: 'En relecture', trash: 'Corbeille',
+  active: 'Actif', suspended: 'Suspendu', inactive: 'Inactif',
+};
+const ROLE_LABELS = {
+  user: 'Utilisateur', admin: 'Administrateur', manager: 'Manager',
+};
+const BUSINESS_FIELD_LABELS = {
+  organizationType: 'type d\'organisation', organizationName: 'nom de l\'organisation',
+  organizationId: 'organisation', firstName: 'prénom', lastName: 'nom',
+  profileId: 'profil', groupIds: 'groupes', role: 'rôle', status: 'statut',
+};
+const PARCOURS_FIELD_LABELS = {
+  name: 'nom', description: 'description', targetAudience: 'public cible',
+  color: 'couleur', icon: 'icône', level: 'niveau',
+};
+const REFBANK_FIELD_LABELS = {
+  name: 'nom', description: 'description', color: 'couleur', type: 'type',
+};
+
+function statusLabel(v) { return STATUS_LABELS[v] || v || '—'; }
+function roleLabel(v)   { return ROLE_LABELS[v]   || v || '—'; }
+function arrow(a, b)    { return statusLabel(a) + ' → ' + statusLabel(b); }
+
 const QUESTION_STATUS_TRANSITION_LABELS = {
-  'draft->review': 'Envoyée en relecture', 'draft->published': 'Publication',
+  'draft->review':    'Envoyée en relecture',
+  'draft->published': 'Publication',
   'review->published': 'Publication', 'archived->published': 'Publication',
   'published->archived': 'Archivage', 'review->archived': 'Archivage',
-  'draft->archived': 'Archivage', 'archived->trash': 'Mise à la corbeille',
-  'trash->archived': 'Restauration depuis la corbeille', 'archived->draft': 'Remise en brouillon',
-  'published->draft': 'Remise en brouillon', 'review->draft': 'Remise en brouillon',
-  'archived->review': 'Envoyée en relecture',
+  'draft->archived': 'Archivage',    'archived->trash': 'Mise à la corbeille',
+  'trash->archived': 'Restauration depuis la corbeille',
+  'archived->draft': 'Remise en brouillon', 'published->draft': 'Remise en brouillon',
+  'review->draft': 'Remise en brouillon',   'archived->review': 'Envoyée en relecture',
 };
 
 function describeUsersEntry(entry) {
@@ -90,15 +118,27 @@ function describeUsersEntry(entry) {
     const pct = (typeof entry.percent === 'number') ? entry.percent + ' %' : '—';
     return 'Évaluation terminée — ' + pct + ' (' + entry.correct + '/' + entry.total + ')';
   }
-  if (entry.actionType === 'role_change') return 'Changement de rôle (' + entry.oldValue + ' → ' + entry.newValue + ')';
-  if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
-  if (entry.actionType && entry.actionType.indexOf('business_profile_edit_') === 0) return 'Modification (' + entry.actionType.replace('business_profile_edit_', '') + ')';
+  if (entry.actionType === 'role_change') {
+    return 'Changement de rôle : ' + roleLabel(entry.oldValue) + ' → ' + roleLabel(entry.newValue);
+  }
+  if (entry.actionType === 'status_change') {
+    return 'Changement de statut : ' + arrow(entry.oldValue, entry.newValue);
+  }
+  if (entry.actionType && entry.actionType.indexOf('business_profile_edit_') === 0) {
+    const field = entry.actionType.replace('business_profile_edit_', '');
+    const fieldLabel = BUSINESS_FIELD_LABELS[field] || field;
+    const detail = (entry.newValue && entry.newValue !== entry.oldValue)
+      ? ' → ' + entry.newValue
+      : '';
+    return 'Modification du ' + fieldLabel + detail;
+  }
   return null;
 }
 function describeQuestionsEntry(entry) {
   if (entry.actionType === 'status_change') {
     const key = entry.oldValue + '->' + entry.newValue;
-    return QUESTION_STATUS_TRANSITION_LABELS[key] || ('Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')');
+    return QUESTION_STATUS_TRANSITION_LABELS[key]
+      || ('Changement de statut : ' + arrow(entry.oldValue, entry.newValue));
   }
   if (entry.actionType === 'bulk_publish') return 'Publication en masse';
   if (entry.actionType === 'edit_explanation') return 'Modification de l\'explication';
@@ -109,44 +149,68 @@ function describeQuestionsEntry(entry) {
 }
 function describeParcoursEntry(entry) {
   if (entry.actionType === 'creation') return 'Création';
-  if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
-  if (entry.actionType === 'edit_name') return 'Modification du nom';
-  if (entry.actionType === 'edit_description') return 'Modification de la description';
+  if (entry.actionType === 'status_change') {
+    const key = entry.oldValue + '->' + entry.newValue;
+    return QUESTION_STATUS_TRANSITION_LABELS[key]
+      || ('Changement de statut : ' + arrow(entry.oldValue, entry.newValue));
+  }
+  if (entry.actionType === 'edit_name')         return 'Modification du nom';
+  if (entry.actionType === 'edit_description')  return 'Modification de la description';
   if (entry.actionType === 'edit_targetAudience') return 'Modification du public cible';
-  if (entry.actionType === 'edit_color') return 'Modification de la couleur';
-  if (entry.actionType === 'edit_icon') return 'Modification de l\'icône';
-  if (entry.actionType === 'add_competency') return 'Ajout d\'une compétence (' + entry.newValue + ')';
-  if (entry.actionType === 'add_competencies_bulk') return 'Ajout multiple de compétences (' + entry.newValue + ')';
-  if (entry.actionType === 'remove_competency') return 'Suppression d\'une compétence (' + entry.oldValue + ')';
-  if (entry.actionType === 'reorder_competency') return 'Réordonnancement des compétences';
-  if (entry.actionType === 'link_question') return 'Question liée à « ' + entry.oldValue + ' »';
-  if (entry.actionType === 'unlink_question') return 'Liaison retirée de « ' + entry.newValue + ' »';
-  if (entry.actionType === 'add_source') return 'Source ajoutée (' + entry.newValue + ')';
+  if (entry.actionType === 'edit_color')        return 'Modification de la couleur';
+  if (entry.actionType === 'edit_icon')         return 'Modification de l\'icône';
+  if (entry.actionType === 'add_competency')
+    return 'Compétence ajoutée' + (entry.newValue ? ' : ' + entry.newValue : '');
+  if (entry.actionType === 'add_competencies_bulk')
+    return 'Ajout groupé de compétences' + (entry.newValue ? ' (' + entry.newValue + ')' : '');
+  if (entry.actionType === 'remove_competency')
+    return 'Compétence retirée' + (entry.oldValue ? ' : ' + entry.oldValue : '');
+  if (entry.actionType === 'reorder_competency') return 'Réorganisation des compétences';
+  if (entry.actionType === 'link_question')
+    return 'Question rattachée au parcours' + (entry.oldValue ? ' « ' + entry.oldValue + ' »' : '');
+  if (entry.actionType === 'unlink_question')
+    return 'Rattachement retiré' + (entry.newValue ? ' (« ' + entry.newValue + ' »)' : '');
+  if (entry.actionType === 'add_source')
+    return 'Source ajoutée' + (entry.newValue ? ' : ' + entry.newValue : '');
   if (entry.actionType === 'remove_source') return 'Source retirée';
-  if (entry.actionType === 'add_direct_question') return 'Question ajoutée directement (' + entry.newValue + ')';
-  if (entry.actionType === 'remove_direct_question') return 'Question retirée directement (' + entry.oldValue + ')';
-  if (entry.actionType === 'assign') return 'Attribution ajoutée (' + entry.newValue + ')';
-  if (entry.actionType === 'unassign') return 'Attribution retirée (' + entry.oldValue + ')';
+  if (entry.actionType === 'add_direct_question')
+    return 'Question ajoutée en accès direct' + (entry.newValue ? ' : ' + entry.newValue : '');
+  if (entry.actionType === 'remove_direct_question')
+    return 'Question retirée de l\'accès direct' + (entry.oldValue ? ' : ' + entry.oldValue : '');
+  if (entry.actionType === 'assign')
+    return 'Attribué à : ' + (entry.newValue || '—');
+  if (entry.actionType === 'unassign')
+    return 'Attribution retirée' + (entry.oldValue ? ' : ' + entry.oldValue : '');
   if (entry.actionType === 'purge') return 'Suppression définitive';
   return null;
 }
 function describeCompetenciesEntry(entry) {
   if (entry.actionType === 'creation') return 'Création';
-  if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
+  if (entry.actionType === 'status_change') {
+    const key = entry.oldValue + '->' + entry.newValue;
+    return QUESTION_STATUS_TRANSITION_LABELS[key]
+      || ('Changement de statut : ' + arrow(entry.oldValue, entry.newValue));
+  }
   if (entry.actionType === 'bulk_publish') return 'Publication en masse';
-  if (entry.actionType === 'edit_name') return 'Modification du nom';
-  if (entry.actionType === 'edit_description') return 'Modification de la description';
-  if (entry.actionType === 'edit_category') return 'Modification de la catégorie';
-  if (entry.actionType === 'edit_color') return 'Modification de la couleur';
-  if (entry.actionType === 'edit_keywords') return 'Modification des mots-clés';
+  if (entry.actionType === 'edit_name')             return 'Modification du nom';
+  if (entry.actionType === 'edit_description')      return 'Modification de la description';
+  if (entry.actionType === 'edit_category')         return 'Modification de la catégorie';
+  if (entry.actionType === 'edit_color')            return 'Modification de la couleur';
+  if (entry.actionType === 'edit_keywords')         return 'Modification des mots-clés';
   if (entry.actionType === 'edit_recommendedLevel') return 'Modification du niveau conseillé';
-  if (entry.actionType === 'migration_import') return 'Créée automatiquement lors de la migration';
+  if (entry.actionType === 'migration_import') return 'Créée lors de la migration';
   if (entry.actionType === 'purge') return 'Suppression définitive';
   return null;
 }
 function describeReferenceBanksEntry(entry) {
-  if (entry.actionType === 'status_change') return 'Changement de statut (' + entry.oldValue + ' → ' + entry.newValue + ')';
-  if (entry.actionType && entry.actionType.indexOf('edit_') === 0) return 'Modification (' + entry.actionType.slice(5) + ')';
+  if (entry.actionType === 'status_change') {
+    return 'Changement de statut : ' + arrow(entry.oldValue, entry.newValue);
+  }
+  if (entry.actionType && entry.actionType.indexOf('edit_') === 0) {
+    const field = entry.actionType.slice(5);
+    const fieldLabel = REFBANK_FIELD_LABELS[field] || field;
+    return 'Modification : ' + fieldLabel;
+  }
   if (entry.actionType === 'purge') return 'Suppression définitive';
   return null;
 }
