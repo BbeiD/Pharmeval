@@ -32,17 +32,118 @@
   <div class="card" style="max-width:640px;">
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:var(--space-3);">
       <div id="mp-avatar" class="mp-avatar"></div>
-      <div>
+      <div style="flex:1;min-width:0;">
         <h3 id="mp-name" style="margin:0;"></h3>
-        <p id="mp-email" class="pv-list-empty" style="margin:0;"></p>
+        <p id="mp-email" class="pv-list-empty" style="margin:0;font-size:13px;"></p>
       </div>
+      <button class="btn-secondary" id="mp-edit-btn" style="padding:7px 14px;font-size:13px;white-space:nowrap;flex-shrink:0;">
+        <i class="ti ti-pencil" aria-hidden="true"></i> Modifier
+      </button>
     </div>
 
-    <div class="bank-detail-section">
+    <!-- Lecture seule -->
+    <div id="mp-info-read" class="bank-detail-section">
       <h4>Informations</h4>
       <div class="bank-detail-row"><strong>Profession :</strong> <span id="mp-profession"></span></div>
       <div class="bank-detail-row"><strong>Organisation :</strong> <span id="mp-organization"></span></div>
       <div class="bank-detail-row"><strong>Membre depuis :</strong> <span id="mp-member-since"></span></div>
+    </div>
+
+    <!-- Formulaire d'édition (masqué par défaut) -->
+    <div id="mp-info-edit" style="display:none;">
+      <h4 style="margin-bottom:var(--space-3);">Modifier mes informations</h4>
+      <div id="mp-edit-msg" style="display:none;"></div>
+      <div class="mp-edit-field">
+        <label for="mp-edit-name">Nom d'affichage</label>
+        <input type="text" id="mp-edit-name" maxlength="80" autocomplete="name">
+      </div>
+      <div class="mp-edit-field">
+        <label for="mp-edit-profession">Profession</label>
+        <select id="mp-edit-profession"></select>
+      </div>
+      <div class="mp-edit-field" id="mp-profession-other-wrap" style="display:none;">
+        <label for="mp-edit-profession-other">Précisez votre profession</label>
+        <input type="text" id="mp-edit-profession-other" maxlength="100">
+      </div>
+      <div class="mp-edit-field">
+        <label for="mp-edit-org-name">Nom de l'organisation</label>
+        <input type="text" id="mp-edit-org-name" maxlength="120" placeholder="Ex : Pharmacie de la Gare">
+      </div>
+      <div class="mp-edit-field">
+        <label for="mp-edit-org-type">Type d'organisation</label>
+        <select id="mp-edit-org-type"></select>
+      </div>
+      <div class="mp-edit-field" id="mp-org-type-other-wrap" style="display:none;">
+        <label for="mp-edit-org-type-other">Précisez le type</label>
+        <input type="text" id="mp-edit-org-type-other" maxlength="100">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:var(--space-3);">
+        <button class="btn-primary" id="mp-save-btn">Enregistrer</button>
+        <button class="btn-secondary" id="mp-cancel-btn">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sécurité du compte (password provider uniquement — affiché par JS) -->
+  <div class="card" id="mp-security-card" style="max-width:640px;margin-top:var(--space-4);display:none;">
+    <h3 style="margin-bottom:var(--space-3);">Sécurité du compte</h3>
+
+    <!-- Changer l'e-mail -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Adresse e-mail</div>
+          <div id="mp-sec-email-display" style="font-size:13px;color:var(--text2);margin-top:2px;"></div>
+        </div>
+        <button class="btn-secondary" id="mp-change-email-btn" style="padding:6px 14px;font-size:12px;white-space:nowrap;">Modifier</button>
+      </div>
+      <div id="mp-email-form" style="display:none;margin-top:12px;">
+        <div id="mp-email-msg" style="display:none;"></div>
+        <div class="mp-edit-field">
+          <label for="mp-new-email">Nouvel e-mail</label>
+          <input type="email" id="mp-new-email" autocomplete="off">
+        </div>
+        <div class="mp-edit-field">
+          <label for="mp-email-pwd">Mot de passe actuel (confirmation)</label>
+          <input type="password" id="mp-email-pwd" autocomplete="current-password">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn-primary" id="mp-confirm-email-btn">Confirmer</button>
+          <button class="btn-secondary" id="mp-cancel-email-btn">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:var(--space-3) 0;">
+
+    <!-- Changer le mot de passe -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);">Mot de passe</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px;">••••••••</div>
+        </div>
+        <button class="btn-secondary" id="mp-change-pwd-btn" style="padding:6px 14px;font-size:12px;white-space:nowrap;">Modifier</button>
+      </div>
+      <div id="mp-pwd-form" style="display:none;margin-top:12px;">
+        <div id="mp-pwd-msg" style="display:none;"></div>
+        <div class="mp-edit-field">
+          <label for="mp-current-pwd">Mot de passe actuel</label>
+          <input type="password" id="mp-current-pwd" autocomplete="current-password">
+        </div>
+        <div class="mp-edit-field">
+          <label for="mp-new-pwd">Nouveau mot de passe</label>
+          <input type="password" id="mp-new-pwd" autocomplete="new-password">
+        </div>
+        <div class="mp-edit-field">
+          <label for="mp-confirm-pwd">Confirmer le nouveau mot de passe</label>
+          <input type="password" id="mp-confirm-pwd" autocomplete="new-password">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn-primary" id="mp-confirm-pwd-btn">Enregistrer</button>
+          <button class="btn-secondary" id="mp-cancel-pwd-btn">Annuler</button>
+        </div>
+      </div>
     </div>
   </div>
 

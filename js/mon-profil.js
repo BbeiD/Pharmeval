@@ -8,8 +8,12 @@
 // badges" (aucun systeme de badges n'existe dans le modele de donnees).
 
 import { auth } from "./firebase-config.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { ensureUserDocument, PROFESSION_OPTIONS, ORGANIZATION_TYPE_OPTIONS } from "./services/user-service.js";
+import {
+  onAuthStateChanged, signOut,
+  updateProfile, updateEmail, updatePassword,
+  reauthenticateWithCredential, EmailAuthProvider,
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { ensureUserDocument, PROFESSION_OPTIONS, ORGANIZATION_TYPE_OPTIONS, saveProfileUpdate } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getUserByUid } from "./services/user-management-service.js";
 import { formatDateFr } from "./services/date-utils.js";
@@ -58,6 +62,8 @@ onAuthStateChanged(auth, async function(user) {
   renderSiteHeader('mon-profil');
 
   await render();
+  initEditSection();
+  initSecuritySection();
 });
 
 async function render() {
@@ -160,4 +166,262 @@ function renderMenu(ctx) {
     try { await signOut(auth); } catch (err) { console.error('Erreur de déconnexion :', err); }
     window.location.href = 'index.html';
   });
+}
+
+// ── Helpers messages ─────────────────────────────────────────────────────────
+
+function showMsg(id, text, isError) {
+  var el = qs(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.padding = '8px 12px';
+  el.style.borderRadius = '8px';
+  el.style.fontSize = '13px';
+  el.style.marginBottom = '10px';
+  if (isError) {
+    el.style.background = 'rgba(226,75,74,0.15)';
+    el.style.border = '1px solid rgba(226,75,74,0.4)';
+    el.style.color = '#ffb4b3';
+  } else {
+    el.style.background = 'rgba(29,158,117,0.15)';
+    el.style.border = '1px solid rgba(29,158,117,0.4)';
+    el.style.color = '#34D399';
+  }
+}
+
+function hideMsg(id) {
+  var el = qs(id);
+  if (el) el.style.display = 'none';
+}
+
+// ── Section édition du profil ─────────────────────────────────────────────────
+
+function initEditSection() {
+  var ctx = getCurrentUserContext();
+  if (!ctx) return;
+  var profile = ctx.profile || {};
+
+  // Remplir les selects
+  var profSel = qs('mp-edit-profession');
+  profSel.innerHTML = PROFESSION_OPTIONS.map(function(o) {
+    return '<option value="' + escapeHtml(o.value) + '"' + (profile.profession === o.value ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
+  }).join('');
+
+  var orgSel = qs('mp-edit-org-type');
+  orgSel.innerHTML = '<option value="">— Sélectionnez —</option>' + ORGANIZATION_TYPE_OPTIONS.map(function(o) {
+    return '<option value="' + escapeHtml(o.value) + '"' + (profile.organizationType === o.value ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
+  }).join('');
+
+  // Pré-remplir les champs texte
+  qs('mp-edit-name').value          = ctx.displayName || '';
+  qs('mp-edit-org-name').value      = profile.organizationName   || '';
+  qs('mp-edit-profession-other').value = profile.professionOther   || '';
+  qs('mp-edit-org-type-other').value   = profile.organizationTypeOther || '';
+
+  syncOtherFields();
+  profSel.addEventListener('change', syncOtherFields);
+  orgSel.addEventListener('change', syncOtherFields);
+
+  qs('mp-edit-btn').addEventListener('click', openEdit);
+  qs('mp-cancel-btn').addEventListener('click', closeEdit);
+  qs('mp-save-btn').addEventListener('click', handleSaveProfile);
+}
+
+function syncOtherFields() {
+  qs('mp-profession-other-wrap').style.display = qs('mp-edit-profession').value === 'other' ? '' : 'none';
+  qs('mp-org-type-other-wrap').style.display   = qs('mp-edit-org-type').value   === 'other' ? '' : 'none';
+}
+
+function openEdit() {
+  qs('mp-info-read').style.display = 'none';
+  qs('mp-info-edit').style.display = '';
+  qs('mp-edit-btn').style.display  = 'none';
+  hideMsg('mp-edit-msg');
+}
+
+function closeEdit() {
+  qs('mp-info-read').style.display = '';
+  qs('mp-info-edit').style.display = 'none';
+  qs('mp-edit-btn').style.display  = '';
+}
+
+async function handleSaveProfile() {
+  var ctx         = getCurrentUserContext();
+  var displayName = qs('mp-edit-name').value.trim();
+  var profession  = qs('mp-edit-profession').value;
+  var profOther   = qs('mp-edit-profession-other').value.trim();
+  var orgName     = qs('mp-edit-org-name').value.trim();
+  var orgType     = qs('mp-edit-org-type').value;
+  var orgTypeOther = qs('mp-edit-org-type-other').value.trim();
+
+  if (!displayName) { showMsg('mp-edit-msg', 'Veuillez saisir votre nom d\'affichage.', true); return; }
+  if (!profession)  { showMsg('mp-edit-msg', 'Veuillez sélectionner votre profession.', true); return; }
+
+  var btn = qs('mp-save-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Enregistrement…';
+
+  try {
+    if (auth.currentUser && displayName !== ctx.displayName) {
+      await updateProfile(auth.currentUser, { displayName: displayName });
+    }
+    await saveProfileUpdate(ctx.uid, {
+      displayName:           displayName,
+      profession:            profession,
+      professionOther:       profession === 'other' ? profOther : '',
+      organizationType:      orgType,
+      organizationTypeOther: orgType === 'other' ? orgTypeOther : '',
+      organizationName:      orgName,
+    });
+
+    // Mettre à jour le contexte en mémoire
+    ctx.displayName                    = displayName;
+    ctx.profile.profession             = profession;
+    ctx.profile.professionOther        = profession === 'other' ? profOther : '';
+    ctx.profile.organizationType       = orgType;
+    ctx.profile.organizationTypeOther  = orgType === 'other' ? orgTypeOther : '';
+    ctx.profile.organizationName       = orgName;
+
+    // Rafraîchir l'affichage en lecture seule
+    qs('mp-name').textContent = displayName;
+    var profLabel = profession === 'other'
+      ? (profOther || 'Autre')
+      : (optionLabel(PROFESSION_OPTIONS, profession) || '—');
+    var orgTypeLabel = orgType === 'other'
+      ? (orgTypeOther || 'Autre')
+      : (optionLabel(ORGANIZATION_TYPE_OPTIONS, orgType) || null);
+    qs('mp-profession').textContent  = profLabel;
+    qs('mp-organization').textContent = orgName
+      ? (orgName + (orgTypeLabel ? ' (' + orgTypeLabel + ')' : ''))
+      : '—';
+    qs('mp-avatar').innerHTML = ctx.photoURL
+      ? '<img src="' + escapeHtml(ctx.photoURL) + '" alt="">'
+      : escapeHtml(initialsFrom(displayName, ctx.email));
+
+    closeEdit();
+  } catch (err) {
+    console.error('Erreur mise à jour profil :', err);
+    showMsg('mp-edit-msg', 'Une erreur est survenue. Veuillez réessayer.', true);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Enregistrer';
+  }
+}
+
+// ── Section sécurité (e-mail + mot de passe) ─────────────────────────────────
+
+function initSecuritySection() {
+  var user = auth.currentUser;
+  if (!user) return;
+
+  var isPasswordProvider = user.providerData.some(function(p) { return p.providerId === 'password'; });
+  if (!isPasswordProvider) return;
+
+  var card = qs('mp-security-card');
+  if (card) card.style.display = '';
+
+  qs('mp-sec-email-display').textContent = user.email || '';
+
+  // — E-mail —
+  qs('mp-change-email-btn').addEventListener('click', function() {
+    qs('mp-email-form').style.display       = '';
+    qs('mp-change-email-btn').style.display = 'none';
+    hideMsg('mp-email-msg');
+  });
+  qs('mp-cancel-email-btn').addEventListener('click', function() {
+    qs('mp-email-form').style.display       = 'none';
+    qs('mp-change-email-btn').style.display = '';
+    qs('mp-new-email').value  = '';
+    qs('mp-email-pwd').value  = '';
+    hideMsg('mp-email-msg');
+  });
+  qs('mp-confirm-email-btn').addEventListener('click', handleEmailChange);
+
+  // — Mot de passe —
+  qs('mp-change-pwd-btn').addEventListener('click', function() {
+    qs('mp-pwd-form').style.display       = '';
+    qs('mp-change-pwd-btn').style.display = 'none';
+    hideMsg('mp-pwd-msg');
+  });
+  qs('mp-cancel-pwd-btn').addEventListener('click', function() {
+    qs('mp-pwd-form').style.display       = 'none';
+    qs('mp-change-pwd-btn').style.display = '';
+    qs('mp-current-pwd').value = '';
+    qs('mp-new-pwd').value     = '';
+    qs('mp-confirm-pwd').value = '';
+    hideMsg('mp-pwd-msg');
+  });
+  qs('mp-confirm-pwd-btn').addEventListener('click', handlePasswordChange);
+}
+
+async function handleEmailChange() {
+  var user     = auth.currentUser;
+  var newEmail = qs('mp-new-email').value.trim();
+  var pwd      = qs('mp-email-pwd').value;
+
+  if (!newEmail) { showMsg('mp-email-msg', 'Veuillez saisir le nouvel e-mail.', true); return; }
+  if (!pwd)      { showMsg('mp-email-msg', 'Veuillez saisir votre mot de passe actuel.', true); return; }
+
+  var btn = qs('mp-confirm-email-btn');
+  btn.disabled = true; btn.textContent = 'Confirmation…';
+
+  try {
+    var cred = EmailAuthProvider.credential(user.email, pwd);
+    await reauthenticateWithCredential(user, cred);
+    await updateEmail(user, newEmail);
+    await saveProfileUpdate(getCurrentUserContext().uid, { email: newEmail });
+
+    qs('mp-email').textContent              = newEmail;
+    qs('mp-sec-email-display').textContent  = newEmail;
+    getCurrentUserContext().email           = newEmail;
+    qs('mp-new-email').value  = '';
+    qs('mp-email-pwd').value  = '';
+    showMsg('mp-email-msg', 'Adresse e-mail mise à jour.', false);
+  } catch (err) {
+    console.error('Erreur changement e-mail :', err);
+    var msg = err.code === 'auth/wrong-password'       ? 'Mot de passe incorrect.'
+            : err.code === 'auth/invalid-credential'   ? 'Mot de passe incorrect.'
+            : err.code === 'auth/email-already-in-use' ? 'Cet e-mail est déjà utilisé par un autre compte.'
+            : err.code === 'auth/invalid-email'        ? 'Adresse e-mail invalide.'
+            : 'Une erreur est survenue. Veuillez réessayer.';
+    showMsg('mp-email-msg', msg, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirmer';
+  }
+}
+
+async function handlePasswordChange() {
+  var user       = auth.currentUser;
+  var currentPwd = qs('mp-current-pwd').value;
+  var newPwd     = qs('mp-new-pwd').value;
+  var confirmPwd = qs('mp-confirm-pwd').value;
+
+  if (!currentPwd)            { showMsg('mp-pwd-msg', 'Veuillez saisir votre mot de passe actuel.', true); return; }
+  if (!newPwd)                { showMsg('mp-pwd-msg', 'Veuillez saisir votre nouveau mot de passe.', true); return; }
+  if (newPwd.length < 6)     { showMsg('mp-pwd-msg', 'Le mot de passe doit comporter au moins 6 caractères.', true); return; }
+  if (newPwd !== confirmPwd) { showMsg('mp-pwd-msg', 'Les mots de passe ne correspondent pas.', true); return; }
+
+  var btn = qs('mp-confirm-pwd-btn');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+
+  try {
+    var cred = EmailAuthProvider.credential(user.email, currentPwd);
+    await reauthenticateWithCredential(user, cred);
+    await updatePassword(user, newPwd);
+
+    qs('mp-current-pwd').value = '';
+    qs('mp-new-pwd').value     = '';
+    qs('mp-confirm-pwd').value = '';
+    showMsg('mp-pwd-msg', 'Mot de passe mis à jour avec succès.', false);
+  } catch (err) {
+    console.error('Erreur changement mot de passe :', err);
+    var msg = err.code === 'auth/wrong-password'     ? 'Mot de passe actuel incorrect.'
+            : err.code === 'auth/invalid-credential' ? 'Mot de passe actuel incorrect.'
+            : err.code === 'auth/weak-password'      ? 'Le nouveau mot de passe est trop faible (minimum 6 caractères).'
+            : 'Une erreur est survenue. Veuillez réessayer.';
+    showMsg('mp-pwd-msg', msg, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
 }

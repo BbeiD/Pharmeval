@@ -162,6 +162,19 @@ export async function ensureUserDocument(user) {
  * @param {string} uid
  * @param {{profession:string, professionOther?:string, organizationType:string, organizationOther?:string, organizationName:string}} profileData
  */
+export async function saveProfileUpdate(uid, data) {
+  const ref = doc(db, 'users', uid);
+  const updates = {};
+  if (data.displayName !== undefined) updates.displayName = data.displayName;
+  if (data.email       !== undefined) updates.email       = data.email;
+  if (data.profession          !== undefined) updates['profile.profession']          = data.profession;
+  if (data.professionOther     !== undefined) updates['profile.professionOther']     = data.professionOther;
+  if (data.organizationType    !== undefined) updates['profile.organizationType']    = data.organizationType;
+  if (data.organizationTypeOther !== undefined) updates['profile.organizationTypeOther'] = data.organizationTypeOther;
+  if (data.organizationName    !== undefined) updates['profile.organizationName']    = data.organizationName;
+  if (Object.keys(updates).length > 0) await updateDoc(ref, updates);
+}
+
 export async function saveOnboardingProfile(uid, profileData) {
   const ref = doc(db, 'users', uid);
   const isOtherProfession = profileData.profession === 'other';

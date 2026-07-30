@@ -310,6 +310,15 @@
     font-size: 22px; font-weight: 700; color: var(--text2);
   }
   .mp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .mp-edit-field { margin-bottom: 12px; }
+  .mp-edit-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+  .mp-edit-field input, .mp-edit-field select {
+    width: 100%; padding: 9px 12px; background: var(--surface2);
+    border: 1px solid var(--border2); border-radius: var(--radius);
+    color: var(--text); font-size: 14px; font-family: inherit; transition: border-color .15s;
+  }
+  .mp-edit-field input:focus, .mp-edit-field select:focus { outline: none; border-color: var(--green); }
+  .mp-edit-field select option { background: var(--surface2); color: var(--text); }
 
   /* AJOUT (refonte visuelle, phase 3, mockup mobile fourni par David,
      27/07/2026) : "Mon profil" devient le point d'acces pour Mes
