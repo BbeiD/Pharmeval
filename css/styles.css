@@ -1229,6 +1229,9 @@
   .auth-btn-google:hover { background: rgba(255,255,255,0.16); }
   .auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: #cbd5e1; }
   .auth-switch a { color: var(--green, #1D9E75); cursor: pointer; text-decoration: underline; }
+  .auth-legal { text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .auth-legal a { font-size: 11px; color: #64748b; text-decoration: none; transition: color .15s; }
+  .auth-legal a:hover { color: #94a3b8; }
   .auth-error {
     background: rgba(226,75,74,0.15); border: 1px solid rgba(226,75,74,0.4);
     color: #ffb4b3; padding: 8px 12px; border-radius: 8px; font-size: 12px;

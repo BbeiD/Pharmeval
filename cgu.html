@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="assets/icons/pwa/favicon-32.png">
+<title>CGU — Pharmeval</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .cgu-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+  }
+  .cgu-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text2);
+    text-decoration: none;
+    margin-bottom: 24px;
+    transition: color .15s;
+  }
+  .cgu-back:hover { color: var(--text); }
+  .cgu-header {
+    margin-bottom: 32px;
+  }
+  .cgu-brand {
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 8px;
+  }
+  .cgu-header h1 {
+    font-size: clamp(22px, 5vw, 28px);
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .cgu-version {
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .cgu-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 28px 0;
+  }
+  .cgu-article {
+    margin-bottom: 36px;
+  }
+  .cgu-article h2 {
+    font-size: 16px;
+    color: var(--green-dark);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cgu-article h2 .art-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--green-light);
+    color: var(--green-dark);
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .cgu-article h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 16px 0 6px;
+  }
+  .cgu-article p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+  .cgu-article p strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .cgu-article ul {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 10px 0;
+  }
+  .cgu-article ul li {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text2);
+    padding: 3px 0 3px 20px;
+    position: relative;
+  }
+  .cgu-article ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .cgu-contact-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 14px;
+    color: var(--text2);
+    margin: 12px 0;
+    line-height: 1.6;
+  }
+  .cgu-contact-box strong {
+    color: var(--text);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .cgu-footer {
+    padding: 20px 0 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text2);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="cgu-wrap">
+
+  <a href="index.html" class="cgu-back"><i class="ti ti-arrow-left"></i> Retour à Pharmeval</a>
+
+  <div class="cgu-header">
+    <div class="cgu-brand">Pharmeval</div>
+    <h1>Conditions Générales d'Utilisation<br>& Politique de Confidentialité</h1>
+    <p class="cgu-version">Version 1.0 — 30 juillet 2026 · pharmeval.be</p>
+  </div>
+  <hr class="cgu-divider">
+
+  <!-- Art. 1 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">1</span> Éditeur du service</h2>
+    <p>Le service Pharmeval (ci-après « le Service ») est édité par :</p>
+    <div class="cgu-contact-box">
+      <strong>David Bei — Pharmacien d'officine indépendant</strong>
+      E-mail : <a href="mailto:contact@pharmeval.be" style="color:var(--green-dark);">contact@pharmeval.be</a><br>
+      Site web : <a href="https://pharmeval.be" style="color:var(--green-dark);">https://pharmeval.be</a>
+    </div>
+    <p style="font-size:13px;">(ci-après « l'Éditeur »)</p>
+  </div>
+
+  <!-- Art. 2 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">2</span> Objet du service</h2>
+    <p>Pharmeval est une plateforme de formation continue destinée exclusivement aux professionnels de santé, et en particulier aux pharmaciens d'officine. Elle propose des parcours de formation sous forme de questionnaires à choix multiples (QCM), des exercices d'entraînement libre et un suivi de progression pédagogique, dans le but de soutenir le développement professionnel continu.</p>
+    <p>Le Service est accessible à l'adresse <a href="https://pharmeval.be" style="color:var(--green-dark);">https://pharmeval.be</a>.</p>
+  </div>
+
+  <!-- Art. 3 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">3</span> Accès au service et création de compte</h2>
+    <h3>3.1 Conditions d'accès</h3>
+    <p>Le Service est réservé aux professionnels de santé, et prioritairement aux pharmaciens d'officine. En créant un compte, l'Utilisateur déclare exercer une profession de santé réglementée.</p>
+    <h3>3.2 Création de compte</h3>
+    <p>L'accès au Service nécessite la création d'un compte via une adresse e-mail valide. L'Utilisateur est seul responsable de la confidentialité de ses identifiants de connexion et de toute activité réalisée sous son compte.</p>
+    <h3>3.3 Exactitude des informations</h3>
+    <p>L'Utilisateur s'engage à fournir des informations exactes lors de la création de son compte et à les maintenir à jour.</p>
+  </div>
+
+  <!-- Art. 4 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">4</span> Offres et modalités tarifaires</h2>
+    <h3>4.1 Offre gratuite (modèle actuel)</h3>
+    <p>À la date d'entrée en vigueur des présentes CGU, le Service est accessible gratuitement. L'ensemble des fonctionnalités disponibles peut être utilisé sans contrepartie financière.</p>
+    <h3>4.2 Évolution vers un modèle payant</h3>
+    <p>L'Éditeur se réserve le droit d'introduire une offre payante à l'avenir, sous forme d'abonnement mensuel ou annuel. Toute modification tarifaire affectant des fonctionnalités actuellement accessibles gratuitement sera communiquée aux Utilisateurs inscrits par e-mail, avec un <strong>préavis minimum de 30 jours calendrier</strong> avant son entrée en vigueur.</p>
+    <h3>4.3 Droit de résiliation avant le passage au payant</h3>
+    <p>Les Utilisateurs ne souhaitant pas souscrire à l'offre payante pourront résilier leur compte sans frais avant l'expiration du délai de préavis, en contactant l'Éditeur à <a href="mailto:contact@pharmeval.be" style="color:var(--green-dark);">contact@pharmeval.be</a>.</p>
+    <h3>4.4 Conditions de l'abonnement payant (futur)</h3>
+    <p>Lorsque l'offre payante sera activée, les conditions spécifiques — tarifs, durée, renouvellement automatique, modalités de résiliation et de remboursement — seront précisées dans un avenant aux présentes CGU ou dans une page tarifaire dédiée sur le Site. Elles feront l'objet d'une acceptation explicite de l'Utilisateur avant tout engagement financier.</p>
+  </div>
+
+  <!-- Art. 5 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">5</span> Propriété intellectuelle</h2>
+    <p>L'ensemble du contenu du Service — notamment les questions, cas cliniques, parcours de formation, textes, visuels, médailles virtuelles et structure pédagogique — est la propriété exclusive de l'Éditeur ou fait l'objet de licences en sa faveur.</p>
+    <p>Toute reproduction, diffusion, modification ou exploitation, totale ou partielle, du contenu du Service sans autorisation écrite préalable de l'Éditeur est strictement interdite.</p>
+    <p>Les données de progression et les résultats de l'Utilisateur lui appartiennent. L'Éditeur ne les utilise qu'aux fins de fourniture du Service et d'amélioration pédagogique anonymisée.</p>
+  </div>
+
+  <!-- Art. 6 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">6</span> Avertissements et limitation de responsabilité</h2>
+    <h3>6.1 Caractère exclusivement éducatif</h3>
+    <p>Le contenu proposé par Pharmeval est destiné à la formation continue et à l'auto-évaluation professionnelle. Il <strong>ne constitue en aucun cas un avis médical, pharmaceutique ou réglementaire officiel</strong>, et ne saurait se substituer aux sources de référence (CBIP/BCFI, BAPCOC, Sciensano, APB/OPHACO, législation belge en vigueur).</p>
+    <h3>6.2 Exactitude du contenu</h3>
+    <p>L'Éditeur s'efforce de maintenir le contenu à jour et conforme aux recommandations en vigueur, mais ne garantit pas son exhaustivité ni l'absence d'erreur. L'Utilisateur reste seul responsable de l'usage qu'il fait des informations obtenues via le Service dans l'exercice de sa profession.</p>
+    <h3>6.3 Disponibilité</h3>
+    <p>L'Éditeur s'efforce d'assurer la disponibilité du Service mais ne peut en garantir un accès ininterrompu. Des interruptions pour maintenance ou pour des raisons techniques peuvent survenir sans préavis.</p>
+    <h3>6.4 Limitation de responsabilité</h3>
+    <p>Dans les limites autorisées par le droit belge, l'Éditeur ne saurait être tenu responsable des dommages directs ou indirects résultant de l'utilisation ou de l'impossibilité d'utiliser le Service.</p>
+  </div>
+
+  <!-- Art. 7 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">7</span> Données personnelles (RGPD)</h2>
+    <h3>7.1 Responsable de traitement</h3>
+    <p>Les données personnelles collectées via le Service sont traitées par <strong>David Bei, pharmacien d'officine indépendant</strong>, agissant en qualité de responsable de traitement au sens du Règlement (UE) 2016/679 (RGPD).<br>Contact : <a href="mailto:contact@pharmeval.be" style="color:var(--green-dark);">contact@pharmeval.be</a></p>
+    <h3>7.2 Données collectées</h3>
+    <p>Dans le cadre de l'utilisation du Service, les données suivantes sont susceptibles d'être collectées :</p>
+    <ul>
+      <li>Adresse e-mail (création de compte et authentification)</li>
+      <li>Données de progression et résultats aux parcours de formation</li>
+      <li>Données de connexion (horodatages, sessions)</li>
+    </ul>
+    <h3>7.3 Finalités du traitement</h3>
+    <ul>
+      <li>Fourniture et personnalisation du Service</li>
+      <li>Gestion des comptes utilisateurs</li>
+      <li>Amélioration du contenu pédagogique (sur base anonymisée)</li>
+      <li>Respect des obligations légales applicables</li>
+    </ul>
+    <h3>7.4 Base légale</h3>
+    <ul>
+      <li>Exécution du contrat (acceptation des CGU) pour la fourniture du Service</li>
+      <li>Intérêt légitime de l'Éditeur pour l'amélioration du Service (données anonymisées)</li>
+      <li>Consentement de l'Utilisateur pour toute communication marketing éventuelle</li>
+    </ul>
+    <h3>7.5 Sous-traitant</h3>
+    <p>Le Service utilise <strong>Google Firebase</strong> (Google LLC, États-Unis) comme infrastructure d'authentification et de stockage des données. Ce transfert de données hors Union européenne est encadré par les <strong>Clauses Contractuelles Types</strong> approuvées par la Commission européenne.</p>
+    <h3>7.6 Durée de conservation</h3>
+    <p>Les données sont conservées pendant toute la durée d'activité du compte. En cas de suppression du compte, les données personnelles sont effacées dans un délai de 30 jours, sauf obligation légale de conservation contraire.</p>
+    <h3>7.7 Droits des Utilisateurs</h3>
+    <p>Conformément au RGPD, l'Utilisateur dispose des droits suivants :</p>
+    <ul>
+      <li>Droit d'accès à ses données</li>
+      <li>Droit de rectification</li>
+      <li>Droit à l'effacement (« droit à l'oubli »)</li>
+      <li>Droit à la portabilité des données</li>
+      <li>Droit d'opposition au traitement</li>
+      <li>Droit à la limitation du traitement</li>
+    </ul>
+    <p>Pour exercer ces droits : <a href="mailto:contact@pharmeval.be" style="color:var(--green-dark);">contact@pharmeval.be</a></p>
+    <h3>7.8 Droit d'introduire une réclamation</h3>
+    <p>L'Utilisateur peut introduire une réclamation auprès de l'<strong>Autorité de Protection des Données (APD)</strong> belge :</p>
+    <ul>
+      <li>Site web : <a href="https://www.autoriteprotectiondonnees.be" style="color:var(--green-dark);" target="_blank" rel="noopener">www.autoriteprotectiondonnees.be</a></li>
+      <li>Adresse : Rue de la Presse 35, 1000 Bruxelles</li>
+    </ul>
+  </div>
+
+  <!-- Art. 8 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">8</span> Cookies</h2>
+    <p>Le Service peut utiliser des cookies techniques strictement nécessaires à son fonctionnement (authentification, maintien de session). Aucun cookie publicitaire ou de traçage tiers n'est utilisé à ce jour.</p>
+  </div>
+
+  <!-- Art. 9 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">9</span> Modification des CGU</h2>
+    <p>L'Éditeur se réserve le droit de modifier les présentes CGU à tout moment. Les Utilisateurs seront informés de toute modification substantielle par e-mail, avec un préavis minimum de 15 jours calendrier avant son entrée en vigueur. La poursuite de l'utilisation du Service après l'expiration de ce délai vaut acceptation des nouvelles CGU.</p>
+  </div>
+
+  <!-- Art. 10 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">10</span> Résiliation</h2>
+    <p>L'Utilisateur peut demander la suppression de son compte à tout moment en contactant l'Éditeur à <a href="mailto:contact@pharmeval.be" style="color:var(--green-dark);">contact@pharmeval.be</a>. L'Éditeur se réserve le droit de suspendre ou supprimer un compte en cas de violation des présentes CGU, après mise en demeure restée sans effet.</p>
+  </div>
+
+  <!-- Art. 11 -->
+  <div class="cgu-article">
+    <h2><span class="art-num">11</span> Loi applicable et juridiction</h2>
+    <p>Les présentes CGU sont régies exclusivement par le droit belge. En cas de litige relatif à leur interprétation ou à leur exécution, et à défaut de résolution amiable dans un délai de 30 jours, les tribunaux compétents seront ceux du ressort du siège de l'Éditeur.</p>
+  </div>
+
+  <div class="cgu-footer">
+    Pharmeval · <a href="mailto:contact@pharmeval.be" style="color:var(--text2);">contact@pharmeval.be</a> · Version 1.0 — 30/07/2026
+  </div>
+
+</div>
+</body>
+</html>
