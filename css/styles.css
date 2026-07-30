@@ -2239,11 +2239,32 @@
   }
 
 
-  /* ---- NOUVEAU (mockup, demande directe de David) : "Activité récente"
-     de l'accueil (js/home.js). ---- */
+  /* ---- "Activité récente" (partagée accueil + profil) ---- */
   .home-activity-list { display: flex; flex-direction: column; gap: var(--space-3); max-height: 320px; overflow-y: auto; }
   .home-activity-row { display: flex; align-items: center; gap: var(--space-2); }
   .home-activity-text { flex: 1; min-width: 0; }
   .home-activity-label { font-size: 13px; font-weight: 600; color: var(--text); }
   .home-activity-detail { font-size: 12px; color: var(--text2); }
   .home-activity-time { font-size: 11px; color: var(--text2); white-space: nowrap; }
+
+  /* ---- Médailles (accueil) ---- */
+  .home-medals-section { margin-bottom: var(--space-3); }
+  .home-medals-section:last-child { margin-bottom: 0; }
+  .home-medals-section-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; }
+  .home-medal-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .home-medal-row:last-child { border-bottom: none; }
+  .home-medal-icon { font-size: 20px; flex-shrink: 0; }
+  .home-medal-row-earned .home-medal-icon { color: #FBBF24; }
+  .home-medal-row-pending .home-medal-icon { color: var(--text2); opacity: .3; }
+  .home-medal-name { font-size: 13px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .home-medal-row-pending .home-medal-name { color: var(--text2); }
+  .home-medals-count { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+  .home-medals-total { font-size: 18px; font-weight: 600; color: var(--text2); }
+  .home-medals-label { font-size: 12px; color: var(--text2); margin: 4px 0 10px; }
+  .home-medals-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .home-medals-bar-fill { height: 100%; background: #FBBF24; border-radius: 4px; transition: width .5s ease; min-width: 0; }
+
+  /* ---- Mobile : duo-grid empilé sous 540px ---- */
+  @media (max-width: 540px) {
+    .home-duo-grid { grid-template-columns: 1fr; }
+  }

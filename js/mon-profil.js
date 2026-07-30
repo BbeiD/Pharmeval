@@ -16,7 +16,8 @@ import {
 import { ensureUserDocument, PROFESSION_OPTIONS, ORGANIZATION_TYPE_OPTIONS, saveProfileUpdate } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getUserByUid } from "./services/user-management-service.js";
-import { formatDateFr } from "./services/date-utils.js";
+import { formatDateFr, formatRelativeFr } from "./services/date-utils.js";
+import { getRecentActivityForUser } from "./services/recent-activity-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
 import { icon } from "./icons.js";
@@ -64,6 +65,7 @@ onAuthStateChanged(auth, async function(user) {
   await render();
   initEditSection();
   initSecuritySection();
+  loadProfileActivity();
 });
 
 async function render() {
@@ -424,4 +426,44 @@ async function handlePasswordChange() {
   } finally {
     btn.disabled = false; btn.textContent = 'Enregistrer';
   }
+}
+
+// ── Activité récente ─────────────────────────────────────────────────────────
+
+const PROFILE_ACTIVITY_ICON = {
+  evaluation_completed: { icon: 'content-question-bank',     cls: 'stat-card-icon-blue' },
+  score_improved:       { icon: 'feedback-trend-up',          cls: 'stat-card-icon-green' },
+  parcours_started:     { icon: 'nav-paths-formations',       cls: 'stat-card-icon-orange' },
+  streak:               { icon: 'feedback-streak-regularity', cls: 'stat-card-icon-orange' },
+};
+
+async function loadProfileActivity() {
+  const listEl = qs('mp-activity-list');
+  const emptyEl = qs('mp-activity-empty');
+  if (!listEl) return;
+
+  const ctx = getCurrentUserContext();
+  const result = await getRecentActivityForUser(ctx && ctx.uid);
+
+  if (result.error || result.items.length === 0) {
+    emptyEl.style.display = 'block';
+    return;
+  }
+
+  function escH(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = result.items.map(function(event) {
+    const conf = PROFILE_ACTIVITY_ICON[event.type] || PROFILE_ACTIVITY_ICON.evaluation_completed;
+    return (
+      '<div class="home-activity-row">' +
+        '<div class="stat-card-icon ' + conf.cls + '" style="width:32px;height:32px;margin-bottom:0;">' + icon(conf.icon, { size: 16 }) + '</div>' +
+        '<div class="home-activity-text">' +
+          '<div class="home-activity-label">' + escH(event.label) + '</div>' +
+          '<div class="home-activity-detail">' + escH(event.detail) + '</div>' +
+        '</div>' +
+        '<div class="home-activity-time">' + escH(formatRelativeFr(event.date)) + '</div>' +
+      '</div>'
+    );
+  }).join('');
 }

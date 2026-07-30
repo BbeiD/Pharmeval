@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAssignedParcoursForUser } from "./services/assignment-service.js";
-import { resolveParcoursColorHex, resolveParcoursIconKey, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
+import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
 import { calculateOverview } from "./services/statistics-service.js";
@@ -31,7 +31,7 @@ import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-s
 import { getRecentActivityForUser } from "./services/recent-activity-service.js";
 import { getDailyChallengeStateForUser, startTodaysChallenge } from "./services/daily-challenge-service.js";
 import { DAILY_CHALLENGE_QUESTION_COUNT } from "./services/daily-challenge-logic.js";
-import { formatRelativeFr } from "./services/date-utils.js";
+import { formatRelativeFr, todayDateStr } from "./services/date-utils.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
 
@@ -101,7 +101,7 @@ onAuthStateChanged(auth, async function(user) {
     loadHomeParcours(),
     loadHomeStats(),
     loadMasteryDonut(),
-    loadRecentActivity(),
+    loadMedals(),
     renderHero(),
   ]);
 });
@@ -301,28 +301,82 @@ function cardHtml(entry, attempts) {
 }
 
 // ---------------------------------------------------------------------------
-// Activite recente (demande directe de David, 22/07/2026 - "agrège et
-// renseigne le")
+// Médailles (remplace l'activité récente sur l'accueil)
+// Deux sous-sections :
+//   - "Parcours à la une" : chaque parcours featured individuellement
+//   - "Parcours classiques" : compteur x/N avec barre de progression
 // ---------------------------------------------------------------------------
 
-async function loadRecentActivity() {
-  const listEl = document.getElementById('home-activity-list');
-  const emptyEl = document.getElementById('home-activity-empty');
-  if (!listEl) return;
+async function loadMedals() {
+  const el = document.getElementById('home-medals-content');
+  const emptyEl = document.getElementById('home-medals-empty');
+  if (!el) return;
 
   const ctx = getCurrentUserContext();
-  const result = await getRecentActivityForUser(ctx && ctx.uid);
+  const todayStr = todayDateStr();
 
-  if (result.error || result.items.length === 0) {
-    listEl.innerHTML = '';
-    emptyEl.style.display = result.error ? 'none' : 'block';
+  const [assignedResult, attemptResult] = await Promise.all([
+    getAssignedParcoursForUser(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+  ]);
+
+  if (assignedResult.error || assignedResult.items.length === 0) {
+    emptyEl.style.display = 'block';
     return;
   }
 
-  emptyEl.style.display = 'none';
-  listEl.innerHTML = result.items.map(activityRowHtml).join('');
+  const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
+  const allParcours = assignedResult.items.map(function(e) { return e.parcours; });
+
+  const featuredList = allParcours.filter(function(p) { return isParcoursCurrentlyFeatured(p, todayStr); });
+  const classicList  = allParcours.filter(function(p) { return !isParcoursCurrentlyFeatured(p, todayStr); });
+
+  function hasMedal(p) {
+    const att = attemptsByParcoursId.get(p.id);
+    return !!(att && att.bestPercent === 100);
+  }
+
+  let html = '';
+
+  if (featuredList.length > 0) {
+    html += '<div class="home-medals-section">';
+    if (classicList.length > 0) {
+      html += '<div class="home-medals-section-label">Parcours à la une</div>';
+    }
+    html += featuredList.map(function(p) {
+      const earned = hasMedal(p);
+      return (
+        '<div class="home-medal-row' + (earned ? ' home-medal-row-earned' : ' home-medal-row-pending') + '">' +
+          '<i class="ti ti-medal home-medal-icon"></i>' +
+          '<span class="home-medal-name">' + escapeHtml(p.name) + '</span>' +
+        '</div>'
+      );
+    }).join('');
+    html += '</div>';
+  }
+
+  if (classicList.length > 0) {
+    const earned = classicList.filter(hasMedal).length;
+    const pct = Math.round(earned / classicList.length * 100);
+    html += '<div class="home-medals-section">';
+    if (featuredList.length > 0) {
+      html += '<div class="home-medals-section-label">Parcours classiques</div>';
+    }
+    html += '<div class="home-medals-count">' + earned + ' <span class="home-medals-total">/ ' + classicList.length + '</span></div>';
+    html += '<div class="home-medals-label">médailles obtenues</div>';
+    html += '<div class="home-medals-bar"><div class="home-medals-bar-fill" style="width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  }
+
+  if (!html) {
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+    el.innerHTML = html;
+  }
 }
 
+// activityRowHtml reste disponible pour mon-profil.js via getRecentActivityForUser
 function activityRowHtml(event) {
   const conf = ACTIVITY_ICON_BY_TYPE[event.type] || ACTIVITY_ICON_BY_TYPE.evaluation_completed;
   return (
