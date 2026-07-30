@@ -90,9 +90,16 @@
     </div>
   </div>
 
-  <!-- AJOUT : tuiles de statistiques REELLES (jamais de chiffre invente) -
-       voir js/home.js, loadHomeStats(). -->
-  <div class="stat-card-grid" id="home-stats-grid" style="margin-bottom:var(--space-3);"></div>
+  <!-- Apercu des parcours attribues a l'utilisateur -->
+  <div class="card home-parcours-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-blue);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
+      <h3 style="margin:0;">Vos parcours</h3>
+      <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
+    </div>
+    <div id="home-parcours-message" class="admin-message" style="display:none;"></div>
+    <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
+    <div id="home-parcours-grid" class="mesparcours-grid"></div>
+  </div>
 
   <div class="card home-etl-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--green);">
     <h3 style="margin-bottom:var(--space-3);"><span class="page-header-icon page-header-icon-green"><i class="ti ti-target" aria-hidden="true"></i></span> Entraînement libre</h3>
@@ -102,37 +109,19 @@
     <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Me tester !</a>
   </div>
 
-  <!-- AJOUT (mockup, demande directe de David) : progression globale /
-       activité récente, cote a cote - deux lectures INDEPENDANTES (voir
-       js/home.js), une erreur sur l'une n'affecte jamais l'autre. Le
-       "Defi du jour" a rejoint la hero card ci-dessus (chantier
-       graphique). -->
   <div class="import-card-grid home-duo-grid" style="margin-bottom:var(--space-3);">
-    <div class="card" style="border-top:3px solid var(--accent-purple);">
+    <div class="card home-clickable-card" style="border-top:3px solid var(--accent-purple);" onclick="openHistoryView()" role="button" tabindex="0" aria-label="Voir Mes évaluations">
       <h3 style="margin-bottom:4px;">Maîtrise des questions</h3>
       <p style="font-size:12px;color:var(--text2);margin:0 0 var(--space-3) 0;">Questions évaluées dans toutes vos sessions</p>
       <div id="home-mastery-donut"></div>
     </div>
-    <div class="card" style="border-top:3px solid #D4A017;">
+    <div class="card home-clickable-card" style="border-top:3px solid #D4A017;" onclick="openHistoryView()" role="button" tabindex="0" aria-label="Voir Mes évaluations">
       <h3 style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;">
         <i class="ti ti-medal" style="color:#D4A017;font-size:20px;"></i>Vos médailles
       </h3>
       <div id="home-medals-empty" class="bank-list-empty" style="display:none;">Aucune médaille obtenue pour l'instant.</div>
       <div id="home-medals-content"></div>
     </div>
-  </div>
-
-  <!-- Apercu des parcours attribues a l'utilisateur (deja construit ce soir,
-       reutilise ici tel quel - meme service que js/mes-parcours.js,
-       getAssignedParcoursForUser(), aucune logique metier ici). -->
-  <div class="card home-parcours-card" style="border-top:3px solid var(--accent-blue);">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
-      <h3 style="margin:0;">Vos parcours</h3>
-      <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
-    </div>
-    <div id="home-parcours-message" class="admin-message" style="display:none;"></div>
-    <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
-    <div id="home-parcours-grid" class="mesparcours-grid"></div>
   </div>
 </div>
 
