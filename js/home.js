@@ -345,9 +345,13 @@ async function loadMedals() {
     }
     html += featuredList.map(function(p) {
       const earned = hasMedal(p);
+      const medalSrc = p.medalId ? 'assets/medals/medal-' + p.medalId + '.png' : null;
+      const medalEl = medalSrc
+        ? '<img src="' + medalSrc + '" class="home-medal-img" alt="">'
+        : '<i class="ti ti-medal home-medal-icon"></i>';
       return (
         '<div class="home-medal-row' + (earned ? ' home-medal-row-earned' : ' home-medal-row-pending') + '">' +
-          '<i class="ti ti-medal home-medal-icon"></i>' +
+          medalEl +
           '<span class="home-medal-name">' + escapeHtml(p.name) + '</span>' +
         '</div>'
       );
@@ -358,12 +362,18 @@ async function loadMedals() {
   if (classicList.length > 0) {
     const earned = classicList.filter(hasMedal).length;
     const pct = Math.round(earned / classicList.length * 100);
+    const classicImg = pct >= 80 ? 'medal-expert.png' : pct >= 40 ? 'medal-approfondi.png' : 'medal-fondamental.png';
     html += '<div class="home-medals-section">';
     if (featuredList.length > 0) {
       html += '<div class="home-medals-section-label">Parcours classiques</div>';
     }
-    html += '<div class="home-medals-count">' + earned + ' <span class="home-medals-total">/ ' + classicList.length + '</span></div>';
-    html += '<div class="home-medals-label">médailles obtenues</div>';
+    html += '<div class="home-medals-classic-header">' +
+      '<img src="assets/medals/' + classicImg + '" class="home-medals-classic-img" alt="">' +
+      '<div>' +
+        '<div class="home-medals-count">' + earned + ' <span class="home-medals-total">/ ' + classicList.length + '</span></div>' +
+        '<div class="home-medals-label">médailles obtenues</div>' +
+      '</div>' +
+    '</div>';
     html += '<div class="home-medals-bar"><div class="home-medals-bar-fill" style="width:' + pct + '%;"></div></div>';
     html += '</div>';
   }
