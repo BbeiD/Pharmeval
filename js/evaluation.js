@@ -303,6 +303,7 @@ function renderTaking() {
     qs('ev-breadcrumb-competency').textContent = '';
     qs('ev-competency-name').textContent = isDailyChallenge ? 'Défi du jour' : 'Entraînement libre';
     qs('ev-parcours-name').textContent = state.session.questionIds.length + ' question(s)';
+    qs('ev-stop-training-row').style.display = !isDailyChallenge ? 'block' : 'none';
   } else if (state.sessionType === 'parcours_mixed') {
     // AJOUT : parcours mixte - meme fil d'Ariane que le mode classique
     // (le parcours reste affiche), sans le second maillon "competence"
@@ -544,6 +545,23 @@ export async function confirmSubmit() {
 }
 
 // ---------------------------------------------------------------------------
+// Arrêt anticipé d'un entraînement libre
+// ---------------------------------------------------------------------------
+
+export function requestStopTraining() {
+  qs('ev-stop-confirm-overlay').style.display = 'flex';
+}
+export function cancelStopTraining() {
+  qs('ev-stop-confirm-overlay').style.display = 'none';
+}
+export async function confirmStopTraining() {
+  qs('ev-stop-confirm-overlay').style.display = 'none';
+  showOnly('ev-loading');
+  await finalizeEvaluation(state.session);
+  window.location.href = 'index.html';
+}
+
+// ---------------------------------------------------------------------------
 // Exposition au HTML
 // ---------------------------------------------------------------------------
 
@@ -556,3 +574,6 @@ window.goToNext = goToNext;
 window.requestSubmit = requestSubmit;
 window.cancelSubmit = cancelSubmit;
 window.confirmSubmit = confirmSubmit;
+window.requestStopTraining = requestStopTraining;
+window.cancelStopTraining = cancelStopTraining;
+window.confirmStopTraining = confirmStopTraining;

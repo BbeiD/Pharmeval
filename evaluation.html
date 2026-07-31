@@ -90,6 +90,22 @@
       <button class="btn-primary" id="ev-btn-finish" onclick="requestSubmit()">Terminer l'évaluation</button>
     </div>
 
+    <div id="ev-stop-training-row" style="display:none;text-align:center;margin-top:8px;">
+      <button class="btn-secondary" style="color:var(--text2);font-size:13px;" onclick="requestStopTraining()">Mettre fin à l'entraînement</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- CONFIRMATION ARRET ENTRAINEMENT LIBRE -->
+<div id="ev-stop-confirm-overlay" class="admin-modal-overlay" style="display:none;">
+  <div class="admin-modal admin-confirm-modal">
+    <h3>Mettre fin à l'entraînement ?</h3>
+    <p>Les questions déjà répondues seront enregistrées dans votre historique. Les questions non répondues ne seront pas comptées.</p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="cancelStopTraining()">Annuler</button>
+      <button class="btn-primary" onclick="confirmStopTraining()">Terminer</button>
+    </div>
   </div>
 </div>
 
