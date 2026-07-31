@@ -19,8 +19,19 @@
 // bloquer le chargement normal de la page.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').catch(function(err) {
-      console.error('[sw-register] Échec de l\'enregistrement du service worker :', err);
-    });
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then(function(reg) {
+        // Quand un nouveau SW prend le contrôle (après update), recharge
+        // la page pour que l'utilisateur ait immédiatement la dernière
+        // version des fichiers statiques — sans action manuelle.
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          window.location.reload();
+        });
+        // Vérifie activement si une mise à jour est disponible.
+        reg.update().catch(function() {});
+      })
+      .catch(function(err) {
+        console.error('[sw-register] Échec de l\'enregistrement du service worker :', err);
+      });
   });
 }
