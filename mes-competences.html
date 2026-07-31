@@ -65,7 +65,11 @@
       <!-- État rempli : radar + tuiles + détail -->
       <div id="mc-source-filled" style="display:none;">
         <section class="card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-purple);">
-          <h3 style="margin-bottom:var(--space-3);" id="mc-radar-title">Vue d'ensemble</h3>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:var(--space-3);">
+            <h3 style="margin:0;" id="mc-radar-title">Vue d'ensemble</h3>
+            <button class="stats-info-btn" aria-label="En savoir plus" aria-expanded="false" onclick="var p=document.getElementById('mc-radar-info');var opening=p.hasAttribute('hidden');if(opening)p.removeAttribute('hidden');else p.setAttribute('hidden','');this.setAttribute('aria-expanded',opening?'true':'false');">i</button>
+          </div>
+          <div id="mc-radar-info" class="stats-info-panel" hidden>Le radar représente votre niveau de maîtrise par compétence dans le thème sélectionné. Chaque axe correspond à une compétence ; plus la surface est grande, meilleures sont vos notes. Le radar n'apparaît qu'à partir de 3 compétences évaluées dans ce thème.</div>
           <div class="mc-radar-card">
             <div id="mc-radar-chart" aria-hidden="true"></div>
             <div id="mc-radar-legend" class="mc-radar-legend"></div>
