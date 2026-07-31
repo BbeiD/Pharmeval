@@ -3418,37 +3418,35 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
     // ---- Parcours assignés à l'organisation (best-effort, non bloquant) ----
     let orgParcours = [];
     try {
-      // Collecte des groupIds, profileIds et uids des membres
-      const allGroupIdSet = new Set();
-      const allProfileIdSet = new Set();
-      const memberUidList = members.map((m) => m.uid);
+      // Compte combien de membres de l'org partagent chaque groupId / profileId.
+      // Seuls les groupes/profils partagés par ≥2 membres sont considérés
+      // "collectifs" : évite d'afficher les parcours assignés à titre individuel.
+      const groupCount = {};
+      const profileCount = {};
       members.forEach((m) => {
-        m.groupIds.forEach((g) => g && allGroupIdSet.add(g));
-        if (m.profileId) allProfileIdSet.add(m.profileId);
+        m.groupIds.forEach((g) => { if (g) groupCount[g] = (groupCount[g] || 0) + 1; });
+        if (m.profileId) profileCount[m.profileId] = (profileCount[m.profileId] || 0) + 1;
       });
-      const allGroupIds = Array.from(allGroupIdSet);
-      const allProfileIdArr = Array.from(allProfileIdSet);
+
+      const sharedGroupIds = Object.keys(groupCount).filter((g) => groupCount[g] >= 2);
+      const sharedProfileIds = Object.keys(profileCount).filter((p) => profileCount[p] >= 2);
 
       // Requêtes d'attributions en lots (index composite type+targetId existant)
       const assignmentQueries = [];
-      inChunks(allGroupIds).forEach((chunk) =>
+      inChunks(sharedGroupIds).forEach((chunk) =>
         assignmentQueries.push(
           admin.firestore().collection(ASSIGNMENTS_COLLECTION)
             .where("type", "==", "group").where("targetId", "in", chunk).get()
         )
       );
-      inChunks(allProfileIdArr).forEach((chunk) =>
+      inChunks(sharedProfileIds).forEach((chunk) =>
         assignmentQueries.push(
           admin.firestore().collection(ASSIGNMENTS_COLLECTION)
             .where("type", "==", "profile").where("targetId", "in", chunk).get()
         )
       );
-      inChunks(memberUidList).forEach((chunk) =>
-        assignmentQueries.push(
-          admin.firestore().collection(ASSIGNMENTS_COLLECTION)
-            .where("type", "==", "user").where("targetId", "in", chunk).get()
-        )
-      );
+      // Attributions directes user intentionnellement exclues :
+      // elles sont personnelles et non représentatives de l'organisation.
 
       const assignmentSnaps = await Promise.all(assignmentQueries);
 
@@ -3464,7 +3462,7 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
       const assignedParcoursIds = Array.from(parcoursIdSet);
 
       if (assignedParcoursIds.length > 0) {
-        // Titres des parcours publiés (parcours archivés/brouillons ignorés)
+        // Noms des parcours publiés — le champ est "name" dans Firestore
         const parcoursSnaps = await Promise.all(
           assignedParcoursIds.map((id) => admin.firestore().collection(PARCOURS_COLLECTION).doc(id).get())
         );
@@ -3474,7 +3472,7 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
             if (!snap.exists) return null;
             const data = snap.data();
             if (data.status !== "published") return null;
-            return { parcoursId: id, title: data.title || id };
+            return { parcoursId: id, title: data.name || id };
           })
           .filter(Boolean);
 
