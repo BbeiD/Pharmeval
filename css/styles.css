@@ -2372,6 +2372,10 @@
 }
 .org-badge-suspended { background: var(--surface2); color: var(--text2); }
 .org-badge-self { background: rgba(29,158,117,.18); color: var(--green); }
+.org-badge-inactive { background: rgba(217,119,6,.12); color: var(--warning, #d97706); }
+.org-filter-btn { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; transition: background .15s, color .15s; }
+.org-filter-btn:hover { background: var(--surface3,var(--surface2)); color: var(--text1); }
+.org-filter-btn.org-filter-active { background: var(--green); color: #fff; border-color: var(--green); }
 
 .org-member-stats {
   display: grid; grid-template-columns: repeat(3, 1fr);

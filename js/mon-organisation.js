@@ -1,5 +1,5 @@
 // ===================== TABLEAU DE BORD ORGANISATION (B2B) =====================
-// Accessible aux roles 'teacher' et 'admin' (ayant un organizationId).
+// Accessible aux roles 'teacher', 'manager' et 'admin' (ayant un organizationId).
 // Lecture seule : affiche les membres de l'organisation + leurs stats.
 // Aucune logique metier ici — tout passe par org-dashboard-service.js.
 
@@ -12,6 +12,12 @@ import { formatDateFr } from "./services/date-utils.js";
 import { getScoreClass } from "./services/score-utils.js";
 import { getOrgDashboard } from "./services/org-dashboard-service.js";
 import { renderSiteHeader } from "./site-header.js";
+
+// Seuil de considérer un membre comme "inactif" (en jours)
+const INACTIVE_THRESHOLD_DAYS = 30;
+
+let lastDashboardData = null;
+let currentFilter = 'all';
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -28,9 +34,17 @@ function initials(member) {
   return '?';
 }
 
+function isInactive(member) {
+  if (!member.lastEvalAt) return true;
+  const last = new Date(member.lastEvalAt);
+  const now = new Date();
+  return (now - last) / (1000 * 60 * 60 * 24) > INACTIVE_THRESHOLD_DAYS;
+}
+
 function memberCardHtml(m, isCurrentUser) {
   const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || m.displayName || m.email || '—';
   const statusLabel = m.status === 'suspended' ? '<span class="org-member-badge org-badge-suspended">Désactivé</span>' : '';
+  const inactiveLabel = m.status !== 'suspended' && isInactive(m) ? '<span class="org-member-badge org-badge-inactive">Inactif</span>' : '';
   const selfLabel = isCurrentUser ? '<span class="org-member-badge org-badge-self">Vous</span>' : '';
   const profileLine = m.profileLabel
     ? '<div class="org-member-profile">' + escapeHtml(m.profileLabel) + '</div>'
@@ -46,7 +60,7 @@ function memberCardHtml(m, isCurrentUser) {
     '<div class="org-member-card' + (m.status === 'suspended' ? ' org-member-suspended' : '') + '">' +
       '<div class="org-member-avatar">' + escapeHtml(initials(m)) + '</div>' +
       '<div class="org-member-info">' +
-        '<div class="org-member-name">' + escapeHtml(name) + selfLabel + statusLabel + '</div>' +
+        '<div class="org-member-name">' + escapeHtml(name) + selfLabel + statusLabel + inactiveLabel + '</div>' +
         profileLine +
         '<div class="org-member-email">' + escapeHtml(m.email) + '</div>' +
       '</div>' +
@@ -59,11 +73,25 @@ function memberCardHtml(m, isCurrentUser) {
   );
 }
 
+function renderGrid(members, currentUid) {
+  const grid = document.getElementById('org-members-grid');
+  const emptyEl = document.getElementById('org-empty');
+  if (!grid) return;
+  if (!members || members.length === 0) {
+    grid.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  grid.innerHTML = members.map(function(m) {
+    return memberCardHtml(m, m.uid === currentUid);
+  }).join('');
+}
+
 async function loadDashboard(currentUid) {
   const contentEl = document.getElementById('org-content');
   const loadingEl = document.getElementById('org-loading-data');
   const errorEl = document.getElementById('org-error');
-  const emptyEl = document.getElementById('org-empty');
   if (loadingEl) loadingEl.style.display = 'block';
 
   const result = await getOrgDashboard();
@@ -78,28 +106,93 @@ async function loadDashboard(currentUid) {
     return;
   }
 
-  // Nom de l'org dans le titre
+  lastDashboardData = { currentUid: currentUid, members: result.members || [], orgName: result.orgName || 'Mon organisation' };
+
   const orgNameEl = document.getElementById('org-name');
-  if (orgNameEl) orgNameEl.textContent = result.orgName || 'Mon organisation';
+  if (orgNameEl) orgNameEl.textContent = lastDashboardData.orgName;
 
+  const total = lastDashboardData.members.length;
   const countEl = document.getElementById('org-member-count');
-  if (countEl) countEl.textContent = result.members.length + ' membre' + (result.members.length !== 1 ? 's' : '');
+  if (countEl) countEl.textContent = total + ' membre' + (total !== 1 ? 's' : '');
 
-  if (!result.members || result.members.length === 0) {
-    if (emptyEl) emptyEl.style.display = 'block';
+  const inactiveCount = lastDashboardData.members.filter(function(m) {
+    return m.status !== 'suspended' && isInactive(m);
+  }).length;
+  const inactiveEl = document.getElementById('org-inactive-count');
+  if (inactiveEl && inactiveCount > 0) {
+    inactiveEl.textContent = inactiveCount + ' inactif' + (inactiveCount > 1 ? 's' : '') + ' (>30 j)';
+    inactiveEl.style.display = 'inline';
+  }
+
+  const filtersEl = document.getElementById('org-filters');
+  if (filtersEl && inactiveCount > 0) {
+    filtersEl.style.display = 'flex';
+    const badge = document.getElementById('filter-inactive-badge');
+    if (badge) badge.textContent = '(' + inactiveCount + ')';
+  }
+
+  const csvBtn = document.getElementById('org-csv-btn');
+  if (csvBtn && total > 0) csvBtn.style.display = 'inline-flex';
+
+  if (total === 0) {
+    renderGrid([], currentUid);
     if (contentEl) contentEl.style.display = 'block';
     return;
   }
 
-  const grid = document.getElementById('org-members-grid');
-  if (grid) {
-    grid.innerHTML = result.members.map(function(m) {
-      return memberCardHtml(m, m.uid === currentUid);
-    }).join('');
-  }
-
+  renderGrid(lastDashboardData.members, currentUid);
   if (contentEl) contentEl.style.display = 'block';
 }
+
+window.setOrgFilter = function(filter) {
+  if (!lastDashboardData) return;
+  currentFilter = filter;
+  document.querySelectorAll('.org-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('org-filter-active', btn.id === 'filter-' + filter);
+  });
+  const members = filter === 'inactive'
+    ? lastDashboardData.members.filter(function(m) { return m.status !== 'suspended' && isInactive(m); })
+    : lastDashboardData.members;
+  renderGrid(members, lastDashboardData.currentUid);
+};
+
+window.downloadOrgCsv = function() {
+  if (!lastDashboardData || !lastDashboardData.members) return;
+  var rows = [['Prénom', 'Nom', 'Email', 'Profil', 'Statut', 'Évaluations', 'Score moyen (%)', 'Dernière activité']];
+  lastDashboardData.members.forEach(function(m) {
+    rows.push([
+      m.firstName || '',
+      m.lastName || '',
+      m.email || '',
+      m.profileLabel || '',
+      m.status === 'suspended' ? 'Désactivé' : 'Actif',
+      m.totalEvals || 0,
+      typeof m.avgScore === 'number' ? m.avgScore : '',
+      m.lastEvalAt ? formatDateFr(m.lastEvalAt) : '',
+    ]);
+  });
+  var csv = rows.map(function(row) {
+    return row.map(function(cell) {
+      var s = String(cell === null || cell === undefined ? '' : cell);
+      if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',');
+  }).join('\r\n');
+  var bom = '﻿';
+  var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var date = new Date().toISOString().slice(0, 10);
+  var slug = lastDashboardData.orgName.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  a.href = url;
+  a.download = 'pharmeval-' + slug + '-' + date + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = document.getElementById('org-page-loading');
