@@ -1,14 +1,13 @@
 // ===================== CONTROLEUR "MES COMPETENCES" (Sprint 19 + refonte référentiels) =====================
 // Aucune logique metier ici : appelle js/services/competency-progress-
-// service.js et affiche le resultat. "Ne pas recalculer directement les
-// résultats" (SPRINT19, "Radar de compétences") : ce fichier ne lit QUE
-// des documents de progression deja calcules, jamais evaluation_results
-// ni evaluation_sessions.
+// service.js et affiche le resultat.
 //
-// REFONTE (31/07/2026) : sélecteur de référentiel (source documentaire)
-// pilote le radar et la grille de compétences. Le radar affiche les top-8
-// compétences du référentiel sélectionné (les plus évaluées). Rien ne
-// s'affiche avant sélection (sauf le donut global, toujours visible).
+// REFONTE (31/07/2026) : sélecteur de thème/classification (même
+// regroupement que l'Entraînement libre, via groupParcoursByClassification)
+// pilote le radar et la grille de compétences. Une question est rattachée
+// à un thème si son pedagogicalId figure dans les directQuestionIds d'au
+// moins un Parcours de ce thème — même source de vérité que l'Entraînement
+// libre, jamais un calcul parallèle.
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -19,13 +18,16 @@ import { getMyCompetencyProgressFromQuestions, summarizeMasteryStatus } from "./
 import { COMPETENCY_LEVEL_LABELS, COMPETENCY_LEVEL_NUMERIC_VALUE } from "./services/progression-policy-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./services/question-catalog-service.js";
-import { getDocumentSourcesByIds } from "./services/document-source-catalog-service.js";
+import { getSelfServiceCatalogParcours } from "./services/parcours-service.js";
+import { groupParcoursByClassification } from "./services/parcours-classification-logic.js";
+import { resolveParcoursColorHex } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon, renderAnyIcon } from "./icons.js";
 
 const MASTERY_STATUS_DOT = { mastered: 'dot-green', to_reinforce: 'dot-orange', not_acquired: 'dot-red' };
 const COMPETENCY_TILE_ICON = 'content-skills';
+const DEFAULT_CLASSIFICATION_COLOR = '#94A3B8';
 
 const QUESTION_STATUS_BADGE = {
   mastered: { cls: 'bank-badge-published', label: 'Maîtrisée', icon: 'feedback-correct' },
@@ -45,9 +47,10 @@ function escapeHtml(str) {
 function qs(id) { return document.getElementById(id); }
 
 let state = {
-  items: [],              // tous les items compétence, enrichis avec documentSourceId/documentSourceName
-  selectedId: null,       // compétence sélectionnée pour le détail
-  selectedSourceId: null, // référentiel sélectionné
+  items: [],               // items compétence enrichis avec classificationName
+  selectedId: null,        // compétence sélectionnée pour le détail
+  selectedClassification: null,  // thème sélectionné
+  classifications: [],     // [{name, color}] dans l'ordre d'affichage
   questionTextCache: new Map(),
 };
 
@@ -84,46 +87,72 @@ async function init() {
     return;
   }
 
-  // Résolution des noms de compétences (en lot).
-  const names = await Promise.all(result.items.map(function(p) { return getCompetencyById(p.competencyId); }));
-
-  // Pré-chargement de TOUTES les questions de toutes les compétences en un
-  // seul appel pour extraire documentSourceId — remplit aussi questionTextCache
-  // d'un coup, évite les lectures réseau à la demande dans selectCompetency().
+  // Résolution des noms de compétences + chargement des parcours en parallèle.
   const allPedagogicalIds = [];
   result.items.forEach(function(p) {
     p.questions.forEach(function(q) { allPedagogicalIds.push(q.pedagogicalId); });
   });
-  const questionsResult = await getExistingQuestionsByPedagogicalIds(allPedagogicalIds);
+
+  const [names, questionsResult, parcoursResult] = await Promise.all([
+    Promise.all(result.items.map(function(p) { return getCompetencyById(p.competencyId); })),
+    getExistingQuestionsByPedagogicalIds(allPedagogicalIds),
+    getSelfServiceCatalogParcours(),
+  ]);
+
+  // Cache des textes de questions (pré-chargement complet).
   if (!questionsResult.error) {
     questionsResult.map.forEach(function(q, id) { state.questionTextCache.set(id, q); });
   }
 
-  // Construction du mapping compétenceId → documentSourceId (premier trouvé).
-  const competencyToSource = new Map();
-  result.items.forEach(function(p) {
-    p.questions.forEach(function(q) {
-      if (competencyToSource.has(p.competencyId)) return;
-      const doc = state.questionTextCache.get(q.pedagogicalId);
-      if (doc && doc.documentSourceId) competencyToSource.set(p.competencyId, doc.documentSourceId);
+  // Construction du mapping questionId → classification via les Parcours.
+  // Même logique que l'Entraînement libre : une question appartient au thème
+  // des Parcours dont elle fait partie (directQuestionIds).
+  const parcoursItems = (parcoursResult && parcoursResult.items) || [];
+  const classifications = groupParcoursByClassification(parcoursItems);
+  const questionToClassification = new Map();
+  classifications.forEach(function(c) {
+    c.questionIds.forEach(function(id) {
+      // Une question peut théoriquement apparaître dans plusieurs
+      // classifications ; on retient la première rencontrée (ordre stable :
+      // classifications triées par nb de questions décroissant).
+      if (!questionToClassification.has(id)) questionToClassification.set(id, c.classification);
     });
   });
 
-  // Résolution des noms de référentiels (sources documentaires).
-  const uniqueSourceIds = Array.from(new Set(competencyToSource.values()));
-  const sourcesMap = await getDocumentSourcesByIds(uniqueSourceIds);
-
-  // Enrichissement final de state.items.
+  // Affectation du thème majoritaire à chaque compétence.
+  // "Majoritaire" = thème le plus fréquent parmi les questions de la
+  // compétence. Si toutes les questions ont le même thème (cas habituel),
+  // le résultat est déterministe et immédiat.
   state.items = result.items.map(function(p, i) {
-    const sourceId = competencyToSource.get(p.competencyId) || null;
-    const sourceDoc = sourceId ? sourcesMap.get(sourceId) : null;
-    const sourceName = (sourceDoc && (sourceDoc.name || (sourceDoc.display && sourceDoc.display.label))) || null;
+    const counts = new Map();
+    p.questions.forEach(function(q) {
+      const cl = questionToClassification.get(q.pedagogicalId);
+      if (cl) counts.set(cl, (counts.get(cl) || 0) + 1);
+    });
+    let bestClassification = null;
+    let bestCount = 0;
+    counts.forEach(function(count, cl) {
+      if (count > bestCount) { bestCount = count; bestClassification = cl; }
+    });
     return Object.assign({}, p, {
       competencyName: (names[i] && names[i].name) || 'Compétence',
-      documentSourceId: sourceId,
-      documentSourceName: sourceName,
+      classificationName: bestClassification,
     });
   });
+
+  // Liste ordonnée des thèmes présents parmi les compétences de l'utilisateur
+  // (même ordre que l'Entraînement libre : nb de questions décroissant).
+  const seenClassifications = new Set();
+  state.classifications = classifications
+    .filter(function(c) {
+      const present = state.items.some(function(p) { return p.classificationName === c.classification; });
+      if (!present || seenClassifications.has(c.classification)) return false;
+      seenClassifications.add(c.classification);
+      return true;
+    })
+    .map(function(c) {
+      return { name: c.classification, color: resolveParcoursColorHex(c.color) || DEFAULT_CLASSIFICATION_COLOR };
+    });
 
   qs('mc-content').style.display = 'block';
 
@@ -136,68 +165,55 @@ async function init() {
 
   renderSourceSelector();
 
-  // Pré-sélection via URL (?competencyId=...) : ouvre le bon référentiel.
+  // Pré-sélection via URL (?competencyId=...).
   const preselect = new URLSearchParams(window.location.search).get('competencyId');
   if (preselect) {
     const initial = state.items.find(function(p) { return p.competencyId === preselect; });
-    if (initial && initial.documentSourceId) {
-      selectSource(initial.documentSourceId);
+    if (initial && initial.classificationName) {
+      selectSource(initial.classificationName);
       selectCompetency(preselect);
-      return;
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Sélecteur de référentiels
+// Sélecteur de thèmes (chips)
 // ---------------------------------------------------------------------------
 
 function renderSourceSelector() {
   const container = qs('mc-source-selector');
   if (!container) return;
 
-  // Référentiels distincts trouvés parmi les compétences.
-  const seen = new Set();
-  const sources = [];
-  state.items.forEach(function(p) {
-    if (p.documentSourceId && !seen.has(p.documentSourceId)) {
-      seen.add(p.documentSourceId);
-      sources.push({ id: p.documentSourceId, name: p.documentSourceName || p.documentSourceId });
-    }
-  });
-
-  if (sources.length === 0) {
-    container.innerHTML = '<p class="bank-list-empty" style="margin:0;">Aucun référentiel identifié pour vos compétences.</p>';
+  if (state.classifications.length === 0) {
+    container.innerHTML = '<p class="bank-list-empty" style="margin:0;">Aucun thème identifié pour vos compétences.</p>';
     return;
   }
 
-  container.innerHTML = sources.map(function(s) {
-    const active = s.id === state.selectedSourceId;
+  container.innerHTML = state.classifications.map(function(c) {
+    const active = c.name === state.selectedClassification;
     return (
-      '<button type="button" class="bank-chip mc-source-chip' + (active ? ' mc-source-chip-active' : '') + '" ' +
-        'onclick="selectSource(\'' + escapeHtml(s.id) + '\')">' +
-        escapeHtml(s.name) +
+      '<button type="button" class="mc-source-chip' + (active ? ' mc-source-chip-active' : '') + '" ' +
+        (active ? 'style="background:' + escapeHtml(c.color) + ';border-color:' + escapeHtml(c.color) + ';"' : '') +
+        ' onclick="selectSource(\'' + escapeHtml(c.name) + '\')">' +
+        escapeHtml(c.name) +
       '</button>'
     );
   }).join('');
 }
 
-export function selectSource(sourceId) {
-  state.selectedSourceId = sourceId;
+export function selectSource(classificationName) {
+  state.selectedClassification = classificationName;
   state.selectedId = null;
   renderSourceSelector();
 
-  const filtered = state.items.filter(function(p) { return p.documentSourceId === sourceId; });
+  const filtered = state.items.filter(function(p) { return p.classificationName === classificationName; });
 
-  // Titre du radar avec nom du référentiel.
-  const sourceName = (filtered[0] && filtered[0].documentSourceName) || '';
   const radarTitle = qs('mc-radar-title');
-  if (radarTitle) radarTitle.textContent = sourceName ? 'Vue d\'ensemble — ' + sourceName : 'Vue d\'ensemble';
+  if (radarTitle) radarTitle.textContent = 'Vue d\'ensemble — ' + classificationName;
 
   renderRadar(filtered);
   renderList(filtered);
 
-  // Réinitialise le panneau de détail.
   const placeholder = qs('mc-detail-placeholder');
   const detail = qs('mc-detail');
   if (placeholder) placeholder.style.display = 'block';
@@ -212,7 +228,6 @@ window.selectSource = selectSource;
 // ---------------------------------------------------------------------------
 
 function renderRadar(filtered) {
-  // Top-8 les plus évaluées du référentiel sélectionné.
   const main = (filtered || []).slice().sort(function(a, b) { return b.evaluationCount - a.evaluationCount; }).slice(0, 8);
   qs('mc-radar-chart').innerHTML = buildRadarChart(main);
   qs('mc-radar-legend').innerHTML = main.map(function(p, i) {
@@ -228,7 +243,7 @@ function renderRadar(filtered) {
 function buildRadarChart(items) {
   const n = items.length;
   if (n < 3) {
-    return '<p class="bank-list-empty">Le radar apparaîtra dès que 3 compétences ou plus auront été évaluées (' + n + ' pour l\'instant).</p>';
+    return '<p class="bank-list-empty">Le radar apparaîtra dès que 3 compétences ou plus auront été évaluées dans ce thème (' + n + ' pour l\'instant).</p>';
   }
   const size = 220, center = size / 2, maxRadius = 85;
   const points = items.map(function(p, i) {
@@ -253,7 +268,7 @@ function buildRadarChart(items) {
     return '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-size="11" fill="var(--text2)">' + (i + 1) + '</text>';
   }).join('');
   return (
-    '<svg viewBox="0 0 ' + size + ' ' + size + '" width="240" height="240" role="img" aria-label="Radar des compétences du référentiel">' +
+    '<svg viewBox="0 0 ' + size + ' ' + size + '" width="240" height="240" role="img" aria-label="Radar des compétences du thème">' +
       axes +
       '<polygon points="' + polygon + '" fill="rgba(29,158,117,.25)" stroke="#1D9E75" stroke-width="2"></polygon>' +
       labels +
@@ -290,8 +305,7 @@ function competencyTileHtml(p) {
 export async function selectCompetency(competencyId) {
   state.selectedId = competencyId;
 
-  // Re-rendre la liste filtrée pour mettre à jour la tuile sélectionnée.
-  const filtered = state.items.filter(function(p) { return p.documentSourceId === state.selectedSourceId; });
+  const filtered = state.items.filter(function(p) { return p.classificationName === state.selectedClassification; });
   renderList(filtered);
 
   const p = state.items.find(function(i) { return i.competencyId === competencyId; });
@@ -302,7 +316,6 @@ export async function selectCompetency(competencyId) {
   detailEl.style.display = 'block';
   detailEl.innerHTML = '<p class="bank-list-loading">Chargement…</p>';
 
-  // Les questions sont déjà en cache (chargées en bloc dans init()).
   if (state.selectedId !== competencyId) return;
   detailEl.innerHTML = detailHtml(p);
 }
