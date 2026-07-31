@@ -2088,7 +2088,8 @@
   }
   .mc-radar-legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1; min-width: 180px; }
   .mc-radar-legend-item { color: var(--text2); }
-  /* Chips de sélection de référentiel */
+  /* Chips de sélection de thème */
+  .mc-source-scroll-wrap { position: relative; }
   #mc-source-selector { display: flex; flex-wrap: wrap; gap: 8px; }
   .mc-source-chip {
     padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer;
@@ -2113,6 +2114,22 @@
 
   @media (max-width: 600px) {
     .mc-radar-card { flex-direction: column; text-align: center; }
+    .mc-source-scroll-wrap::after {
+      content: '';
+      position: absolute;
+      right: 0; top: 0; bottom: 0; width: 48px;
+      background: linear-gradient(to right, transparent, var(--surface));
+      pointer-events: none;
+    }
+    #mc-source-selector {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+    #mc-source-selector::-webkit-scrollbar { display: none; }
+    .mc-source-chip { flex-shrink: 0; white-space: nowrap; }
   }
 
   /* =========================================================================

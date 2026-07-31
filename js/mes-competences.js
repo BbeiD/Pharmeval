@@ -34,6 +34,12 @@ const QUESTION_STATUS_BADGE = {
   in_progress: { cls: 'bank-badge-draft', label: 'En cours', icon: 'feedback-incorrect' },
   to_work: { cls: 'bank-badge-archived', label: 'À travailler', icon: 'action-warning' },
 };
+const SESSION_TYPE_BADGE = {
+  daily_challenge: { cls: 'bank-badge-published', label: 'Défi du jour' },
+  parcours:        { cls: 'bank-badge-draft',     label: 'Parcours' },
+  parcours_mixed:  { cls: 'bank-badge-draft',     label: 'Parcours' },
+  free_training:   { cls: 'bank-badge-archived',  label: 'Entraînement libre' },
+};
 function questionStatusOf(q) {
   if ((q.timesCorrect || 0) === 0) return 'to_work';
   return q.lastStatus === 'correct' ? 'mastered' : 'in_progress';
@@ -341,9 +347,13 @@ function detailHtml(p) {
     const badge = QUESTION_STATUS_BADGE[status];
     const questionDoc = state.questionTextCache.get(q.pedagogicalId);
     const label = (questionDoc && questionDoc.question) ? questionDoc.question : q.pedagogicalId;
+    const srcBadge = SESSION_TYPE_BADGE[q.lastSessionType];
+    const srcHtml = srcBadge
+      ? ' · <span class="bank-badge ' + srcBadge.cls + '">' + escapeHtml(srcBadge.label) + '</span>'
+      : '';
     return '<li class="bank-timeline-item">' +
       '<div class="bank-timeline-label">' + icon(badge.icon, { size: 13 }) + ' ' + escapeHtml(label) + '</div>' +
-      '<div class="bank-timeline-date"><span class="bank-badge ' + badge.cls + '">' + escapeHtml(badge.label) + '</span> · vue ' + q.timesSeen + ' fois · dernière tentative le ' + escapeHtml(q.lastSeenAt ? formatDateFr(q.lastSeenAt) : '—') + '</div>' +
+      '<div class="bank-timeline-date"><span class="bank-badge ' + badge.cls + '">' + escapeHtml(badge.label) + '</span>' + srcHtml + ' · vue ' + q.timesSeen + ' fois · dernière tentative le ' + escapeHtml(q.lastSeenAt ? formatDateFr(q.lastSeenAt) : '—') + '</div>' +
     '</li>';
   }).join('') + '</ul></div>';
 

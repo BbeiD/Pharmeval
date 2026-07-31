@@ -2315,6 +2315,9 @@ app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
   }
 
   const nowIso = new Date().toISOString();
+  const lastSessionType = resultData.dailyChallengeDate
+    ? "daily_challenge"
+    : (resultData.sessionType || "free_training");
   try {
     await Promise.all(entries.map((e) => {
       const ref = admin.firestore().collection(QUESTION_PROGRESS_COLLECTION).doc(`${e.userId}_${e.pedagogicalId}`);
@@ -2325,6 +2328,7 @@ app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
         timesCorrect: FieldValue.increment(e.isCorrect ? 1 : 0),
         lastSeenAt: nowIso,
         lastStatus: e.isCorrect ? "correct" : "not_correct",
+        lastSessionType: lastSessionType,
       }, { merge: true });
     }));
     res.json({ success: true, applied: true, error: false });
