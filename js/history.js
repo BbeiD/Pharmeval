@@ -24,7 +24,7 @@ let state = {
   allLoaded: [],   // evaluations chargees jusqu'ici, toutes pages confondues
   cursor: null,
   hasMore: false,
-  searchText: '',
+  filterType: 'all', // 'all' | 'parcours' | 'free_training' | 'daily_challenge'
   loading: false,
 };
 
@@ -84,6 +84,7 @@ async function loadParcoursCompletion() {
   result.items.forEach(function(item) {
     if (item.parcoursId && item.name) parcoursNames.set(item.parcoursId, item.name);
   });
+  renderCards(); // rafraîchit les noms de parcours sur les cartes déjà affichées
   renderParcoursCompletionFromData(result.items);
 }
 
@@ -156,17 +157,24 @@ function showHistoryError() {
 // Recherche (cote client, sur les pages deja chargees)
 // ---------------------------------------------------------------------------
 
+function getSessionType(ev) {
+  if (ev.sessionType) return ev.sessionType;
+  if (ev.parcoursId) return 'parcours';
+  return 'free_training';
+}
+
 function matchesFilters(ev) {
-  if (state.searchText) {
-    const haystack = formatDateFr(ev.completedAt).toLowerCase();
-    if (haystack.indexOf(state.searchText.toLowerCase()) === -1) return false;
+  if (state.filterType && state.filterType !== 'all') {
+    return getSessionType(ev) === state.filterType;
   }
   return true;
 }
 
-export function onHistorySearchInput() {
-  const input = document.getElementById('history-search');
-  state.searchText = input ? input.value : '';
+export function setHistoryFilter(type, btn) {
+  state.filterType = type || 'all';
+  document.querySelectorAll('.history-filter-chip').forEach(function(c) {
+    c.classList.toggle('history-filter-chip-active', c === btn);
+  });
   renderCards();
 }
 

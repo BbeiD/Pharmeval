@@ -1293,6 +1293,15 @@
   }
   .history-card-date { font-size: 12px; color: var(--text2); font-weight: 600; }
   .history-card-space { font-size: 13px; font-weight: 700; }
+  .history-filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .history-filter-chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer;
+    background: var(--surface2); color: var(--text2); border: 1px solid var(--border);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .history-filter-chip:hover { color: var(--text); border-color: var(--green); }
+  .history-filter-chip-active { background: var(--green) !important; color: #fff !important; border-color: var(--green) !important; }
+
   .history-session-label {
     display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .3px;
     padding: 2px 7px; border-radius: 20px; margin: 3px 0 5px;
