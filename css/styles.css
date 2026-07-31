@@ -376,10 +376,6 @@
      au reste du site) - chaque carte se retrouvait ecrasee sur ~100px de
      large sur un telephone. Regle deplacee ici pour pouvoir la surcharger
      proprement en media query. */
-  /* CORRECTIF (demande directe de David, 29/07/2026, "l'un a cote de
-     l'autre" meme sur mobile) : ces deux cartes restent cote a cote a
-     toutes les largeurs - l'empilement en 1 colonne sous 700px a ete
-     retire expressement. */
   .home-duo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
 
   /* VIEWS */
@@ -2299,8 +2295,8 @@
   .home-medals-bar { height: 10px; background: rgba(255,255,255,.1); border-radius: 5px; overflow: hidden; }
   .home-medals-bar-fill { height: 100%; background: #FBBF24; border-radius: 5px; transition: width .5s ease; min-width: 14px; }
 
-  /* ---- Mobile : duo-grid empilé sous 540px ---- */
-  @media (max-width: 540px) {
+  /* ---- Mobile : duo-grid empilé sous 700px (même largeur que home-etl-card) ---- */
+  @media (max-width: 700px) {
     .home-duo-grid { grid-template-columns: 1fr; }
     .mastery-donut-widget { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
     .mastery-donut-widget svg { width: 120px !important; height: 120px !important; }
