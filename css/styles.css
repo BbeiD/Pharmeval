@@ -2088,6 +2088,15 @@
   }
   .mc-radar-legend { display: flex; flex-direction: column; gap: 6px; font-size: 13px; flex: 1; min-width: 180px; }
   .mc-radar-legend-item { color: var(--text2); }
+  /* Chips de sélection de référentiel */
+  #mc-source-selector { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mc-source-chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer;
+    background: var(--surface2); color: var(--text2); border: 1px solid var(--border);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .mc-source-chip:hover { background: var(--surface3, var(--surface2)); color: var(--text); border-color: var(--accent-purple); }
+  .mc-source-chip-active { background: var(--accent-purple) !important; color: #fff !important; border-color: var(--accent-purple) !important; }
   /* CORRECTIF (demande directe de David, 23/07/2026) : les noms de
      competences sont plus longs que les noms de source documentaire pour
      lesquels .source-tile (96px) a ete concu - elargi UNIQUEMENT ici pour

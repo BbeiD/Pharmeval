@@ -1,9 +1,14 @@
-// ===================== CONTROLEUR "MES COMPETENCES" (Sprint 19) =====================
+// ===================== CONTROLEUR "MES COMPETENCES" (Sprint 19 + refonte référentiels) =====================
 // Aucune logique metier ici : appelle js/services/competency-progress-
 // service.js et affiche le resultat. "Ne pas recalculer directement les
 // résultats" (SPRINT19, "Radar de compétences") : ce fichier ne lit QUE
 // des documents de progression deja calcules, jamais evaluation_results
 // ni evaluation_sessions.
+//
+// REFONTE (31/07/2026) : sélecteur de référentiel (source documentaire)
+// pilote le radar et la grille de compétences. Le radar affiche les top-8
+// compétences du référentiel sélectionné (les plus évaluées). Rien ne
+// s'affiche avant sélection (sauf le donut global, toujours visible).
 
 import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -14,24 +19,14 @@ import { getMyCompetencyProgressFromQuestions, summarizeMasteryStatus } from "./
 import { COMPETENCY_LEVEL_LABELS, COMPETENCY_LEVEL_NUMERIC_VALUE } from "./services/progression-policy-service.js";
 import { getCompetencyById } from "./services/competency-catalog-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "./services/question-catalog-service.js";
+import { getDocumentSourcesByIds } from "./services/document-source-catalog-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon, renderAnyIcon } from "./icons.js";
 
-// CORRECTIF (demande directe de David, 23/07/2026, "des petits cadres plus
-// adaptés") : tuile a icone (meme composant que admin/document-sources.js,
-// .source-tile) plutot que la liste bank-row - une pastille de couleur
-// (coin superieur droit, meme pattern que source-tile-status-dot) indique
-// le masteryStatus deja calcule, jamais une nouvelle echelle de couleur.
 const MASTERY_STATUS_DOT = { mastered: 'dot-green', to_reinforce: 'dot-orange', not_acquired: 'dot-red' };
 const COMPETENCY_TILE_ICON = 'content-skills';
 
-// CORRECTIF (demande directe de David, 23/07/2026) : plus de "tendance"
-// (voir getMyCompetencyProgressFromQuestions(), competency-progress-
-// service.js - aucun historique de score dans le temps n'existe plus par
-// competence). Statut par QUESTION (mastered/in_progress/to_work, meme
-// echelle que question-progress-logic.js#summarizeQuestionMastery) a la
-// place - badge et libelle associes.
 const QUESTION_STATUS_BADGE = {
   mastered: { cls: 'bank-badge-published', label: 'Maîtrisée', icon: 'feedback-correct' },
   in_progress: { cls: 'bank-badge-draft', label: 'En cours', icon: 'feedback-incorrect' },
@@ -49,7 +44,12 @@ function escapeHtml(str) {
 }
 function qs(id) { return document.getElementById(id); }
 
-let state = { items: [], selectedId: null, questionTextCache: new Map() };
+let state = {
+  items: [],              // tous les items compétence, enrichis avec documentSourceId/documentSourceName
+  selectedId: null,       // compétence sélectionnée pour le détail
+  selectedSourceId: null, // référentiel sélectionné
+  questionTextCache: new Map(),
+};
 
 onAuthStateChanged(auth, async function(user) {
   if (!user) { clearCurrentUserContext(); window.location.href = 'index.html'; return; }
@@ -84,59 +84,163 @@ async function init() {
     return;
   }
 
-  // Resolution des noms de competences (une seule fois, en lot).
+  // Résolution des noms de compétences (en lot).
   const names = await Promise.all(result.items.map(function(p) { return getCompetencyById(p.competencyId); }));
-  state.items = result.items.map(function(p, i) {
-    return Object.assign({}, p, { competencyName: (names[i] && names[i].name) || 'Compétence' });
+
+  // Pré-chargement de TOUTES les questions de toutes les compétences en un
+  // seul appel pour extraire documentSourceId — remplit aussi questionTextCache
+  // d'un coup, évite les lectures réseau à la demande dans selectCompetency().
+  const allPedagogicalIds = [];
+  result.items.forEach(function(p) {
+    p.questions.forEach(function(q) { allPedagogicalIds.push(q.pedagogicalId); });
   });
-  // Les plus recemment evaluees en premier (deja trie ainsi par le
-  // service, conserve tel quel).
+  const questionsResult = await getExistingQuestionsByPedagogicalIds(allPedagogicalIds);
+  if (!questionsResult.error) {
+    questionsResult.map.forEach(function(q, id) { state.questionTextCache.set(id, q); });
+  }
+
+  // Construction du mapping compétenceId → documentSourceId (premier trouvé).
+  const competencyToSource = new Map();
+  result.items.forEach(function(p) {
+    p.questions.forEach(function(q) {
+      if (competencyToSource.has(p.competencyId)) return;
+      const doc = state.questionTextCache.get(q.pedagogicalId);
+      if (doc && doc.documentSourceId) competencyToSource.set(p.competencyId, doc.documentSourceId);
+    });
+  });
+
+  // Résolution des noms de référentiels (sources documentaires).
+  const uniqueSourceIds = Array.from(new Set(competencyToSource.values()));
+  const sourcesMap = await getDocumentSourcesByIds(uniqueSourceIds);
+
+  // Enrichissement final de state.items.
+  state.items = result.items.map(function(p, i) {
+    const sourceId = competencyToSource.get(p.competencyId) || null;
+    const sourceDoc = sourceId ? sourcesMap.get(sourceId) : null;
+    const sourceName = (sourceDoc && (sourceDoc.name || (sourceDoc.display && sourceDoc.display.label))) || null;
+    return Object.assign({}, p, {
+      competencyName: (names[i] && names[i].name) || 'Compétence',
+      documentSourceId: sourceId,
+      documentSourceName: sourceName,
+    });
+  });
 
   qs('mc-content').style.display = 'block';
-  qs('mc-mastery-donut').innerHTML = renderMasteryDonutHtml(summarizeMasteryStatus(result.items));
-  renderRadar();
-  renderList();
 
+  // Donut global + sous-titre explicatif.
+  const totalQuestions = state.items.reduce(function(s, i) { return s + i.evaluationCount; }, 0);
+  qs('mc-donut-subtitle').textContent =
+    'Parmi vos ' + totalQuestions + ' question' + (totalQuestions > 1 ? 's' : '') +
+    ' déjà rencontrées dans vos évaluations.';
+  qs('mc-mastery-donut').innerHTML = renderMasteryDonutHtml(summarizeMasteryStatus(result.items));
+
+  renderSourceSelector();
+
+  // Pré-sélection via URL (?competencyId=...) : ouvre le bon référentiel.
   const preselect = new URLSearchParams(window.location.search).get('competencyId');
-  const initial = preselect && state.items.find(function(p) { return p.competencyId === preselect; });
-  if (initial) selectCompetency(initial.competencyId);
+  if (preselect) {
+    const initial = state.items.find(function(p) { return p.competencyId === preselect; });
+    if (initial && initial.documentSourceId) {
+      selectSource(initial.documentSourceId);
+      selectCompetency(preselect);
+      return;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Radar de compétences (SPRINT19, "Radar de compétences")
+// Sélecteur de référentiels
 // ---------------------------------------------------------------------------
 
-function renderRadar() {
-  // "les compétences principales" : les 8 plus evaluees, pour rester
-  // lisible - jamais plus, un radar a trop d'axes devient illisible.
-  const main = state.items.slice().sort(function(a, b) { return b.evaluationCount - a.evaluationCount; }).slice(0, 8);
-  qs('mc-radar-chart').innerHTML = buildRadarChart(main);
-  qs('mc-radar-legend').innerHTML = main.map(function(p, i) {
-    return '<span class="mc-radar-legend-item"><strong>' + (i + 1) + '.</strong> ' + escapeHtml(p.competencyName) + ' — ' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span>';
+function renderSourceSelector() {
+  const container = qs('mc-source-selector');
+  if (!container) return;
+
+  // Référentiels distincts trouvés parmi les compétences.
+  const seen = new Set();
+  const sources = [];
+  state.items.forEach(function(p) {
+    if (p.documentSourceId && !seen.has(p.documentSourceId)) {
+      seen.add(p.documentSourceId);
+      sources.push({ id: p.documentSourceId, name: p.documentSourceName || p.documentSourceId });
+    }
+  });
+
+  if (sources.length === 0) {
+    container.innerHTML = '<p class="bank-list-empty" style="margin:0;">Aucun référentiel identifié pour vos compétences.</p>';
+    return;
+  }
+
+  container.innerHTML = sources.map(function(s) {
+    const active = s.id === state.selectedSourceId;
+    return (
+      '<button type="button" class="bank-chip mc-source-chip' + (active ? ' mc-source-chip-active' : '') + '" ' +
+        'onclick="selectSource(\'' + escapeHtml(s.id) + '\')">' +
+        escapeHtml(s.name) +
+      '</button>'
+    );
   }).join('');
 }
 
-/**
- * Radar SVG minimal : un axe par competence, la distance au centre
- * reflete `COMPETENCY_LEVEL_NUMERIC_VALUE` (0-4) - jamais un pourcentage
- * brut (le niveau, deja calcule par la politique de progression, est la
- * mesure pertinente ici, pas une moyenne recalculee sur place).
- * @param {Array<object>} items
- * @returns {string} SVG
- */
+export function selectSource(sourceId) {
+  state.selectedSourceId = sourceId;
+  state.selectedId = null;
+  renderSourceSelector();
+
+  const filtered = state.items.filter(function(p) { return p.documentSourceId === sourceId; });
+
+  // Titre du radar avec nom du référentiel.
+  const sourceName = (filtered[0] && filtered[0].documentSourceName) || '';
+  const radarTitle = qs('mc-radar-title');
+  if (radarTitle) radarTitle.textContent = sourceName ? 'Vue d\'ensemble — ' + sourceName : 'Vue d\'ensemble';
+
+  renderRadar(filtered);
+  renderList(filtered);
+
+  // Réinitialise le panneau de détail.
+  const placeholder = qs('mc-detail-placeholder');
+  const detail = qs('mc-detail');
+  if (placeholder) placeholder.style.display = 'block';
+  if (detail) { detail.style.display = 'none'; detail.innerHTML = ''; }
+
+  qs('mc-source-panel').style.display = 'block';
+}
+window.selectSource = selectSource;
+
+// ---------------------------------------------------------------------------
+// Radar de compétences
+// ---------------------------------------------------------------------------
+
+function renderRadar(filtered) {
+  // Top-8 les plus évaluées du référentiel sélectionné.
+  const main = (filtered || []).slice().sort(function(a, b) { return b.evaluationCount - a.evaluationCount; }).slice(0, 8);
+  qs('mc-radar-chart').innerHTML = buildRadarChart(main);
+  qs('mc-radar-legend').innerHTML = main.map(function(p, i) {
+    return (
+      '<span class="mc-radar-legend-item"><strong>' + (i + 1) + '.</strong> ' +
+      escapeHtml(p.competencyName) + ' — ' +
+      escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) +
+      '</span>'
+    );
+  }).join('');
+}
+
 function buildRadarChart(items) {
   const n = items.length;
   if (n < 3) {
-    // Un radar a moins de 3 axes n'a pas de sens geometrique - repli en
-    // liste simple plutot qu'une forme degenerée.
     return '<p class="bank-list-empty">Le radar apparaîtra dès que 3 compétences ou plus auront été évaluées (' + n + ' pour l\'instant).</p>';
   }
   const size = 220, center = size / 2, maxRadius = 85;
   const points = items.map(function(p, i) {
     const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
-    const levelFraction = (COMPETENCY_LEVEL_NUMERIC_VALUE[p.currentLevel] + 1) / 5; // 0.2 -> 1.0, jamais un point totalement au centre
+    const levelFraction = (COMPETENCY_LEVEL_NUMERIC_VALUE[p.currentLevel] + 1) / 5;
     const r = levelFraction * maxRadius;
-    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle), axisX: center + maxRadius * Math.cos(angle), axisY: center + maxRadius * Math.sin(angle) };
+    return {
+      x: center + r * Math.cos(angle),
+      y: center + r * Math.sin(angle),
+      axisX: center + maxRadius * Math.cos(angle),
+      axisY: center + maxRadius * Math.sin(angle),
+    };
   });
   const polygon = points.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
   const axes = points.map(function(p) {
@@ -149,7 +253,7 @@ function buildRadarChart(items) {
     return '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-size="11" fill="var(--text2)">' + (i + 1) + '</text>';
   }).join('');
   return (
-    '<svg viewBox="0 0 ' + size + ' ' + size + '" width="240" height="240" role="img" aria-label="Radar des compétences principales">' +
+    '<svg viewBox="0 0 ' + size + ' ' + size + '" width="240" height="240" role="img" aria-label="Radar des compétences du référentiel">' +
       axes +
       '<polygon points="' + polygon + '" fill="rgba(29,158,117,.25)" stroke="#1D9E75" stroke-width="2"></polygon>' +
       labels +
@@ -158,11 +262,11 @@ function buildRadarChart(items) {
 }
 
 // ---------------------------------------------------------------------------
-// Liste des compétences
+// Grille de compétences
 // ---------------------------------------------------------------------------
 
-function renderList() {
-  qs('mc-list').innerHTML = state.items.map(competencyTileHtml).join('');
+function renderList(filtered) {
+  qs('mc-list').innerHTML = (filtered || []).map(competencyTileHtml).join('');
 }
 
 function competencyTileHtml(p) {
@@ -179,9 +283,17 @@ function competencyTileHtml(p) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Détail d'une compétence
+// ---------------------------------------------------------------------------
+
 export async function selectCompetency(competencyId) {
   state.selectedId = competencyId;
-  renderList();
+
+  // Re-rendre la liste filtrée pour mettre à jour la tuile sélectionnée.
+  const filtered = state.items.filter(function(p) { return p.documentSourceId === state.selectedSourceId; });
+  renderList(filtered);
+
   const p = state.items.find(function(i) { return i.competencyId === competencyId; });
   if (!p) return;
 
@@ -190,31 +302,13 @@ export async function selectCompetency(competencyId) {
   detailEl.style.display = 'block';
   detailEl.innerHTML = '<p class="bank-list-loading">Chargement…</p>';
 
-  // Resolution du texte des questions de CETTE competence uniquement, a la
-  // demande (jamais pour toutes les competences a l'ouverture de la page) -
-  // mise en cache pour eviter une relecture si l'utilisateur revient sur
-  // la meme competence.
-  const missingIds = p.questions.map(function(q) { return q.pedagogicalId; })
-    .filter(function(id) { return !state.questionTextCache.has(id); });
-  if (missingIds.length > 0) {
-    const result = await getExistingQuestionsByPedagogicalIds(missingIds);
-    if (!result.error) {
-      result.map.forEach(function(q, id) { state.questionTextCache.set(id, q); });
-    }
-  }
-
-  // L'utilisateur a pu selectionner une autre competence pendant la
-  // lecture reseau - jamais afficher le detail de la mauvaise competence.
+  // Les questions sont déjà en cache (chargées en bloc dans init()).
   if (state.selectedId !== competencyId) return;
   detailEl.innerHTML = detailHtml(p);
 }
 
 function detailHtml(p) {
   let html = '<div class="bank-detail-card">';
-  // CORRECTIF (demande directe de David, 23/07/2026) : .bank-detail-header
-  // h3 est en police monospace dans le reste de l'appli (pensee pour des
-  // codes/identifiants) - un nom de competence est du texte normal, jamais
-  // un code, d'ou le retour explicite a la police standard ici.
   html += '<div class="bank-detail-header"><h3 style="font-family:inherit;">' + escapeHtml(p.competencyName) + '</h3><span class="bank-badge bank-badge-published">' + escapeHtml(COMPETENCY_LEVEL_LABELS[p.currentLevel] || p.currentLevel) + '</span></div>';
 
   html += '<div class="bank-detail-section"><h4>Chiffres clés</h4>';
@@ -225,11 +319,6 @@ function detailHtml(p) {
   html += '<div class="bank-detail-row"><strong>Dernière activité :</strong> ' + escapeHtml(p.lastEvaluationAt ? formatDateFr(p.lastEvaluationAt) : '—') + '</div>';
   html += '</div>';
 
-  // CORRECTIF (demande directe de David, 23/07/2026) : plus de graphique
-  // d'evolution ni d'historique de pourcentage - cette donnee n'existe
-  // plus par competence (voir getMyCompetencyProgressFromQuestions()).
-  // Remplace par le detail REELLEMENT disponible : l'etat present de
-  // chaque question deja rencontree dans cette competence.
   html += '<div class="bank-detail-section"><h4>Détail par question (' + p.questions.length + ')</h4>';
   html += '<ul class="bank-timeline-list">' + p.questions.map(function(q) {
     const status = questionStatusOf(q);
