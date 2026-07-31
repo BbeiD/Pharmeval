@@ -93,8 +93,7 @@ function renderAttestationHtml(ctx, selectedItems, attemptResult) {
     const subBuckets  = compBuckets.length > 0 ? compBuckets : srcBuckets;
     const subLabel    = compBuckets.length > 0 ? 'Compétences' : 'Thèmes';
     const subHtml = subBuckets.length > 0
-      ? '<div class="cert-sub-label">' + escapeHtml(subLabel) + ' :</div>' +
-        '<ul class="cert-competency-list">' +
+      ? '<ul class="cert-competency-list">' +
         subBuckets.map(function(b) {
           return '<li>' + escapeHtml(b.label) + '</li>';
         }).join('') +

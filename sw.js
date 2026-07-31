@@ -43,7 +43,18 @@ const PRECACHE_URLS = [
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_VERSION).then(function(cache) {
-      return cache.addAll(PRECACHE_URLS);
+      // { cache: 'reload' } contourne le cache HTTP du navigateur et force un
+      // telechargement reseau reel - necesssaire ici pour que le precache
+      // contienne toujours la version la plus recente des fichiers critiques,
+      // independamment de tout cache HTTP residuel (ex. ancienne CSS mise en
+      // cache par le navigateur avant un redeploi).
+      return Promise.all(
+        PRECACHE_URLS.map(function(url) {
+          return fetch(new Request(url, { cache: 'reload' }))
+            .then(function(resp) { if (resp && resp.ok) return cache.put(url, resp); })
+            .catch(function() {});
+        })
+      );
     })
   );
   self.skipWaiting();
