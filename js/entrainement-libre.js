@@ -31,7 +31,9 @@ import { composeFreeTrainingPoolByIds, launchTestMeByIds } from "./services/free
 import { pickRandomSubset } from "./services/free-training-logic.js";
 import {
   getActiveFreeTrainingSession, startNewFreeTrainingSession, restartFreeTrainingSession,
+  resumeSession,
 } from "./services/evaluation-session-service.js";
+import { finalizeEvaluation } from "./services/evaluation-result-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon } from "./icons.js";
 
@@ -66,7 +68,7 @@ function showMessage(status, message) {
 // (tuiles a icones, meme principe que l'ancienne selection de sources) -
 // identifiee par le NOM de la classification (seule cle stable disponible,
 // aucune collection Firestore dediee ne lui attribue d'id).
-let state = { pool: null, replacingSessionId: null, classifications: [], selectedClassifications: new Set() };
+let state = { pool: null, replacingSessionId: null, classifications: [], selectedClassifications: new Set(), activeSession: null };
 
 
 // ---------------------------------------------------------------------------
@@ -128,6 +130,8 @@ async function checkActiveSession() {
   const active = await getActiveFreeTrainingSession();
   if (!active) return;
 
+  state.activeSession = active;
+
   const card = qs('etl-active-session-card');
   const total = (active.questionIds && active.questionIds.length) || 0;
   qs('etl-active-session-text').textContent =
@@ -141,6 +145,21 @@ async function checkActiveSession() {
   qs('etl-replace-btn').addEventListener('click', function() {
     state.replacingSessionId = active.id;
     card.style.display = 'none';
+  });
+  qs('etl-stop-btn').addEventListener('click', function() {
+    qs('etl-stop-confirm-overlay').style.display = 'flex';
+  });
+  qs('etl-stop-cancel-btn').addEventListener('click', function() {
+    qs('etl-stop-confirm-overlay').style.display = 'none';
+  });
+  qs('etl-stop-confirm-btn').addEventListener('click', async function() {
+    qs('etl-stop-confirm-overlay').style.display = 'none';
+    qs('etl-stop-confirm-btn').disabled = true;
+    const resumed = await resumeSession(state.activeSession.id);
+    if (resumed.status === 'success') {
+      await finalizeEvaluation(resumed.session);
+    }
+    window.location.href = 'index.html';
   });
 }
 
