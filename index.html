@@ -236,6 +236,11 @@
     </div>
 
     <div class="card">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+        <h3 style="margin:0;">Mes évaluations</h3>
+        <button class="stats-info-btn" aria-label="En savoir plus" aria-expanded="false" onclick="var p=document.getElementById('history-section-info');var opening=p.hasAttribute('hidden');if(opening)p.removeAttribute('hidden');else p.setAttribute('hidden','');this.setAttribute('aria-expanded',opening?'true':'false');">i</button>
+      </div>
+      <div id="history-section-info" class="stats-info-panel" hidden>Historique de toutes vos sessions d'évaluation. Chaque carte indique la date, le type (Parcours, Entraînement libre ou Défi du jour) et votre score. Cliquez sur «Voir le détail» pour revoir vos réponses question par question.</div>
       <div class="history-toolbar">
         <input type="text" id="history-search" class="history-search-input"
                placeholder="Rechercher..." oninput="onHistorySearchInput()">

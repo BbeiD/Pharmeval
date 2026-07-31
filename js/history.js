@@ -18,6 +18,8 @@ import { icon } from "./icons.js";
 
 const PAGE_SIZE = 20;
 
+const parcoursNames = new Map(); // parcoursId -> name, peuplé par loadParcoursCompletion
+
 let state = {
   allLoaded: [],   // evaluations chargees jusqu'ici, toutes pages confondues
   cursor: null,
@@ -79,6 +81,9 @@ async function loadParcoursCompletion() {
   });
   const result = await getParcoursCompletionForUser(ctx.uid);
   if (result.error) { renderParcoursCompletionError(); return; }
+  result.items.forEach(function(item) {
+    if (item.parcoursId && item.name) parcoursNames.set(item.parcoursId, item.name);
+  });
   renderParcoursCompletionFromData(result.items);
 }
 
@@ -199,6 +204,22 @@ function renderCards() {
   if (loadMoreBtn) loadMoreBtn.style.display = state.hasMore ? 'inline-flex' : 'none';
 }
 
+function sessionLabelHtml(ev) {
+  const type = ev.sessionType;
+  const pid = ev.parcoursId;
+  if (type === 'daily_challenge') {
+    return '<div class="history-session-label history-session-defi">Défi du jour</div>';
+  }
+  if (type === 'parcours' || (!type && pid)) {
+    const name = pid ? parcoursNames.get(pid) : null;
+    return '<div class="history-session-label history-session-parcours">Parcours' + (name ? ' — ' + escapeHtml(name) : '') + '</div>';
+  }
+  if (type === 'free_training') {
+    return '<div class="history-session-label history-session-libre">Entraînement libre</div>';
+  }
+  return '';
+}
+
 function cardHtml(ev) {
   const pct = (ev.score && typeof ev.score.percentage === 'number') ? ev.score.percentage : 0;
   const correct = ev.score ? (ev.score.correctAnswers || 0) : 0;
@@ -207,6 +228,7 @@ function cardHtml(ev) {
   return (
     '<div class="history-card">' +
       '<div class="history-card-date">' + escapeHtml(formatDateFr(ev.completedAt)) + '</div>' +
+      sessionLabelHtml(ev) +
       '<div class="history-card-pct ' + escapeHtml(scoreClass) + '">' + pct + ' %</div>' +
       '<div class="history-card-frac">' + correct + ' / ' + total + '</div>' +
       '<button class="btn-secondary history-card-detail-btn" onclick="openHistoryDetail(\'' + escapeHtml(ev.id) + '\')">Voir le détail</button>' +

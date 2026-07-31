@@ -420,6 +420,7 @@ function normalizeEvaluationResult(raw) {
     selection: { theme: raw.competencyId || null },
     competencyId: raw.competencyId,
     parcoursId: raw.parcoursId,
+    sessionType: raw.dailyChallengeDate ? 'daily_challenge' : (raw.parcoursId ? 'parcours' : 'free_training'),
     questions: allQuestions,
   };
 }

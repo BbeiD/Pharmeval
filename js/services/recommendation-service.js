@@ -68,7 +68,7 @@ function round(value) {
 //    les eligibles, s'il y en a plusieurs).
 function ruleWeakTheme(evaluations) {
   const weakThemes = getWeakThemes(evaluations); // deja triees, deja filtrees par le seuil de fiabilite (min 2 evaluations)
-  const worst = weakThemes.find(function(t) { return t.averageScore < T.weakTheme; });
+  const worst = weakThemes.find(function(t) { return t.averageScore < T.weakTheme && t.theme !== 'Thème non renseigné'; });
   if (!worst) return null;
 
   const priority = clamp(round(50 + (T.weakTheme - worst.averageScore)), 50, 90);
@@ -97,6 +97,7 @@ function ruleForgottenTheme(evaluations) {
   let oldest = null;
   Object.keys(recency).forEach(function(theme) {
     const info = recency[theme];
+    if (theme === 'Thème non renseigné') return;
     if (info.daysSinceLastPracticed === null) return;
     if (info.daysSinceLastPracticed < T.themeForgottenDays) return;
     if (!oldest || info.daysSinceLastPracticed > oldest.days) {

@@ -53,6 +53,7 @@ export function renderRecommendationsFromData(evaluations) {
   }
 
   container.innerHTML = result.recommendations.map(cardHtml).join('');
+  wireRecoInfoBtns(container);
 }
 
 /** Message convivial en cas d'erreur (jamais de detail Firebase brut). */
@@ -74,29 +75,46 @@ function confidenceLabel(confidence) {
   return 'Peu de données disponibles';
 }
 
+function wireRecoInfoBtns(container) {
+  container.querySelectorAll('.reco-info-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var targetId = btn.getAttribute('data-info-target');
+      var panel = document.getElementById(targetId);
+      if (!panel) return;
+      var isHidden = panel.hasAttribute('hidden');
+      if (isHidden) {
+        panel.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        panel.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+}
+
 function cardHtml(rec) {
   const iconHtml = icon(TYPE_ICONS[rec.type] || 'highlight-lightbulb', { size: 20 });
   const confPct = Math.round(rec.confidence);
   const actionAttrs = rec.action.enabled
     ? 'onclick="handleRecommendationAction(\'' + escapeHtml(rec.action.actionId) + '\', \'' + escapeHtml(rec.id) + '\')"'
     : 'disabled title="Bientôt disponible"';
+  const infoId = 'reco-info-' + escapeHtml(rec.id);
 
   return (
     '<div class="reco-card" data-reco-id="' + escapeHtml(rec.id) + '">' +
       '<div class="reco-card-header">' +
         '<span class="reco-card-icon">' + iconHtml + '</span>' +
         '<span class="reco-card-title">' + escapeHtml(rec.title) + '</span>' +
+        '<button class="stats-info-btn reco-info-btn" aria-label="Pourquoi cette recommandation ?" aria-expanded="false" data-info-target="' + infoId + '">i</button>' +
       '</div>' +
+      '<div class="stats-info-panel" id="' + infoId + '" hidden>' + escapeHtml(rec.reason) + '</div>' +
       '<div class="reco-card-description">' + escapeHtml(rec.description) + '</div>' +
       '<div class="reco-card-confidence">' + confPct + ' % · ' + escapeHtml(confidenceLabel(rec.confidence)) + '</div>' +
       '<div class="reco-card-actions">' +
         '<button class="btn-primary reco-action-btn" ' + actionAttrs + '>' + escapeHtml(rec.action.label) + '</button>' +
         '<button class="btn-secondary reco-ignore-btn" onclick="ignoreRecommendation(\'' + escapeHtml(rec.id) + '\')">Ignorer</button>' +
       '</div>' +
-      '<details class="reco-why">' +
-        '<summary>Pourquoi cette recommandation ?</summary>' +
-        '<p>' + escapeHtml(rec.reason) + '</p>' +
-      '</details>' +
     '</div>'
   );
 }
