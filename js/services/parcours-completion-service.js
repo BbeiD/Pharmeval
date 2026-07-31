@@ -18,7 +18,7 @@
 // l'ecriture (volume actuel largement compatible, voir RAPPORT correspondant).
 
 import { getAssignedParcoursForUser } from "./assignment-service.js";
-import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay } from "./parcours-service.js";
+import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolveDerivedCompetenciesFromPool } from "./parcours-service.js";
 import { getPublishedQuestionIdsBySourceIds } from "./question-catalog-service.js";
 import { getQuestionProgressForMany } from "./question-progress-catalog-service.js";
 
@@ -90,6 +90,25 @@ async function buildParcoursCompletion(uid, parcours) {
   const resolvedBuckets = buckets.map(function(b) {
     return { type: b.type, label: b.label, count: b.ids.length, percent: percentCorrect(b.ids, progressMap) };
   });
+
+  // Si aucune compétence n'a été assignée manuellement, déduire les compétences
+  // à partir du `competencyId` porté par chaque question (même logique que
+  // "Compétences déduites automatiquement" dans l'admin). Prévu dès l'origine
+  // pour les documents imprimables (voir commentaire parcours-view-service.js).
+  const hasManualCompetencies = resolvedBuckets.some(function(b) { return b.type === 'competency'; });
+  if (!hasManualCompetencies && allIds.length > 0) {
+    const derived = await resolveDerivedCompetenciesFromPool(parcours, allIds);
+    const derivedBuckets = derived.map(function(c) {
+      return { type: 'competency', label: (c.bankData && c.bankData.name) || c.competencyId, count: null, percent: null };
+    });
+    return {
+      parcoursId: parcours.id,
+      name: parcours.name,
+      percent: percentCorrect(allIds, progressMap),
+      questionCount: allIds.length,
+      buckets: derivedBuckets.concat(resolvedBuckets),
+    };
+  }
 
   return {
     parcoursId: parcours.id,

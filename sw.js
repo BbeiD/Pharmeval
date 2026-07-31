@@ -22,7 +22,7 @@
 // backend deja mis a jour. Le cache n'intervient QUE si le reseau echoue
 // (repli hors-ligne), jamais comme premier choix.
 
-const CACHE_VERSION = 'pharmeval-v1';
+const CACHE_VERSION = 'pharmeval-v2';
 
 // Coeur minimal precache a l'installation - le reste du contenu statique
 // (JS/CSS/pages non listees ici) est mis en cache PROGRESSIVEMENT au fil
