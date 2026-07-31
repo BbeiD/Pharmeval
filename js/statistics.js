@@ -1,4 +1,4 @@
-// ===================== ANALYSE DE PROGRESSION (INTERFACE) =====================
+﻿// ===================== ANALYSE DE PROGRESSION (INTERFACE) =====================
 // Rendu uniquement. Aucun calcul metier important ici (conformement a la
 // demande) : toute la logique de calcul vit dans
 // js/services/statistics-service.js, ce fichier ne fait qu'appeler ces
@@ -11,7 +11,6 @@ import { getEvaluationsForStatistics } from "./services/history-service.js";
 import {
   calculateOverview,
   calculateProgressTrend,
-  calculatePerformanceBySpace,
   getStrongThemes,
   getWeakThemes,
   hasReliableThemeData,
@@ -92,7 +91,6 @@ function render(evaluations, truncated) {
 
   const overview = calculateOverview(evaluations);
   const trend = calculateProgressTrend(evaluations);
-  const bySpace = calculatePerformanceBySpace(evaluations);
   const strongThemes = getStrongThemes(evaluations);
   const weakThemes = getWeakThemes(evaluations);
   const themeDataReliable = hasReliableThemeData(evaluations);
@@ -103,28 +101,68 @@ function render(evaluations, truncated) {
     html += '<div class="stats-disclaimer">Analyse basée sur vos ' + evaluations.length + ' dernières évaluations.</div>';
   }
 
-  html += '<div class="stats-overview-grid">' + overviewCardsHtml(overview) + '</div>';
+  html += overviewSectionHtml(overview);
   html += trendHtml(trend);
-  html += performanceBySpaceHtml(bySpace);
   html += themesHtml(strongThemes, weakThemes, themeDataReliable);
 
   container.innerHTML = html;
+  wireInfoBtns(container);
+}
+
+// ---------------------------------------------------------------------------
+// Boutons info
+// ---------------------------------------------------------------------------
+
+function infoBtnHtml(targetId) {
+  return '<button class="stats-info-btn" aria-label="En savoir plus" aria-expanded="false" data-info-target="' + targetId + '">i</button>';
+}
+
+function infoPanelHtml(id, content) {
+  return '<div class="stats-info-panel" id="' + id + '" hidden>' + content + '</div>';
+}
+
+function sectionHeaderHtml(title, targetId) {
+  return '<div class="stats-section-header"><span class="stats-section-title">' + escapeHtml(title) + '</span>' + infoBtnHtml(targetId) + '</div>';
+}
+
+function wireInfoBtns(container) {
+  container.querySelectorAll('.stats-info-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var targetId = btn.getAttribute('data-info-target');
+      var panel = container.querySelector('#' + targetId);
+      if (!panel) return;
+      var isHidden = panel.hasAttribute('hidden');
+      if (isHidden) {
+        panel.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        panel.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Indicateurs generaux
 // ---------------------------------------------------------------------------
 
-function overviewCardsHtml(overview) {
+function overviewSectionHtml(overview) {
   const avgLevel = getScoreLevel(overview.averageScore);
   const bestLevel = getScoreLevel(overview.bestScore);
   const lastLevel = getScoreLevel(overview.lastScore);
 
+  const info = 'Le score moyen et le meilleur score sont calculés sur l\'ensemble de vos évaluations terminées. Le dernier score correspond à votre évaluation la plus récente.';
+
   return (
-    statCard(String(overview.count), overview.count > 1 ? 'évaluations' : 'évaluation', 'stat-neutral') +
-    statCard(pctLabel(overview.averageScore), 'Score moyen', avgLevel.className) +
-    statCard(pctLabel(overview.bestScore), 'Meilleur score', bestLevel.className) +
-    statCard(pctLabel(overview.lastScore), 'Dernier score', lastLevel.className)
+    sectionHeaderHtml('Vue d\'ensemble', 'info-overview') +
+    infoPanelHtml('info-overview', info) +
+    '<div class="stats-overview-grid">' +
+      statCard(String(overview.count), overview.count > 1 ? 'évaluations' : 'évaluation', 'stat-neutral') +
+      statCard(pctLabel(overview.averageScore), 'Score moyen', avgLevel.className) +
+      statCard(pctLabel(overview.bestScore), 'Meilleur score', bestLevel.className) +
+      statCard(pctLabel(overview.lastScore), 'Dernier score', lastLevel.className) +
+    '</div>'
   );
 }
 
@@ -161,39 +199,15 @@ function trendHtml(trend) {
     message = 'Pas encore assez de données pour calculer une tendance.';
   }
 
+  const info = 'Compare la moyenne de vos 5 dernières évaluations à la moyenne des 5 évaluations précédentes. Une variation inférieure à 2 points est considérée comme stable. Disponible à partir de 10 évaluations.';
+
   return (
     '<div class="stats-trend ' + trendClass + '">' +
-      '<div class="stats-section-title">Progression</div>' +
+      sectionHeaderHtml('Progression', 'info-trend') +
+      infoPanelHtml('info-trend', info) +
       '<div class="stats-trend-message">' + escapeHtml(message) + '</div>' +
     '</div>'
   );
-}
-
-// ---------------------------------------------------------------------------
-// Performance par espace
-// ---------------------------------------------------------------------------
-
-function performanceBySpaceHtml(bySpace) {
-  const keys = Object.keys(bySpace);
-  if (keys.length === 0) return '';
-
-  let html = '<div class="stats-by-space">';
-  html += '<div class="stats-section-title">Par espace</div>';
-  html += '<div class="stats-space-grid">';
-  keys.forEach(function(key) {
-    const entry = bySpace[key];
-    const level = getScoreLevel(entry.averageScore);
-    html += (
-      '<div class="stats-space-card">' +
-        '<div class="stats-space-name">' + escapeHtml(entry.label) + '</div>' +
-        '<div class="stats-space-pct ' + escapeHtml(level.className) + '">' + pctLabel(entry.averageScore) + '</div>' +
-        '<div class="stats-space-detail">' + entry.count + (entry.count > 1 ? ' évaluations' : ' évaluation') +
-          ' · meilleur ' + pctLabel(entry.bestScore) + '</div>' +
-      '</div>'
-    );
-  });
-  html += '</div></div>';
-  return html;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,13 +229,18 @@ function themesHtml(strongThemes, weakThemes, themeDataReliable) {
   const overlap = strongNames.some(function(name) { return weakNames.indexOf(name) !== -1; });
   const comparisonReliable = themeDataReliable && strongThemes.length > 0 && weakThemes.length > 0 && !overlap;
 
+  const themeInfo = 'Basé sur au moins 2 évaluations par thème. Les thèmes forts ont votre meilleure moyenne ; les thèmes à retravailler ont la plus basse. Un même thème ne peut pas figurer dans les deux colonnes.';
+
   if (!comparisonReliable) {
-    html += '<div class="stats-section-title">Thèmes</div>';
+    html += sectionHeaderHtml('Thèmes', 'info-themes');
+    html += infoPanelHtml('info-themes', themeInfo);
     html += '<div class="stats-themes-insufficient">Pas encore assez de données pour identifier vos points forts et vos axes d\u2019amélioration.</div>';
     html += '</div>';
     return html;
   }
 
+  html += sectionHeaderHtml('Thèmes', 'info-themes');
+  html += infoPanelHtml('info-themes', themeInfo);
   html += '<div class="stats-themes-columns">';
 
   html += '<div class="stats-theme-column">';
