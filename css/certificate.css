@@ -205,6 +205,30 @@
   border-bottom: none;
 }
 
+.cert-parcours-cell { line-height: 1.4; }
+
+.cert-sub-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #1D9E75;
+  margin-top: 6px;
+}
+
+.cert-competency-list {
+  margin: 3px 0 2px 10px;
+  padding: 0;
+  list-style: disc;
+}
+
+.cert-competency-list li {
+  font-size: 10px;
+  color: #555;
+  line-height: 1.5;
+  padding: 0;
+}
+
 .cert-table-total td {
   border-top: 2px solid #1D9E75 !important;
   border-bottom: none !important;

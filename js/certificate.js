@@ -86,12 +86,27 @@ function renderAttestationHtml(ctx, selectedItems, attemptResult) {
   const rows = selectedItems.map(function(item) {
     const att = !attemptResult.error ? attemptResult.byParcoursId.get(item.parcoursId) : null;
     const date = firstHundredDate(att);
+
+    // Compétences ou thèmes testés (buckets non-questions, priorité aux compétences)
+    const compBuckets = (item.buckets || []).filter(function(b) { return b.type === 'competency'; });
+    const srcBuckets  = (item.buckets || []).filter(function(b) { return b.type === 'source'; });
+    const subBuckets  = compBuckets.length > 0 ? compBuckets : srcBuckets;
+    const subLabel    = compBuckets.length > 0 ? 'Compétences' : 'Thèmes';
+    const subHtml = subBuckets.length > 0
+      ? '<div class="cert-sub-label">' + escapeHtml(subLabel) + ' :</div>' +
+        '<ul class="cert-competency-list">' +
+        subBuckets.map(function(b) {
+          return '<li>' + escapeHtml(b.label) + '</li>';
+        }).join('') +
+        '</ul>'
+      : '';
+
     return (
       '<tr>' +
-        '<td>' + escapeHtml(item.name) + '</td>' +
-        '<td style="text-align:center;">' + item.questionCount + '</td>' +
-        '<td style="text-align:center;color:#1D9E75;font-weight:700;">100 %</td>' +
-        '<td style="text-align:right;white-space:nowrap;color:#555;">' +
+        '<td><div class="cert-parcours-cell">' + escapeHtml(item.name) + subHtml + '</div></td>' +
+        '<td style="text-align:center;vertical-align:top;padding-top:10px;">' + item.questionCount + '</td>' +
+        '<td style="text-align:center;vertical-align:top;padding-top:10px;color:#1D9E75;font-weight:700;">100 %</td>' +
+        '<td style="text-align:right;vertical-align:top;padding-top:10px;white-space:nowrap;color:#555;">' +
           (date ? escapeHtml(formatDateFr(date)) : '—') +
         '</td>' +
       '</tr>'

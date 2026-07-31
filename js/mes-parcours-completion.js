@@ -66,7 +66,7 @@ export function renderParcoursCompletionFromData(items) {
     return;
   }
   const hasCompleted = items.some(function(i) { return i.percent === 100; });
-  let html = items.map(parcoursNodeHtml).join('');
+  let html = '';
   if (hasCompleted) {
     html += '<div class="mpc-attestation-row">' +
       '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=custom">' +
@@ -74,6 +74,7 @@ export function renderParcoursCompletionFromData(items) {
       '</a>' +
     '</div>';
   }
+  html += items.map(parcoursNodeHtml).join('');
   container.innerHTML = html;
 }
 
