@@ -7,16 +7,18 @@
 <meta name="theme-color" content="#1D9E75">
 <link rel="icon" type="image/png" href="assets/icons/pwa/favicon-32.png">
 <link rel="apple-touch-icon" href="assets/icons/pwa/apple-touch-icon.png">
-<title>Pharmeval — Certificat</title>
+<title>Pharmeval — Attestation</title>
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/certificate.css">
 </head>
 <body>
 
+<!-- Chargement initial -->
 <div id="cert-loading" class="app-loading">
   <img class="app-loading-logo" src="assets/brand/pharmeval-mark.png" alt="" width="64" height="64">
 </div>
 
+<!-- Erreur (parcours non trouvé, aucun parcours complété, etc.) -->
 <div id="cert-error" style="display:none;">
   <div style="text-align:center;padding:80px 24px;">
     <p id="cert-error-msg" style="color:var(--text2);margin-bottom:20px;font-size:15px;"></p>
@@ -24,12 +26,21 @@
   </div>
 </div>
 
-<div id="cert-root" style="display:none;" class="cert-page-wrapper">
-  <div class="cert-action-bar">
-    <button onclick="window.print()" class="btn-primary">Imprimer / Enregistrer en PDF</button>
-    <a href="javascript:history.back()" class="btn-secondary">← Retour</a>
+<!-- ====== SECTION 1 : sélection des parcours (mode custom) ====== -->
+<div id="cert-select-section" class="cert-page-wrapper" style="display:none;">
+  <div class="cert-select-view" id="cert-select-content">
+    <!-- rendu par JS -->
   </div>
-  <p class="cert-hint">Sur mobile : menu du navigateur → « Partager » → « Imprimer » pour enregistrer en PDF.</p>
+</div>
+
+<!-- ====== SECTION 2 : aperçu du document prêt à imprimer ====== -->
+<div id="cert-preview-section" class="cert-page-wrapper" style="display:none;">
+  <div class="cert-action-bar" id="cert-action-bar">
+    <button onclick="window.print()" class="btn-primary">Imprimer / Enregistrer en PDF</button>
+    <button id="cert-back-to-select" class="btn-secondary" style="display:none;">← Modifier la sélection</button>
+    <a id="cert-back-link" href="javascript:history.back()" class="btn-secondary">← Retour</a>
+  </div>
+  <p class="cert-hint">Sur mobile : menu du navigateur → « Partager » → « Imprimer ».</p>
   <div class="cert-paper" id="cert-paper"></div>
 </div>
 

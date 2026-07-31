@@ -69,8 +69,8 @@ export function renderParcoursCompletionFromData(items) {
   let html = items.map(parcoursNodeHtml).join('');
   if (hasCompleted) {
     html += '<div class="mpc-attestation-row">' +
-      '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=global">' +
-        'Attestation globale de formation' +
+      '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=custom">' +
+        'Créer mon attestation de formation' +
       '</a>' +
     '</div>';
   }
