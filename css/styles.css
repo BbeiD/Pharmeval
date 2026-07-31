@@ -118,6 +118,7 @@
     background: linear-gradient(180deg, #152721 0%, var(--bg) 420px, var(--bg) 100%);
     color: var(--text);
     min-height: 100vh;
+    overflow-x: hidden;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -2301,4 +2302,6 @@
   /* ---- Mobile : duo-grid empilé sous 540px ---- */
   @media (max-width: 540px) {
     .home-duo-grid { grid-template-columns: 1fr; }
+    .mastery-donut-widget { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+    .mastery-donut-widget svg { width: 120px !important; height: 120px !important; }
   }
