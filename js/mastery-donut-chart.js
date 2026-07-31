@@ -89,7 +89,7 @@ export function renderMasteryDonutHtml(summary, options) {
 
   return (
     '<div class="mastery-donut-widget">' +
-      '<svg viewBox="0 0 ' + size + ' ' + size + '" width="160" height="160" role="img" aria-label="' + escapeHtml(ariaLabel) + '">' +
+      '<svg viewBox="0 0 ' + size + ' ' + size + '" width="160" height="160" style="max-width:100%;height:auto;" role="img" aria-label="' + escapeHtml(ariaLabel) + '">' +
         '<circle cx="' + center + '" cy="' + center + '" r="' + radius + '" fill="none" stroke="var(--border)" stroke-width="' + stroke + '"></circle>' +
         arcs +
         '<text x="' + center + '" y="' + (center - 2) + '" text-anchor="middle" font-size="26" font-weight="700" fill="var(--text)">' + dominant + '%</text>' +
