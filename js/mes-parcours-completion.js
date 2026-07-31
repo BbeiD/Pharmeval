@@ -52,6 +52,43 @@ function parcoursNodeHtml(item) {
   return html;
 }
 
+const PAGE_SIZE = 5;
+let allItems = [];
+let shownCount = 0;
+
+function renderSlice() {
+  const container = document.getElementById('parcours-completion-body');
+  if (!container) return;
+
+  const hasCompleted = allItems.some(function(i) { return i.percent === 100; });
+  const visible = allItems.slice(0, shownCount);
+  const remaining = allItems.length - shownCount;
+
+  let html = '';
+  if (hasCompleted) {
+    html += '<div class="mpc-attestation-row">' +
+      '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=custom">' +
+        'Créer mon attestation de formation' +
+      '</a>' +
+    '</div>';
+  }
+  html += visible.map(parcoursNodeHtml).join('');
+  if (remaining > 0) {
+    html += '<div style="text-align:center;margin-top:12px;">' +
+      '<button class="btn-secondary" onclick="showMoreParcours()">' +
+        'Voir les ' + Math.min(remaining, PAGE_SIZE) + ' suivants' +
+      '</button>' +
+    '</div>';
+  }
+  container.innerHTML = html;
+}
+
+export function showMoreParcours() {
+  shownCount = Math.min(shownCount + PAGE_SIZE, allItems.length);
+  renderSlice();
+}
+window.showMoreParcours = showMoreParcours;
+
 /**
  * Rendu pur a partir d'une liste deja chargee (voir
  * parcours-completion-service.js#getParcoursCompletionForUser) - aucun
@@ -65,17 +102,9 @@ export function renderParcoursCompletionFromData(items) {
     container.innerHTML = '<p class="bank-list-empty">Aucun parcours ne vous a été attribué pour l\'instant.</p>';
     return;
   }
-  const hasCompleted = items.some(function(i) { return i.percent === 100; });
-  let html = '';
-  if (hasCompleted) {
-    html += '<div class="mpc-attestation-row">' +
-      '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=custom">' +
-        'Créer mon attestation de formation' +
-      '</a>' +
-    '</div>';
-  }
-  html += items.map(parcoursNodeHtml).join('');
-  container.innerHTML = html;
+  allItems = items;
+  shownCount = Math.min(PAGE_SIZE, items.length);
+  renderSlice();
 }
 
 export function renderParcoursCompletionLoading() {
