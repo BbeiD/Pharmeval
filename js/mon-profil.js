@@ -146,8 +146,7 @@ function renderMenu(ctx) {
   const isAdmin = hasPermission(PERMISSIONS.MANAGE_USERS);
 
   const rows = [
-    { href: 'mes-competences.html', iconKey: 'nav-skills', label: 'Mes compétences' },
-    { href: 'index.html?history=1', iconKey: 'nav-evaluations-stats', label: 'Mes évaluations' },
+    { href: 'index.html?history=1', iconKey: 'nav-evaluations-stats', label: 'Ma progression' },
   ];
   if (isAdmin) rows.push({ href: 'index.html?admin=1', iconKey: 'nav-administration', label: 'Administration' });
 

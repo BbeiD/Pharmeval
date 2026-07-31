@@ -37,7 +37,7 @@ export function openHistoryView() {
   });
   var historyEl = document.getElementById('history-view');
   if (historyEl) historyEl.style.display = 'block';
-  renderSiteHeader('mes-evaluations');
+  renderSiteHeader('mon-profil');
 
   showHistoryList();
   loadFirstPage();
