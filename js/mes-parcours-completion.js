@@ -41,6 +41,13 @@ function parcoursNodeHtml(item) {
   html += '<span class="bank-chip">' + item.questionCount + ' question(s)</span>';
   html += '</div>';
   html += progressBarHtml(item.percent, item.name);
+  if (item.percent === 100) {
+    html += '<div class="mpc-cert-row">' +
+      '<a class="btn-secondary mpc-cert-btn" href="certificate.html?type=parcours&parcoursId=' + encodeURIComponent(item.parcoursId) + '">' +
+        'Obtenir mon certificat' +
+      '</a>' +
+    '</div>';
+  }
   html += '</div>';
   return html;
 }
@@ -58,7 +65,16 @@ export function renderParcoursCompletionFromData(items) {
     container.innerHTML = '<p class="bank-list-empty">Aucun parcours ne vous a été attribué pour l\'instant.</p>';
     return;
   }
-  container.innerHTML = items.map(parcoursNodeHtml).join('');
+  const hasCompleted = items.some(function(i) { return i.percent === 100; });
+  let html = items.map(parcoursNodeHtml).join('');
+  if (hasCompleted) {
+    html += '<div class="mpc-attestation-row">' +
+      '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=global">' +
+        'Attestation globale de formation' +
+      '</a>' +
+    '</div>';
+  }
+  container.innerHTML = html;
 }
 
 export function renderParcoursCompletionLoading() {

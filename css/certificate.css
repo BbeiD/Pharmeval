@@ -1,0 +1,278 @@
+/* ===================== CERTIFICAT / ATTESTATION =====================
+   Styles propres à certificate.html.
+   - Écran : fond sombre de l'app + carte blanche simulant du papier A4.
+   - Impression (@media print) : uniquement la carte, fond blanc, A4.
+   La carte est TOUJOURS en thème clair (blanc/gris foncé) quelle que
+   soit la préférence du navigateur — c'est un document imprimable. */
+
+/* Wrapper pleine page (écran seulement) */
+.cert-page-wrapper {
+  min-height: 100vh;
+  padding: 32px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Barre d'action (bouton Imprimer + Retour) */
+.cert-action-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cert-hint {
+  font-size: 12px;
+  color: var(--text2, #8BA8A2);
+  margin-bottom: 24px;
+  text-align: center;
+  max-width: 480px;
+}
+
+/* ---- Carte papier (toujours thème clair) ---- */
+.cert-paper {
+  background: #ffffff;
+  color: #1a1a1a;
+  width: min(210mm, 100%);
+  min-height: 297mm;
+  padding: 18mm 16mm 14mm;
+  box-shadow: 0 8px 48px rgba(0,0,0,.55);
+  border-radius: 3px;
+  font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+
+/* ---- En-tête : logo + libellé type ---- */
+.cert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 5mm;
+  border-bottom: 2.5px solid #1D9E75;
+  margin-bottom: 10mm;
+}
+
+.cert-logo {
+  height: 34px;
+  object-fit: contain;
+}
+
+.cert-header-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #1D9E75;
+  text-align: right;
+}
+
+/* ---- Titre centré ---- */
+.cert-title {
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+  color: #111;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 3mm;
+  line-height: 1.2;
+}
+
+.cert-title-bar {
+  width: 52px;
+  height: 3px;
+  background: #1D9E75;
+  border-radius: 2px;
+  margin: 0 auto 10mm;
+}
+
+/* ---- Corps ---- */
+.cert-preamble {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 5mm;
+}
+
+.cert-user-name {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 2mm;
+  line-height: 1.2;
+}
+
+.cert-user-sub {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 10mm;
+}
+
+.cert-connector {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 5mm;
+  line-height: 1.6;
+}
+
+.cert-parcours-name {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 3mm;
+  line-height: 1.4;
+}
+
+.cert-parcours-meta {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8mm;
+}
+
+/* Badge score circulaire */
+.cert-score-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8mm;
+}
+
+.cert-score-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid #1D9E75;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #1D9E75;
+  font-weight: 800;
+  gap: 0;
+}
+
+.cert-score-circle-value {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cert-score-circle-unit {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cert-date-line {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 12mm;
+}
+
+/* ---- Tableau (attestation globale) ---- */
+.cert-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 4mm 0 8mm;
+}
+
+.cert-table th {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 2px solid #1D9E75;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+.cert-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ebebeb;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.cert-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cert-table-total td {
+  border-top: 2px solid #1D9E75 !important;
+  border-bottom: none !important;
+  font-weight: 700;
+  padding-top: 7px !important;
+}
+
+/* ---- Pied de page ---- */
+.cert-divider {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 8mm 0 5mm;
+}
+
+.cert-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 10px;
+  color: #888;
+  flex-wrap: wrap;
+}
+
+.cert-footer-brand {
+  font-weight: 700;
+  color: #1D9E75;
+}
+
+.cert-footer-ref {
+  text-align: right;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   IMPRESSION
+   ============================================================ */
+@media print {
+  html, body {
+    background: white !important;
+    color: #1a1a1a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Cacher tout sauf la carte */
+  .cert-action-bar,
+  .cert-hint {
+    display: none !important;
+  }
+
+  .cert-page-wrapper {
+    padding: 0 !important;
+    min-height: auto !important;
+    display: block !important;
+  }
+
+  .cert-paper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 15mm !important;
+    margin: 0 !important;
+  }
+
+  /* Si jamais on affiche deux cartes (ex: parcours + global), saut de page */
+  .cert-paper + .cert-paper {
+    page-break-before: always;
+  }
+}

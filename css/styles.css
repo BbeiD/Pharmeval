@@ -63,12 +63,12 @@
     --green-light: rgba(29,158,117,.18);
     --red-light: rgba(226,75,74,.16);
     --red: #E24B4A;
-    --surface: #1E293B;
-    --surface2: #263449;
+    --surface: #182925;
+    --surface2: #1F3530;
     --border: rgba(255,255,255,0.09);
     --border2: rgba(255,255,255,0.16);
     --text: #EEF2F8;
-    --text2: #94A3B8;
+    --text2: #8BA8A2;
     --radius: 10px;
     --radius-lg: 14px;
     /* AJOUT (refonte visuelle, phase 3 - mockup mobile ideal fourni par
@@ -103,7 +103,7 @@
     --space-4: 24px;
     --space-5: 32px;
 
-    --bg: #0F172A;
+    --bg: #0C1A18;
     --shadow-xs: 0 1px 2px rgba(0,0,0,.35);
     --shadow-sm: 0 2px 8px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.3);
     --shadow-md: 0 10px 28px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.35);
@@ -115,7 +115,7 @@
     /* Dégradé tres subtil (pas une nouvelle couleur, juste une variation
        de luminosite de --bg lui-meme) - casse la platitude d'un aplat
        unique sans jamais nuire a la lisibilite. */
-    background: linear-gradient(180deg, #17233d 0%, var(--bg) 420px, var(--bg) 100%);
+    background: linear-gradient(180deg, #152721 0%, var(--bg) 420px, var(--bg) 100%);
     color: var(--text);
     min-height: 100vh;
   }
@@ -1993,6 +1993,10 @@
   .mpc-progress-row .ev-progress-bar-track { flex: 1; }
   .mpc-progress-label { font-size: 12px; color: var(--text2); min-width: 40px; text-align: right; }
   .mpc-medal-img { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
+  .mpc-cert-row { margin-top: 10px; }
+  .mpc-cert-btn { font-size: 12px; padding: 6px 14px; }
+  .mpc-attestation-row { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; }
+  .mpc-attestation-btn { font-size: 12px; padding: 7px 18px; }
   .ev-progress-bar-fill-gold { background: #FBBF24; }
 
   .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }

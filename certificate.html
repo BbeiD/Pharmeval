@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="assets/icons/pwa/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/icons/pwa/apple-touch-icon.png">
+<title>Pharmeval — Certificat</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/certificate.css">
+</head>
+<body>
+
+<div id="cert-loading" class="app-loading">
+  <img class="app-loading-logo" src="assets/brand/pharmeval-mark.png" alt="" width="64" height="64">
+</div>
+
+<div id="cert-error" style="display:none;">
+  <div style="text-align:center;padding:80px 24px;">
+    <p id="cert-error-msg" style="color:var(--text2);margin-bottom:20px;font-size:15px;"></p>
+    <a href="javascript:history.back()" class="btn-secondary">← Retour</a>
+  </div>
+</div>
+
+<div id="cert-root" style="display:none;" class="cert-page-wrapper">
+  <div class="cert-action-bar">
+    <button onclick="window.print()" class="btn-primary">Imprimer / Enregistrer en PDF</button>
+    <a href="javascript:history.back()" class="btn-secondary">← Retour</a>
+  </div>
+  <p class="cert-hint">Sur mobile : menu du navigateur → « Partager » → « Imprimer » pour enregistrer en PDF.</p>
+  <div class="cert-paper" id="cert-paper"></div>
+</div>
+
+<script type="module" src="js/certificate.js"></script>
+<script src="js/sw-register.js"></script>
+</body>
+</html>
