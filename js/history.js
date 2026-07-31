@@ -304,5 +304,5 @@ window.closeHistoryView = closeHistoryView;
 window.startEvaluationFromHistory = startEvaluationFromHistory;
 window.openHistoryDetail = openHistoryDetail;
 window.backToHistoryList = backToHistoryList;
-window.onHistorySearchInput = onHistorySearchInput;
+window.setHistoryFilter = setHistoryFilter;
 window.loadMoreHistory = loadMoreHistory;
