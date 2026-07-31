@@ -171,19 +171,17 @@ window.setOrgFilter = function(filter) {
   renderGrid(members, lastDashboardData.currentUid, lastDashboardData.orgParcours);
 };
 
-window.downloadOrgCsv = function() {
-  if (!lastDashboardData || !lastDashboardData.members) return;
+function buildExcelRows() {
   var orgParcours = lastDashboardData.orgParcours || [];
-  var parcoursHeaders = orgParcours.map(function(p) { return p.title; });
-  var headers = ['Prénom', 'Nom', 'Email', 'Profil', 'Statut', 'Évaluations', 'Score moyen (%)','Dernière activité'].concat(parcoursHeaders);
-  var rows = [headers];
-  lastDashboardData.members.forEach(function(m) {
+  var headers = ['Prénom', 'Nom', 'Email', 'Profil', 'Statut', 'Évaluations', 'Score moyen (%)', 'Dernière activité']
+    .concat(orgParcours.map(function(p) { return p.title; }));
+  var dataRows = lastDashboardData.members.map(function(m) {
     var statusMap = {};
     (m.parcoursStatus || []).forEach(function(s) { statusMap[s.parcoursId] = s.hasStarted; });
     var parcoursValues = orgParcours.map(function(p) {
       return statusMap[p.parcoursId] ? 'Démarré' : 'Non démarré';
     });
-    rows.push([
+    return [
       m.firstName || '',
       m.lastName || '',
       m.email || '',
@@ -192,29 +190,59 @@ window.downloadOrgCsv = function() {
       m.totalEvals || 0,
       typeof m.avgScore === 'number' ? m.avgScore : '',
       m.lastEvalAt ? formatDateFr(m.lastEvalAt) : '',
-    ].concat(parcoursValues));
+    ].concat(parcoursValues);
   });
-  var csv = rows.map(function(row) {
-    return row.map(function(cell) {
-      var s = String(cell === null || cell === undefined ? '' : cell);
-      if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
-        s = '"' + s.replace(/"/g, '""') + '"';
-      }
-      return s;
-    }).join(',');
-  }).join('\r\n');
-  var bom = '﻿';
-  var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
+  return { headers: headers, rows: dataRows, orgParcours: orgParcours };
+}
+
+function generateExcelFile() {
+  var XLSX = window.XLSX;
+  var built = buildExcelRows();
+  var wsData = [built.headers].concat(built.rows);
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Largeurs de colonnes
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 22 },
+    { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 18 },
+  ].concat(built.orgParcours.map(function() { return { wch: 26 }; }));
+
+  // Ligne d'en-tête en gras via styles (SheetJS CE — format de cellule basique)
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  for (var C = range.s.c; C <= range.e.c; C++) {
+    var cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+    if (!ws[cellAddr]) continue;
+    ws[cellAddr].s = { font: { bold: true } };
+  }
+
+  var wb = XLSX.utils.book_new();
+  var sheetName = lastDashboardData.orgName.replace(/[/\\?*[\]]/g, '').slice(0, 31) || 'Organisation';
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
   var date = new Date().toISOString().slice(0, 10);
   var slug = lastDashboardData.orgName.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-  a.href = url;
-  a.download = 'pharmeval-' + slug + '-' + date + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  XLSX.writeFile(wb, 'pharmeval-' + slug + '-' + date + '.xlsx');
+}
+
+window.downloadOrgExcel = function() {
+  if (!lastDashboardData || !lastDashboardData.members) return;
+  var btn = document.getElementById('org-csv-btn');
+  if (window.XLSX) {
+    generateExcelFile();
+    return;
+  }
+  if (btn) btn.textContent = 'Chargement…';
+  var script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  script.onload = function() {
+    generateExcelFile();
+    if (btn) { btn.innerHTML = '<i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Exporter Excel'; }
+  };
+  script.onerror = function() {
+    if (btn) { btn.innerHTML = '<i class="ti ti-file-spreadsheet" aria-hidden="true"></i> Exporter Excel'; }
+    alert('Impossible de charger la bibliothèque d\'export. Vérifiez votre connexion internet.');
+  };
+  document.head.appendChild(script);
 };
 
 onAuthStateChanged(auth, async function(user) {
