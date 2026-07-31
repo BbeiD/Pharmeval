@@ -140,19 +140,12 @@ async function init() {
     });
   });
 
-  // Liste ordonnée des thèmes présents parmi les compétences de l'utilisateur
-  // (même ordre que l'Entraînement libre : nb de questions décroissant).
-  const seenClassifications = new Set();
-  state.classifications = classifications
-    .filter(function(c) {
-      const present = state.items.some(function(p) { return p.classificationName === c.classification; });
-      if (!present || seenClassifications.has(c.classification)) return false;
-      seenClassifications.add(c.classification);
-      return true;
-    })
-    .map(function(c) {
-      return { name: c.classification, color: resolveParcoursColorHex(c.color) || DEFAULT_CLASSIFICATION_COLOR };
-    });
+  // Toutes les classifications du catalogue (même ordre que l'Entraînement
+  // libre : nb de questions décroissant). Les thèmes sans activité sont
+  // affichés avec un état vide et des boutons vers les modes de pratique.
+  state.classifications = classifications.map(function(c) {
+    return { name: c.classification, color: resolveParcoursColorHex(c.color) || DEFAULT_CLASSIFICATION_COLOR };
+  });
 
   qs('mc-content').style.display = 'block';
 
@@ -208,6 +201,18 @@ export function selectSource(classificationName) {
 
   const filtered = state.items.filter(function(p) { return p.classificationName === classificationName; });
 
+  qs('mc-source-panel').style.display = 'block';
+
+  if (filtered.length === 0) {
+    qs('mc-source-empty').style.display = 'block';
+    qs('mc-source-filled').style.display = 'none';
+    qs('mc-source-empty-title').textContent = classificationName;
+    return;
+  }
+
+  qs('mc-source-empty').style.display = 'none';
+  qs('mc-source-filled').style.display = 'block';
+
   const radarTitle = qs('mc-radar-title');
   if (radarTitle) radarTitle.textContent = 'Vue d\'ensemble — ' + classificationName;
 
@@ -218,8 +223,6 @@ export function selectSource(classificationName) {
   const detail = qs('mc-detail');
   if (placeholder) placeholder.style.display = 'block';
   if (detail) { detail.style.display = 'none'; detail.innerHTML = ''; }
-
-  qs('mc-source-panel').style.display = 'block';
 }
 window.selectSource = selectSource;
 

@@ -49,21 +49,32 @@
     <!-- PANNEAU PAR RÉFÉRENTIEL (masqué jusqu'à sélection) -->
     <div id="mc-source-panel" style="display:none;">
 
-      <!-- Radar -->
-      <section class="card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-purple);">
-        <h3 style="margin-bottom:var(--space-3);" id="mc-radar-title">Vue d'ensemble</h3>
-        <div class="mc-radar-card">
-          <div id="mc-radar-chart" aria-hidden="true"></div>
-          <div id="mc-radar-legend" class="mc-radar-legend"></div>
+      <!-- État vide : thème sans activité -->
+      <div id="mc-source-empty" class="card" style="display:none;margin-bottom:var(--space-3);border-top:3px solid var(--accent-purple);text-align:center;padding:var(--space-4);">
+        <h3 id="mc-source-empty-title" style="margin-bottom:8px;"></h3>
+        <p style="font-size:13px;color:var(--text2);margin:0 0 20px 0;">Vous n'avez pas encore travaillé ce thème. Choisissez comment commencer :</p>
+        <div class="btn-row" style="justify-content:center;flex-wrap:wrap;gap:10px;">
+          <a href="defi.html" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;"><i class="ti ti-flame" aria-hidden="true"></i> Défi du jour</a>
+          <a href="mes-parcours.html" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;"><i class="ti ti-road" aria-hidden="true"></i> Mes parcours</a>
+          <a href="entrainement-libre.html" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;"><i class="ti ti-target" aria-hidden="true"></i> Entraînement libre</a>
         </div>
-      </section>
+      </div>
 
-      <!-- Grille de compétences filtrée -->
-      <div id="mc-list" class="source-tile-grid" style="margin-bottom:var(--space-3);"></div>
+      <!-- État rempli : radar + tuiles + détail -->
+      <div id="mc-source-filled" style="display:none;">
+        <section class="card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-purple);">
+          <h3 style="margin-bottom:var(--space-3);" id="mc-radar-title">Vue d'ensemble</h3>
+          <div class="mc-radar-card">
+            <div id="mc-radar-chart" aria-hidden="true"></div>
+            <div id="mc-radar-legend" class="mc-radar-legend"></div>
+          </div>
+        </section>
 
-      <!-- Détail d'une compétence -->
-      <div id="mc-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une compétence pour voir ses chiffres clés et le détail par question.</div>
-      <div id="mc-detail" class="bank-detail" style="display:none;"></div>
+        <div id="mc-list" class="source-tile-grid" style="margin-bottom:var(--space-3);"></div>
+
+        <div id="mc-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une compétence pour voir ses chiffres clés et le détail par question.</div>
+        <div id="mc-detail" class="bank-detail" style="display:none;"></div>
+      </div>
 
     </div>
 
