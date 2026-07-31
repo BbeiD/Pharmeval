@@ -41,7 +41,21 @@ function isInactive(member) {
   return (now - last) / (1000 * 60 * 60 * 24) > INACTIVE_THRESHOLD_DAYS;
 }
 
-function memberCardHtml(m, isCurrentUser) {
+function parcoursStatusHtml(m, orgParcours) {
+  if (!orgParcours || orgParcours.length === 0) return '';
+  const statusMap = {};
+  (m.parcoursStatus || []).forEach(function(s) { statusMap[s.parcoursId] = s.hasStarted; });
+  const chips = orgParcours.map(function(p) {
+    const done = !!statusMap[p.parcoursId];
+    return '<span class="org-parcours-chip ' + (done ? 'org-parcours-done' : 'org-parcours-pending') + '" title="' + escapeHtml(p.title) + '">' +
+      (done ? '<i class="ti ti-circle-check" aria-hidden="true"></i>' : '<i class="ti ti-clock" aria-hidden="true"></i>') +
+      ' ' + escapeHtml(p.title) +
+    '</span>';
+  }).join('');
+  return '<div class="org-member-parcours">' + chips + '</div>';
+}
+
+function memberCardHtml(m, isCurrentUser, orgParcours) {
   const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || m.displayName || m.email || '—';
   const statusLabel = m.status === 'suspended' ? '<span class="org-member-badge org-badge-suspended">Désactivé</span>' : '';
   const inactiveLabel = m.status !== 'suspended' && isInactive(m) ? '<span class="org-member-badge org-badge-inactive">Inactif</span>' : '';
@@ -69,11 +83,12 @@ function memberCardHtml(m, isCurrentUser) {
         '<div class="org-stat-item"><div class="org-stat-value">' + avgScoreHtml + '</div><div class="org-stat-label">score moyen</div></div>' +
         '<div class="org-stat-item"><div class="org-stat-value">' + lastActivity + '</div><div class="org-stat-label">dernière activité</div></div>' +
       '</div>' +
+      parcoursStatusHtml(m, orgParcours) +
     '</div>'
   );
 }
 
-function renderGrid(members, currentUid) {
+function renderGrid(members, currentUid, orgParcours) {
   const grid = document.getElementById('org-members-grid');
   const emptyEl = document.getElementById('org-empty');
   if (!grid) return;
@@ -84,7 +99,7 @@ function renderGrid(members, currentUid) {
   }
   if (emptyEl) emptyEl.style.display = 'none';
   grid.innerHTML = members.map(function(m) {
-    return memberCardHtml(m, m.uid === currentUid);
+    return memberCardHtml(m, m.uid === currentUid, orgParcours);
   }).join('');
 }
 
@@ -106,7 +121,7 @@ async function loadDashboard(currentUid) {
     return;
   }
 
-  lastDashboardData = { currentUid: currentUid, members: result.members || [], orgName: result.orgName || 'Mon organisation' };
+  lastDashboardData = { currentUid: currentUid, members: result.members || [], orgName: result.orgName || 'Mon organisation', orgParcours: result.orgParcours || [] };
 
   const orgNameEl = document.getElementById('org-name');
   if (orgNameEl) orgNameEl.textContent = lastDashboardData.orgName;
@@ -140,7 +155,7 @@ async function loadDashboard(currentUid) {
     return;
   }
 
-  renderGrid(lastDashboardData.members, currentUid);
+  renderGrid(lastDashboardData.members, currentUid, lastDashboardData.orgParcours);
   if (contentEl) contentEl.style.display = 'block';
 }
 
@@ -153,13 +168,21 @@ window.setOrgFilter = function(filter) {
   const members = filter === 'inactive'
     ? lastDashboardData.members.filter(function(m) { return m.status !== 'suspended' && isInactive(m); })
     : lastDashboardData.members;
-  renderGrid(members, lastDashboardData.currentUid);
+  renderGrid(members, lastDashboardData.currentUid, lastDashboardData.orgParcours);
 };
 
 window.downloadOrgCsv = function() {
   if (!lastDashboardData || !lastDashboardData.members) return;
-  var rows = [['Prénom', 'Nom', 'Email', 'Profil', 'Statut', 'Évaluations', 'Score moyen (%)', 'Dernière activité']];
+  var orgParcours = lastDashboardData.orgParcours || [];
+  var parcoursHeaders = orgParcours.map(function(p) { return p.title; });
+  var headers = ['Prénom', 'Nom', 'Email', 'Profil', 'Statut', 'Évaluations', 'Score moyen (%)','Dernière activité'].concat(parcoursHeaders);
+  var rows = [headers];
   lastDashboardData.members.forEach(function(m) {
+    var statusMap = {};
+    (m.parcoursStatus || []).forEach(function(s) { statusMap[s.parcoursId] = s.hasStarted; });
+    var parcoursValues = orgParcours.map(function(p) {
+      return statusMap[p.parcoursId] ? 'Démarré' : 'Non démarré';
+    });
     rows.push([
       m.firstName || '',
       m.lastName || '',
@@ -169,7 +192,7 @@ window.downloadOrgCsv = function() {
       m.totalEvals || 0,
       typeof m.avgScore === 'number' ? m.avgScore : '',
       m.lastEvalAt ? formatDateFr(m.lastEvalAt) : '',
-    ]);
+    ].concat(parcoursValues));
   });
   var csv = rows.map(function(row) {
     return row.map(function(cell) {

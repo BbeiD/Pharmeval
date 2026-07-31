@@ -3327,14 +3327,22 @@ app.get("/api/questions-by-ids", requireAuth, async (req, res) => {
 });
 
 // ===================== TABLEAU DE BORD ORGANISATION (B2B) =====================
-// Accessible aux rôles 'teacher' ET 'admin' (un admin peut aussi avoir une
+// Accessible aux rôles 'teacher', 'manager' ET 'admin' (un admin peut aussi avoir une
 // org rattachée pour tester la vue). Retourne en UN seul aller-retour :
 // - le nom de l'organisation du requérant
 // - la liste de ses membres (même organizationId)
 // - pour chaque membre : stats agrégées des 50 dernières évaluations
-// (totalEvals, lastEvalAt, avgScore)
+//   (totalEvals, lastEvalAt, avgScore) + parcoursStatus (parcours commencé ou non)
+// - orgParcours : liste des parcours actifs assignés à l'organisation
 // Jamais d'accès aux réponses détaillées — statistiques uniquement.
 app.get("/api/org-dashboard", requireAuth, async (req, res) => {
+  // Découpe un tableau en lots de 30 (limite Firestore 'in')
+  function inChunks(arr) {
+    const result = [];
+    for (let i = 0; i < arr.length; i += 30) result.push(arr.slice(i, i + 30));
+    return result;
+  }
+
   try {
     const requesterSnap = await admin.firestore().collection("users").doc(req.user.uid).get();
     if (!requesterSnap.exists) {
@@ -3358,7 +3366,7 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
       .get();
 
     if (membersSnap.empty) {
-      return res.json({ error: false, orgName, orgId, members: [] });
+      return res.json({ error: false, orgName, orgId, members: [], orgParcours: [] });
     }
 
     // Résolution en lot des profils (sans dupliquer les lectures)
@@ -3377,7 +3385,7 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
       const u = d.data();
       try {
         const evalsSnap = await admin.firestore()
-          .collection("evaluation_results")
+          .collection(EVALUATION_RESULTS_COLLECTION)
           .where("userId", "==", u.uid)
           .orderBy("createdAt", "desc")
           .limit(50)
@@ -3391,10 +3399,10 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
         const avgScore = totalEvals > 0
           ? Math.round(evals.reduce((sum, e) => sum + ((e.score && e.score.percent) || 0), 0) / totalEvals)
           : null;
-        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals, lastEvalAt, avgScore };
+        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", groupIds: u.groupIds || [], profileId: u.profileId || null, profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals, lastEvalAt, avgScore, parcoursStatus: [] };
       } catch (err) {
         console.error("[org-dashboard] stats for", u.uid, err && err.code);
-        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals: 0, lastEvalAt: null, avgScore: null };
+        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", groupIds: u.groupIds || [], profileId: u.profileId || null, profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals: 0, lastEvalAt: null, avgScore: null, parcoursStatus: [] };
       }
     }));
 
@@ -3407,7 +3415,110 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
       return 0;
     });
 
-    res.json({ error: false, orgName, orgId, members });
+    // ---- Parcours assignés à l'organisation (best-effort, non bloquant) ----
+    let orgParcours = [];
+    try {
+      // Collecte des groupIds, profileIds et uids des membres
+      const allGroupIdSet = new Set();
+      const allProfileIdSet = new Set();
+      const memberUidList = members.map((m) => m.uid);
+      members.forEach((m) => {
+        m.groupIds.forEach((g) => g && allGroupIdSet.add(g));
+        if (m.profileId) allProfileIdSet.add(m.profileId);
+      });
+      const allGroupIds = Array.from(allGroupIdSet);
+      const allProfileIdArr = Array.from(allProfileIdSet);
+
+      // Requêtes d'attributions en lots (index composite type+targetId existant)
+      const assignmentQueries = [];
+      inChunks(allGroupIds).forEach((chunk) =>
+        assignmentQueries.push(
+          admin.firestore().collection(ASSIGNMENTS_COLLECTION)
+            .where("type", "==", "group").where("targetId", "in", chunk).get()
+        )
+      );
+      inChunks(allProfileIdArr).forEach((chunk) =>
+        assignmentQueries.push(
+          admin.firestore().collection(ASSIGNMENTS_COLLECTION)
+            .where("type", "==", "profile").where("targetId", "in", chunk).get()
+        )
+      );
+      inChunks(memberUidList).forEach((chunk) =>
+        assignmentQueries.push(
+          admin.firestore().collection(ASSIGNMENTS_COLLECTION)
+            .where("type", "==", "user").where("targetId", "in", chunk).get()
+        )
+      );
+
+      const assignmentSnaps = await Promise.all(assignmentQueries);
+
+      // Déduplication des parcoursIds actifs
+      const parcoursIdSet = new Set();
+      assignmentSnaps.forEach((snap) =>
+        snap.docs.forEach((d) => {
+          const a = d.data();
+          if (a.parcoursId && a.status === "active") parcoursIdSet.add(a.parcoursId);
+        })
+      );
+
+      const assignedParcoursIds = Array.from(parcoursIdSet);
+
+      if (assignedParcoursIds.length > 0) {
+        // Titres des parcours publiés (parcours archivés/brouillons ignorés)
+        const parcoursSnaps = await Promise.all(
+          assignedParcoursIds.map((id) => admin.firestore().collection(PARCOURS_COLLECTION).doc(id).get())
+        );
+        orgParcours = assignedParcoursIds
+          .map((id, i) => {
+            const snap = parcoursSnaps[i];
+            if (!snap.exists) return null;
+            const data = snap.data();
+            if (data.status !== "published") return null;
+            return { parcoursId: id, title: data.title || id };
+          })
+          .filter(Boolean);
+
+        if (orgParcours.length > 0) {
+          const activePIds = orgParcours.map((p) => p.parcoursId);
+
+          // Pour chaque membre : quels parcours ont-ils commencé ?
+          // Requête sur les 200 dernières évaluations (index userId+createdAt existant).
+          // Limite documentée : si un membre a fait >200 évaluations libres depuis
+          // sa dernière session de parcours, celle-ci ne sera pas détectée.
+          await Promise.all(members.map(async (m) => {
+            try {
+              const parcoursEvalsSnap = await admin.firestore()
+                .collection(EVALUATION_RESULTS_COLLECTION)
+                .where("userId", "==", m.uid)
+                .orderBy("createdAt", "desc")
+                .limit(200)
+                .get();
+
+              const donePIds = new Set(
+                parcoursEvalsSnap.docs
+                  .map((d) => d.data().parcoursId)
+                  .filter((pid) => pid && activePIds.includes(pid))
+              );
+
+              m.parcoursStatus = activePIds.map((pid) => ({
+                parcoursId: pid,
+                hasStarted: donePIds.has(pid),
+              }));
+            } catch (err) {
+              console.error("[org-dashboard] parcours for", m.uid, err && err.code);
+            }
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("[org-dashboard] parcours lookup", err && err.code, err);
+      // Non-bloquant : les stats de base restent disponibles même en cas d'erreur
+    }
+
+    // groupIds et profileId ne sont pas nécessaires côté client — on les retire
+    members.forEach((m) => { delete m.groupIds; delete m.profileId; });
+
+    res.json({ error: false, orgName, orgId, members, orgParcours });
   } catch (err) {
     console.error("[org-dashboard]", err && err.code, err);
     res.status(500).json({ error: true, message: "Impossible de charger le tableau de bord de l'organisation pour le moment." });
