@@ -2071,7 +2071,7 @@ app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
   if (targetUid === req.user.uid) {
     return res.status(403).json({ status: "denied", message: "Vous ne pouvez pas modifier votre propre rôle." });
   }
-  if (!["user", "admin", "teacher"].includes(newRole)) {
+  if (!["user", "admin", "teacher", "manager"].includes(newRole)) {
     return res.status(400).json({ status: "error", message: "Rôle demandé invalide." });
   }
   try {
@@ -3341,7 +3341,7 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
       return res.status(403).json({ error: true, message: "Compte introuvable." });
     }
     const requester = requesterSnap.data();
-    if ((requester.role !== "teacher" && requester.role !== "admin") || requester.status !== "active") {
+    if (!["teacher", "manager", "admin"].includes(requester.role) || requester.status !== "active") {
       return res.status(403).json({ error: true, message: "Cette fonctionnalité est réservée aux enseignants et aux administrateurs." });
     }
 

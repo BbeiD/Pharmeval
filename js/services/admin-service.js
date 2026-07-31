@@ -95,13 +95,23 @@ export async function revokeAdmin(targetUser) {
   return changeRole(targetUser, ROLES.USER);
 }
 
-/** Attribue le rôle enseignant à un utilisateur cible (B2B, Sprint organisation). */
+/** Attribue le rôle enseignant à un utilisateur cible (B2B, écoles). */
 export async function promoteToTeacher(targetUser) {
   return changeRole(targetUser, ROLES.TEACHER);
 }
 
 /** Retire le rôle enseignant (retour au rôle utilisateur standard). */
 export async function revokeTeacher(targetUser) {
+  return changeRole(targetUser, ROLES.USER);
+}
+
+/** Attribue le rôle responsable à un utilisateur cible (B2B, pharmacies/entreprises). */
+export async function promoteToManager(targetUser) {
+  return changeRole(targetUser, ROLES.MANAGER);
+}
+
+/** Retire le rôle responsable (retour au rôle utilisateur standard). */
+export async function revokeManager(targetUser) {
   return changeRole(targetUser, ROLES.USER);
 }
 
@@ -165,11 +175,13 @@ async function changeRole(targetUser, newRole) {
     newValue: newRole,
   });
 
-  return success(
-    newRole === ROLES.ADMIN
-      ? 'Utilisateur promu administrateur avec succès.'
-      : 'Rôle administrateur retiré avec succès.'
-  );
+  const ROLE_SUCCESS_MESSAGES = {
+    [ROLES.ADMIN]: 'Utilisateur promu administrateur avec succès.',
+    [ROLES.TEACHER]: 'Rôle enseignant attribué avec succès.',
+    [ROLES.MANAGER]: 'Rôle responsable attribué avec succès.',
+    [ROLES.USER]: 'Rôle retiré avec succès.',
+  };
+  return success(ROLE_SUCCESS_MESSAGES[newRole] || 'Rôle mis à jour avec succès.');
 }
 
 /**

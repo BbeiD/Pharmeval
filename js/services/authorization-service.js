@@ -37,7 +37,8 @@ export const ROLES = Object.freeze({
   // js/admin.js) ne permet de les assigner - seule la fondation
   // architecturale est posee, comme demande explicitement.
   EDITOR: 'editor',           // futur : gestion des questions
-  TEACHER: 'teacher',         // futur : gestion des groupes et campagnes
+  TEACHER: 'teacher',         // écoles : tableau de bord pédagogique
+  MANAGER: 'manager',         // pharmacies/entreprises : tableau de bord équipe
   SUPER_ADMIN: 'super_admin', // futur : gestion complete de la plateforme
 });
 
@@ -52,6 +53,7 @@ export const ROLE_LABELS = Object.freeze({
   admin: 'Administrateur',
   editor: 'Éditeur',
   teacher: 'Enseignant',
+  manager: 'Responsable',
   super_admin: 'Super administrateur',
 });
 
@@ -202,6 +204,7 @@ const ROLE_PERMISSIONS = Object.freeze({
   admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA, PERMISSIONS.MANAGE_GLOBAL_CATALOG, PERMISSIONS.VIEW_ORG_DASHBOARD]),
   editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours ni de la banque de competences pour l'instant (types de contenu distincts, voir Sprint 12/13)
   teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_ORG_DASHBOARD]),
+  manager: Object.freeze([PERMISSIONS.VIEW_ORG_DASHBOARD]),
   super_admin: Object.freeze([
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_QUESTIONS,

@@ -16,7 +16,7 @@ import {
   deactivateUser, reactivateUser, editUserBusinessProfile, getUserTimeline,
   createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
-import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher } from "../js/services/admin-service.js";
+import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher, promoteToManager, revokeManager } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
@@ -293,8 +293,12 @@ function detailHtml(u) {
     } else if (u.role === 'teacher') {
       html += '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke-teacher\')">Retirer le rôle enseignant</button>';
       html += '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
+    } else if (u.role === 'manager') {
+      html += '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke-manager\')">Retirer le rôle responsable</button>';
+      html += '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
     } else {
       html += '<button class="btn-secondary" onclick="requestUserAction(\'promote-teacher\')">Attribuer rôle enseignant</button>';
+      html += '<button class="btn-secondary" onclick="requestUserAction(\'promote-manager\')">Attribuer rôle responsable</button>';
       html += '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
     }
   }
@@ -361,6 +365,10 @@ export async function saveUserEdit() {
 const ACTION_LABELS = {
   deactivate: 'désactiver ce compte', reactivate: 'réactiver ce compte',
   promote: 'promouvoir cet utilisateur administrateur', revoke: 'retirer les droits administrateur de cet utilisateur',
+  'promote-teacher': 'attribuer le rôle enseignant à cet utilisateur',
+  'revoke-teacher': 'retirer le rôle enseignant de cet utilisateur',
+  'promote-manager': 'attribuer le rôle responsable à cet utilisateur',
+  'revoke-manager': 'retirer le rôle responsable de cet utilisateur',
 };
 export function requestUserAction(kind) {
   const uid = state.selectedId;
@@ -385,6 +393,8 @@ export async function confirmUserAction() {
   else if (kind === 'revoke') result = await revokeAdmin(user);
   else if (kind === 'promote-teacher') result = await promoteToTeacher(user);
   else if (kind === 'revoke-teacher') result = await revokeTeacher(user);
+  else if (kind === 'promote-manager') result = await promoteToManager(user);
+  else if (kind === 'revoke-manager') result = await revokeManager(user);
   else result = { status: 'error', message: 'Action inconnue.' };
   pendingAction = null;
   showMessage(result.status, result.message);
