@@ -2071,7 +2071,7 @@ app.patch("/api/users/:uid/role", requireAuth, async (req, res) => {
   if (targetUid === req.user.uid) {
     return res.status(403).json({ status: "denied", message: "Vous ne pouvez pas modifier votre propre rôle." });
   }
-  if (!["user", "admin"].includes(newRole)) {
+  if (!["user", "admin", "teacher"].includes(newRole)) {
     return res.status(400).json({ status: "error", message: "Rôle demandé invalide." });
   }
   try {
@@ -3323,6 +3323,94 @@ app.get("/api/questions-by-ids", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[questions-by-ids]", err && err.code, err);
     res.status(500).json({});
+  }
+});
+
+// ===================== TABLEAU DE BORD ORGANISATION (B2B) =====================
+// Accessible aux rôles 'teacher' ET 'admin' (un admin peut aussi avoir une
+// org rattachée pour tester la vue). Retourne en UN seul aller-retour :
+// - le nom de l'organisation du requérant
+// - la liste de ses membres (même organizationId)
+// - pour chaque membre : stats agrégées des 50 dernières évaluations
+// (totalEvals, lastEvalAt, avgScore)
+// Jamais d'accès aux réponses détaillées — statistiques uniquement.
+app.get("/api/org-dashboard", requireAuth, async (req, res) => {
+  try {
+    const requesterSnap = await admin.firestore().collection("users").doc(req.user.uid).get();
+    if (!requesterSnap.exists) {
+      return res.status(403).json({ error: true, message: "Compte introuvable." });
+    }
+    const requester = requesterSnap.data();
+    if ((requester.role !== "teacher" && requester.role !== "admin") || requester.status !== "active") {
+      return res.status(403).json({ error: true, message: "Cette fonctionnalité est réservée aux enseignants et aux administrateurs." });
+    }
+
+    const orgId = requester.organizationId;
+    if (!orgId) {
+      return res.status(400).json({ error: true, noOrg: true, message: "Vous n'êtes rattaché à aucune organisation. Demandez à votre administrateur de vous assigner une organisation." });
+    }
+
+    const orgSnap = await admin.firestore().collection("organizations").doc(orgId).get();
+    const orgName = orgSnap.exists ? (orgSnap.data().name || orgId) : orgId;
+
+    const membersSnap = await admin.firestore().collection("users")
+      .where("organizationId", "==", orgId)
+      .get();
+
+    if (membersSnap.empty) {
+      return res.json({ error: false, orgName, orgId, members: [] });
+    }
+
+    // Résolution en lot des profils (sans dupliquer les lectures)
+    const profileIds = [...new Set(membersSnap.docs.map((d) => d.data().profileId).filter(Boolean))];
+    const profileMap = {};
+    if (profileIds.length > 0) {
+      const profileSnaps = await Promise.all(profileIds.map((id) => admin.firestore().collection("profiles").doc(id).get()));
+      profileIds.forEach((id, i) => {
+        if (profileSnaps[i].exists) profileMap[id] = profileSnaps[i].data().name || id;
+      });
+    }
+
+    // Stats par membre — best-effort : une erreur sur un membre n'empêche pas
+    // les autres de s'afficher (catch local, jamais un reject global).
+    const members = await Promise.all(membersSnap.docs.map(async (d) => {
+      const u = d.data();
+      try {
+        const evalsSnap = await admin.firestore()
+          .collection("evaluation_results")
+          .where("userId", "==", u.uid)
+          .orderBy("createdAt", "desc")
+          .limit(50)
+          .get();
+        const evals = evalsSnap.docs.map((ev) => ev.data());
+        const totalEvals = evals.length;
+        const lastRaw = totalEvals > 0 ? evals[0].createdAt : null;
+        const lastEvalAt = lastRaw
+          ? (lastRaw.toDate ? lastRaw.toDate().toISOString() : String(lastRaw))
+          : null;
+        const avgScore = totalEvals > 0
+          ? Math.round(evals.reduce((sum, e) => sum + ((e.score && e.score.percent) || 0), 0) / totalEvals)
+          : null;
+        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals, lastEvalAt, avgScore };
+      } catch (err) {
+        console.error("[org-dashboard] stats for", u.uid, err && err.code);
+        return { uid: u.uid, firstName: u.firstName || "", lastName: u.lastName || "", displayName: u.displayName || "", email: u.email || "", profileLabel: u.profileId ? (profileMap[u.profileId] || null) : null, status: u.status || "active", totalEvals: 0, lastEvalAt: null, avgScore: null };
+      }
+    }));
+
+    // Tri : actifs en premier, puis par dernière activité décroissante
+    members.sort((a, b) => {
+      if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+      if (a.lastEvalAt && b.lastEvalAt) return new Date(b.lastEvalAt) - new Date(a.lastEvalAt);
+      if (a.lastEvalAt) return -1;
+      if (b.lastEvalAt) return 1;
+      return 0;
+    });
+
+    res.json({ error: false, orgName, orgId, members });
+  } catch (err) {
+    console.error("[org-dashboard]", err && err.code, err);
+    res.status(500).json({ error: true, message: "Impossible de charger le tableau de bord de l'organisation pour le moment." });
   }
 });
 

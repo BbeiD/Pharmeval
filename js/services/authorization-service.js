@@ -169,6 +169,10 @@ export const PERMISSIONS = Object.freeze({
   // permission de catalogue global afin de ne pas bloquer les tests",
   // cadrage).
   MANAGE_GLOBAL_CATALOG: 'manage_global_catalog',
+  // B2B (Sprint organisation) : tableau de bord des membres d'une organisation.
+  // Accordée au rôle 'teacher' (enseignant / responsable) — jamais à 'user'.
+  // Un admin possède déjà toutes les permissions (voir matrice ci-dessous).
+  VIEW_ORG_DASHBOARD: 'view_org_dashboard',
 });
 
 /**
@@ -195,9 +199,9 @@ const ROLE_PERMISSIONS = Object.freeze({
   // reellement implemente - une permission peut etre accordee a plusieurs
   // roles a la fois, c'est precisement l'interet d'une matrice plutot que
   // d'un lien direct role -> fonctionnalite.
-  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA, PERMISSIONS.MANAGE_GLOBAL_CATALOG]),
+  admin: Object.freeze([PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_QUESTIONS, PERMISSIONS.PURGE_QUESTIONS, PERMISSIONS.MANAGE_PARCOURS, PERMISSIONS.PURGE_PARCOURS, PERMISSIONS.MANAGE_COMPETENCIES, PERMISSIONS.PURGE_COMPETENCIES, PERMISSIONS.MANAGE_REFERENCE_DATA, PERMISSIONS.PURGE_REFERENCE_DATA, PERMISSIONS.MANAGE_GLOBAL_CATALOG, PERMISSIONS.VIEW_ORG_DASHBOARD]),
   editor: Object.freeze([PERMISSIONS.MANAGE_QUESTIONS]), // jamais PURGE_QUESTIONS, meme une fois ce role reellement attribuable ; pas de gestion des parcours ni de la banque de competences pour l'instant (types de contenu distincts, voir Sprint 12/13)
-  teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS]),
+  teacher: Object.freeze([PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.VIEW_ORG_DASHBOARD]),
   super_admin: Object.freeze([
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_QUESTIONS,

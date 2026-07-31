@@ -16,7 +16,7 @@ import {
   deactivateUser, reactivateUser, editUserBusinessProfile, getUserTimeline,
   createPendingInvite, createPendingInvitesBulk, listPendingInvites, cancelPendingInvite,
 } from "../js/services/user-directory-service.js";
-import { promoteToAdmin, revokeAdmin } from "../js/services/admin-service.js";
+import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
@@ -288,9 +288,15 @@ function detailHtml(u) {
   // clic qui echouerait systematiquement).
   const ctx = getCurrentUserContext();
   if (ctx && ctx.uid !== u.uid) {
-    html += (u.role === 'admin')
-      ? '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke\')">Retirer les droits administrateur</button>'
-      : '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
+    if (u.role === 'admin') {
+      html += '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke\')">Retirer les droits administrateur</button>';
+    } else if (u.role === 'teacher') {
+      html += '<button class="btn-secondary bank-trash-btn" onclick="requestUserAction(\'revoke-teacher\')">Retirer le rôle enseignant</button>';
+      html += '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
+    } else {
+      html += '<button class="btn-secondary" onclick="requestUserAction(\'promote-teacher\')">Attribuer rôle enseignant</button>';
+      html += '<button class="btn-secondary" onclick="requestUserAction(\'promote\')">Promouvoir administrateur</button>';
+    }
   }
   html += '</div></div>';
 
@@ -377,6 +383,8 @@ export async function confirmUserAction() {
   else if (kind === 'reactivate') result = await reactivateUser(user);
   else if (kind === 'promote') result = await promoteToAdmin(user);
   else if (kind === 'revoke') result = await revokeAdmin(user);
+  else if (kind === 'promote-teacher') result = await promoteToTeacher(user);
+  else if (kind === 'revoke-teacher') result = await revokeTeacher(user);
   else result = { status: 'error', message: 'Action inconnue.' };
   pendingAction = null;
   showMessage(result.status, result.message);

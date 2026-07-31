@@ -2335,3 +2335,55 @@
     .mastery-donut-widget { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
     .mastery-donut-widget svg { width: 120px !important; height: 120px !important; }
   }
+
+/* ===================== TABLEAU DE BORD ORGANISATION (B2B) ===================== */
+.org-members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }
+
+.org-member-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color .15s;
+}
+.org-member-card:hover { border-color: var(--green); }
+.org-member-suspended { opacity: .6; }
+
+.org-member-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(29,158,117,.18); color: var(--green);
+  font-size: 15px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.org-member-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.org-member-name { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.org-member-profile { font-size: 12px; color: var(--text2); }
+.org-member-email { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-member-empty { color: var(--border2); }
+
+.org-member-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+  letter-spacing: .3px; text-transform: uppercase;
+}
+.org-badge-suspended { background: var(--surface2); color: var(--text2); }
+.org-badge-self { background: rgba(29,158,117,.18); color: var(--green); }
+
+.org-member-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.org-stat-item { text-align: center; }
+.org-stat-value { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.org-stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+
+.page-header-icon-green { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:rgba(29,158,117,.15); color:var(--green); margin-right:8px; }
+
+@media (max-width: 600px) {
+  .org-members-grid { grid-template-columns: 1fr; }
+}

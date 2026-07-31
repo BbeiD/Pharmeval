@@ -95,6 +95,16 @@ export async function revokeAdmin(targetUser) {
   return changeRole(targetUser, ROLES.USER);
 }
 
+/** Attribue le rôle enseignant à un utilisateur cible (B2B, Sprint organisation). */
+export async function promoteToTeacher(targetUser) {
+  return changeRole(targetUser, ROLES.TEACHER);
+}
+
+/** Retire le rôle enseignant (retour au rôle utilisateur standard). */
+export async function revokeTeacher(targetUser) {
+  return changeRole(targetUser, ROLES.USER);
+}
+
 async function changeRole(targetUser, newRole) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) {

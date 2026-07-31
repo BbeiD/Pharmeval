@@ -37,6 +37,7 @@ export function setCurrentUserContext(user, userData) {
     profileCompleted: !!(userData && userData.profileCompleted),
     profile: (userData && userData.profile) || {},
     version: (userData && userData.version) || 1,
+    organizationId: (userData && userData.organizationId) || null,
   };
 }
 

@@ -22,6 +22,7 @@
 // mon-profil.html (voir js/mon-profil.js, renderMenu()).
 
 import { hasPermission, PERMISSIONS } from "./services/authorization-service.js";
+import { getCurrentUserContext } from "./services/app-context.js";
 import { icon } from "./icons.js";
 
 // Pages REELLEMENT construites aujourd'hui - a completer au fur et a
@@ -49,6 +50,9 @@ const NAV_ITEMS = [
   // cle que le streak (icons.js), jamais une autre icone pour ce concept.
   { key: 'defi', href: 'defi.html', iconKey: 'feedback-streak-regularity', label: 'Défi' },
   { key: 'entrainement-libre', href: 'entrainement-libre.html', iconKey: 'nav-free-training', label: 'Entraînement libre' },
+  // B2B : visible uniquement pour les rôles possédant VIEW_ORG_DASHBOARD
+  // (teacher + admin). Jamais affiché si l'utilisateur n'a pas d'organisation.
+  { key: 'mon-organisation', href: 'mon-organisation.html', iconKey: 'content-organisation', label: 'Organisation', permission: PERMISSIONS.VIEW_ORG_DASHBOARD },
   { key: 'mon-profil', href: 'mon-profil.html', iconKey: 'nav-profile', label: 'Profil' },
 ];
 
@@ -81,10 +85,20 @@ export function renderSiteHeader(activeKey) {
   // MANAGE_USERS (admin ET super_admin), jamais un simple role === 'admin'
   // qui exclurait a tort super_admin.
   const isAdmin = hasPermission(PERMISSIONS.MANAGE_USERS);
+  const ctx = getCurrentUserContext();
   const base = basePath();
 
   const navHtml = NAV_ITEMS
-    .filter(function(item) { return !item.adminOnly || isAdmin; })
+    .filter(function(item) {
+      if (item.adminOnly) return isAdmin;
+      if (item.permission) {
+        if (!hasPermission(item.permission)) return false;
+        // "Organisation" n'apparaît que si l'utilisateur est rattaché à une org
+        if (item.key === 'mon-organisation') return !!(ctx && ctx.organizationId);
+        return true;
+      }
+      return true;
+    })
     .map(function(item) {
       const activeCls = item.key === activeKey ? ' sh-nav-active' : '';
       const toggleAttr = item.viewToggle ? ' data-view-toggle="' + item.viewToggle + '"' : '';

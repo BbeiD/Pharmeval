@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="assets/icons/pwa/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/icons/pwa/apple-touch-icon.png">
+<title>Pharmeval — Mon organisation</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<style>body{background:#0C1A18}</style>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="org-page-loading" class="app-loading"><img class="app-loading-logo" src="assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
+
+<div id="org-denied" style="display:none;min-height:100vh;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:480px;margin:0 auto;text-align:center;padding:var(--space-5);">
+    <h2 style="margin-bottom:12px;">Accès refusé</h2>
+    <p style="color:var(--text2);margin-bottom:20px;">Cette page est réservée aux enseignants et aux responsables d'organisation.</p>
+    <a class="btn-primary" href="index.html">Retour à l'accueil</a>
+  </div>
+</div>
+
+<div id="site-header-mount"></div>
+
+<div id="org-view" class="bank-page" style="display:none;">
+
+  <!-- En-tête -->
+  <div class="card home-welcome-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--green);">
+    <div class="home-welcome-text">
+      <h2 style="margin-bottom:4px;">
+        <span class="page-header-icon page-header-icon-green"><i class="ti ti-building" aria-hidden="true"></i></span>
+        <span id="org-name">Mon organisation</span>
+      </h2>
+      <p class="import-intro" style="margin:0;">Progression et activité de votre équipe. Données issues des évaluations — lecture seule.</p>
+    </div>
+    <div id="org-member-count" style="font-size:13px;color:var(--text2);margin-top:8px;"></div>
+  </div>
+
+  <!-- Chargement des données -->
+  <div id="org-loading-data" style="display:none;text-align:center;padding:40px;color:var(--text2);">
+    <div class="eval-spinner" style="margin:0 auto 12px;"></div>
+    Chargement des membres…
+  </div>
+
+  <!-- Erreur -->
+  <div id="org-error" class="admin-message admin-message-error" style="display:none;"></div>
+
+  <!-- Contenu principal -->
+  <div id="org-content" style="display:none;">
+    <div id="org-empty" class="bank-list-empty" style="display:none;">
+      Aucun membre n'est encore rattaché à votre organisation. Demandez à votre administrateur d'assigner des utilisateurs à cette organisation.
+    </div>
+    <div id="org-members-grid" class="org-members-grid"></div>
+  </div>
+
+</div>
+
+<script type="module" src="js/mon-organisation.js"></script>
+<script src="js/sw-register.js"></script>
+
+</body>
+</html>
