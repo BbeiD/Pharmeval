@@ -3684,4 +3684,58 @@ app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
   }
 });
 
+// OUTIL ADMIN TEMPORAIRE — vérifie et corrige les références aux questions
+// supprimées dans les parcours (directQuestionIds + competencies[].questionIds).
+// Paramètre { dryRun: true } pour aperçu sans modification.
+// À supprimer après utilisation.
+app.post("/api/admin/fix-parcours-deleted-questions", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
+    const { dryRun = true } = req.body || {};
+    const TO_DELETE = new Set([
+      "PHARM-MED-000423","PHARM-MED-000473","PHARM-MED-000359",
+      "PHARM-MED-000363","PHARM-MED-000466","PHARM-MED-000730",
+      "PHARM-MED-000292","PHARM-MED-000304","PHARM-MED-000732",
+    ]);
+    const db = admin.firestore();
+    const snap = await db.collection(PARCOURS_COLLECTION).get();
+    const affected = [];
+    const batch = db.batch();
+    let batchCount = 0;
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const changes = {};
+      if (Array.isArray(data.directQuestionIds)) {
+        const removed = data.directQuestionIds.filter((id) => TO_DELETE.has(id));
+        if (removed.length) changes.directQuestionIds = { before: data.directQuestionIds, after: data.directQuestionIds.filter((id) => !TO_DELETE.has(id)), removed };
+      }
+      if (Array.isArray(data.competencies)) {
+        const newComps = data.competencies.map((c) => {
+          if (!Array.isArray(c.questionIds)) return { comp: c, changed: false };
+          const removed = c.questionIds.filter((id) => TO_DELETE.has(id));
+          if (!removed.length) return { comp: c, changed: false };
+          return { comp: { ...c, questionIds: c.questionIds.filter((id) => !TO_DELETE.has(id)) }, changed: true, removed };
+        });
+        const anyChanged = newComps.some((x) => x.changed);
+        if (anyChanged) changes.competencies = { after: newComps.map((x) => x.comp), removedByComp: newComps.filter((x) => x.changed).map((x) => ({ name: x.comp.name || x.comp.id, removed: x.removed })) };
+      }
+      if (Object.keys(changes).length) {
+        affected.push({ id: doc.id, name: data.name || doc.id, changes });
+        if (!dryRun) {
+          const update = {};
+          if (changes.directQuestionIds) update.directQuestionIds = changes.directQuestionIds.after;
+          if (changes.competencies) update.competencies = changes.competencies.after;
+          batch.update(doc.ref, update);
+          batchCount++;
+        }
+      }
+    });
+    if (!dryRun && batchCount > 0) await batch.commit();
+    res.json({ totalParcours: snap.size, affected: affected.length, detail: affected, dryRun: !!dryRun });
+  } catch (err) {
+    console.error("[fix-parcours-deleted-questions]", err && err.code, err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);
