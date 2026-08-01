@@ -3572,4 +3572,41 @@ app.get("/api/org-dashboard", requireAuth, async (req, res) => {
   }
 });
 
+// OUTIL ADMIN — export CSV de toutes les questions (revue editoriale)
+// Acces : admin uniquement. Telecharge directement depuis le navigateur.
+app.get("/api/admin/export-questions-csv", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const snap = await admin.firestore().collection(QUESTIONS_COLLECTION).get();
+    function esc(v) {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+    const header = ["pedagogicalId","domain","theme","subtheme","difficulty","question","reponse_A","reponse_B","reponse_C","reponse_D","bonne_reponse_index","bonne_reponse_texte","explication","status"];
+    const rows = [header.map(esc).join(",")];
+    snap.forEach((doc) => {
+      const d = doc.data();
+      const ans = Array.isArray(d.answers) ? d.answers : [];
+      const idx = typeof d.correctAnswer === "number" ? d.correctAnswer : null;
+      rows.push([
+        d.pedagogicalId, d.domain, d.theme, d.subtheme, d.difficulty,
+        d.question, ans[0] || "", ans[1] || "", ans[2] || "", ans[3] || "",
+        idx !== null ? idx : "", idx !== null ? (ans[idx] || "") : "",
+        d.explanation, d.status,
+      ].map(esc).join(","));
+    });
+    const csv = "﻿" + rows.join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="questions-export.csv"');
+    res.send(csv);
+  } catch (err) {
+    console.error("[export-questions-csv]", err && err.code, err);
+    res.status(500).send("Erreur serveur");
+  }
+});
+
 exports.api = onRequest(app);
