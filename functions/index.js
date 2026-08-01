@@ -279,6 +279,44 @@ app.put("/api/daily-challenge/:uid", requireAuth, async (req, res) => {
   }
 });
 
+const LUNDI_LEGI_COLLECTION = "lundi_legi_progress";
+
+// Reprend getLundiLegiProgress() de
+// js/services/lundi-legi-catalog-service.js. Meme regle d'acces que
+// daily-challenge (match /lundi_legi_progress/{uid}) : le proprietaire
+// du document ou un admin, jamais un tiers.
+app.get("/api/lundi-legi/:uid", requireAuth, async (req, res) => {
+  const { uid } = req.params;
+  try {
+    if (req.user.uid !== uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ data: null, error: true });
+    }
+    const snap = await admin.firestore().collection(LUNDI_LEGI_COLLECTION).doc(uid).get();
+    res.json({ data: snap.exists ? snap.data() : null, error: false });
+  } catch (err) {
+    console.error("[lundi-legi]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// Reprend saveLundiLegiProgress() de
+// js/services/lundi-legi-catalog-service.js. Ecriture complete,
+// uniquement en son propre nom (progress.userId == uid).
+app.put("/api/lundi-legi/:uid", requireAuth, async (req, res) => {
+  const { uid } = req.params;
+  const progress = req.body || {};
+  if (req.user.uid !== uid || progress.userId !== uid) {
+    return res.status(403).json({ success: false, error: true });
+  }
+  try {
+    await admin.firestore().collection(LUNDI_LEGI_COLLECTION).doc(uid).set(progress);
+    res.json({ success: true, error: false });
+  } catch (err) {
+    console.error("[lundi-legi:put]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
+  }
+});
+
 const COMPETENCY_PROGRESS_COLLECTION = "competency_progress";
 
 // Reprend listProgressionsByUser() de
@@ -3683,5 +3721,4 @@ app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
-
 exports.api = onRequest(app);

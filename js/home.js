@@ -30,6 +30,7 @@ import { getMyQuestionMasterySummary } from "./services/question-progress-servic
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
 import { getRecentActivityForUser } from "./services/recent-activity-service.js";
 import { getDailyChallengeStateForUser, startTodaysChallenge } from "./services/daily-challenge-service.js";
+import { getLundiLegiStateForUser } from "./services/lundi-legi-service.js";
 import { DAILY_CHALLENGE_QUESTION_COUNT } from "./services/daily-challenge-logic.js";
 import { formatRelativeFr, todayDateStr } from "./services/date-utils.js";
 import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
@@ -103,6 +104,7 @@ onAuthStateChanged(auth, async function(user) {
     loadMasteryDonut(),
     loadMedals(),
     renderHero(),
+    renderLundiLegiCard(),
   ]);
 });
 
@@ -389,6 +391,63 @@ function activityRowHtml(event) {
       '<div class="home-activity-time">' + escapeHtml(formatRelativeFr(event.date)) + '</div>' +
     '</div>'
   );
+}
+
+// ---------------------------------------------------------------------------
+// Bloc Lundi Legi (accueil) - visible uniquement si une question est
+// disponible cette semaine (hors calendrier ou question introuvable :
+// l'element reste vide et n'occupe aucune place visuelle). Jamais de
+// session creee ici : le lien renvoie vers lundi-legi.html.
+// ---------------------------------------------------------------------------
+
+async function renderLundiLegiCard() {
+  const el = document.getElementById('home-lundi-legi-card');
+  if (!el) return;
+
+  const state = await getLundiLegiStateForUser();
+
+  if (state.outOfSeason || !state.question) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const weekLabel = 'Semaine ' + state.weekNumber;
+  const subtheme = (state.question.subtheme || '').replace(/^legi_|^deo_|^bpp_/, '');
+  const diff = state.question.difficulty || '';
+
+  if (state.alreadyAnswered) {
+    const correct = state.userAnswer && state.userAnswer.correct;
+    el.innerHTML =
+      '<div class="card" style="border-top:3px solid var(--accent-purple);display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+        '<span class="page-header-icon" style="background:rgba(192,132,252,.15);color:var(--accent-purple);flex-shrink:0;"><i class="ti ti-gavel" aria-hidden="true"></i></span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:11px;font-weight:600;color:var(--accent-purple);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">Lundi Légi · ' + escapeHtml(weekLabel) + '</div>' +
+          '<div style="font-size:14px;font-weight:500;color:var(--text);">' +
+            (correct
+              ? '<i class="ti ti-circle-check" style="color:var(--green);vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Question de la semaine répondue'
+              : '<i class="ti ti-circle-x" style="color:var(--red);vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Réponse incorrecte — voir l’explication') +
+          '</div>' +
+        '</div>' +
+        '<a href="lundi-legi.html" class="btn-secondary" style="white-space:nowrap;">Voir le résultat</a>' +
+      '</div>';
+    return;
+  }
+
+  el.innerHTML =
+    '<div class="card" style="border-top:3px solid var(--accent-purple);">' +
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+        '<span class="page-header-icon" style="background:rgba(192,132,252,.15);color:var(--accent-purple);flex-shrink:0;"><i class="ti ti-gavel" aria-hidden="true"></i></span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:11px;font-weight:600;color:var(--accent-purple);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Lundi Légi · ' + escapeHtml(weekLabel) + '</div>' +
+          '<h3 style="margin:0 0 4px;">Question de la semaine disponible</h3>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+            '<span class="bank-chip">' + escapeHtml(subtheme) + '</span>' +
+            '<span class="bank-chip" style="color:var(--accent-purple);background:rgba(192,132,252,.1);">' + escapeHtml(diff) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<a href="lundi-legi.html" class="btn-primary" style="white-space:nowrap;"><i class="ti ti-gavel" aria-hidden="true"></i> Répondre</a>' +
+      '</div>' +
+    '</div>';
 }
 
 // ---------------------------------------------------------------------------

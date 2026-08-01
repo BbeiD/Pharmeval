@@ -782,5 +782,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // =========================================================================
+    // NOUVEAU (Lundi Légi, 2026-08-02) : progression hebdomadaire Lundi Légi
+    // =========================================================================
+    // Un seul document par utilisateur (identifiant de document = uid
+    // directement - meme patron que daily_challenge_progress/ ci-dessus).
+    // Stocke les reponses indexees par date de lundi ("YYYY-MM-DD") :
+    //   answers: { '2026-09-07': { pedagogicalId, selectedAnswer, correct, answeredAt } }
+    //
+    // Lecture ET ecriture exclusivement via les Cloud Functions
+    // (/api/lundi-legi/:uid - GET et PUT, voir functions/index.js) :
+    // le SDK Admin contourne ces regles, donc `allow read, write: if false`
+    // empeche tout acces client direct sans bloquer les Cloud Functions.
+    match /lundi_legi_progress/{uid} {
+      allow read, write: if false;
+    }
+
   }
 }
