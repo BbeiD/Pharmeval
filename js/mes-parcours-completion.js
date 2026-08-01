@@ -52,19 +52,51 @@ function parcoursNodeHtml(item) {
   return html;
 }
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 let allItems = [];
 let shownCount = 0;
+let currentFilter = 'all'; // 'all' | 'done' | 'inprogress' | 'notstarted'
+
+function filteredItems() {
+  if (currentFilter === 'done') return allItems.filter(function(i) { return i.percent === 100; });
+  if (currentFilter === 'inprogress') return allItems.filter(function(i) { return typeof i.percent === 'number' && i.percent > 0 && i.percent < 100; });
+  if (currentFilter === 'notstarted') return allItems.filter(function(i) { return !i.percent; });
+  return allItems;
+}
+
+function filterPillsHtml() {
+  const filters = [
+    { key: 'all', label: 'Tous' },
+    { key: 'done', label: 'Terminés' },
+    { key: 'inprogress', label: 'En cours' },
+    { key: 'notstarted', label: 'Pas commencé' },
+  ];
+  const countsByFilter = {
+    all: allItems.length,
+    done: allItems.filter(function(i) { return i.percent === 100; }).length,
+    inprogress: allItems.filter(function(i) { return typeof i.percent === 'number' && i.percent > 0 && i.percent < 100; }).length,
+    notstarted: allItems.filter(function(i) { return !i.percent; }).length,
+  };
+  return '<div class="mpc-filter-row">' +
+    filters.map(function(f) {
+      const active = currentFilter === f.key ? ' mpc-filter-active' : '';
+      return '<button class="mpc-filter-pill' + active + '" onclick="setParcoursCompletionFilter(\'' + f.key + '\')">' +
+        f.label + ' <span class="mpc-filter-count">' + countsByFilter[f.key] + '</span>' +
+      '</button>';
+    }).join('') +
+  '</div>';
+}
 
 function renderSlice() {
   const container = document.getElementById('parcours-completion-body');
   if (!container) return;
 
+  const items = filteredItems();
   const hasCompleted = allItems.some(function(i) { return i.percent === 100; });
-  const visible = allItems.slice(0, shownCount);
-  const remaining = allItems.length - shownCount;
+  const visible = items.slice(0, shownCount);
+  const remaining = items.length - shownCount;
 
-  let html = '';
+  let html = filterPillsHtml();
   if (hasCompleted) {
     html += '<div class="mpc-attestation-row">' +
       '<a class="btn-secondary mpc-attestation-btn" href="certificate.html?type=custom">' +
@@ -72,19 +104,30 @@ function renderSlice() {
       '</a>' +
     '</div>';
   }
-  html += visible.map(parcoursNodeHtml).join('');
-  if (remaining > 0) {
-    html += '<div style="text-align:center;margin-top:12px;">' +
-      '<button class="btn-secondary" onclick="showMoreParcours()">' +
-        'Voir les ' + Math.min(remaining, PAGE_SIZE) + ' suivants' +
-      '</button>' +
-    '</div>';
+  if (items.length === 0) {
+    html += '<p class="bank-list-empty">Aucun parcours dans cette catégorie.</p>';
+  } else {
+    html += visible.map(parcoursNodeHtml).join('');
+    if (remaining > 0) {
+      html += '<div style="text-align:center;margin-top:12px;">' +
+        '<button class="btn-secondary" onclick="showMoreParcours()">' +
+          'Voir les ' + Math.min(remaining, PAGE_SIZE) + ' suivants' +
+        '</button>' +
+      '</div>';
+    }
   }
   container.innerHTML = html;
 }
 
+export function setParcoursCompletionFilter(filter) {
+  currentFilter = filter;
+  shownCount = Math.min(PAGE_SIZE, filteredItems().length);
+  renderSlice();
+}
+window.setParcoursCompletionFilter = setParcoursCompletionFilter;
+
 export function showMoreParcours() {
-  shownCount = Math.min(shownCount + PAGE_SIZE, allItems.length);
+  shownCount = Math.min(shownCount + PAGE_SIZE, filteredItems().length);
   renderSlice();
 }
 window.showMoreParcours = showMoreParcours;
@@ -99,10 +142,11 @@ export function renderParcoursCompletionFromData(items) {
   const container = document.getElementById('parcours-completion-body');
   if (!container) return;
   if (!items || items.length === 0) {
-    container.innerHTML = '<p class="bank-list-empty">Aucun parcours ne vous a été attribué pour l\'instant.</p>';
+    container.innerHTML = '<p class="bank-list-empty">Aucun parcours disponible pour le moment.</p>';
     return;
   }
   allItems = items;
+  currentFilter = 'all';
   shownCount = Math.min(PAGE_SIZE, items.length);
   renderSlice();
 }

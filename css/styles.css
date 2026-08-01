@@ -2030,6 +2030,17 @@
   .mpc-attestation-row { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border); text-align: center; }
   .mpc-attestation-btn { font-size: 12px; padding: 7px 18px; }
   .ev-progress-bar-fill-gold { background: #FBBF24; }
+  .mpc-filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .mpc-filter-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px; border-radius: 20px; border: 1.5px solid var(--border2);
+    background: var(--surface); color: var(--text2); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+  }
+  .mpc-filter-pill:hover { border-color: var(--green-dark); color: var(--green-dark); }
+  .mpc-filter-pill.mpc-filter-active { border-color: var(--green-dark); background: var(--green-dark); color: #fff; }
+  .mpc-filter-pill.mpc-filter-active .mpc-filter-count { background: rgba(255,255,255,.25); color: #fff; }
+  .mpc-filter-count { font-size: 11px; font-weight: 600; background: var(--border2); color: var(--text2); border-radius: 10px; padding: 1px 6px; }
 
   .ev-question-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 20px; margin-bottom: 20px; }
   .ev-question-card h2 { margin: 0 0 16px 0; font-size: 17px; line-height: 1.4; }
