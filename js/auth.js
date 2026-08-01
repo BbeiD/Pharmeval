@@ -224,12 +224,22 @@ function revealApp(user) {
 // ou la mise a jour du document utilisateur Firestore (js/services/user-
 // service.js), puis l'assistant de premiere connexion si le profil n'est
 // pas encore complet.
+//
+// CORRECTIF (bug signalé par David, 01/08/2026) : Firebase peut déclencher
+// onAuthStateChanged deux fois lors d'un nouveau signup (token provisoire
+// puis token confirmé). Sans garde, le 2ème passage pouvait appeler
+// startOnboarding() par-dessus un accueil déjà affiché via le catch du
+// 1er passage. _authUid mémorise l'uid traité ; on ne traite une connexion
+// qu'une seule fois par uid (réinitialisé à la déconnexion).
+let _authUid = null;
+
 onAuthStateChanged(auth, async function(user) {
   var loadingEl = document.getElementById('auth-loading');
   var authEl = document.getElementById('auth-screen');
   var appEl = document.getElementById('app-root');
 
   if (!user) {
+    _authUid = null;
     clearCurrentUserContext();
     if (loadingEl) loadingEl.style.display = 'none';
     if (appEl) appEl.style.display = 'none';
@@ -238,6 +248,10 @@ onAuthStateChanged(auth, async function(user) {
     if (emailEl2) emailEl2.textContent = '';
     return;
   }
+
+  // Déduplication : ignorer les déclenchements redondants pour le même uid.
+  if (_authUid === user.uid) return;
+  _authUid = user.uid;
 
   try {
     var userData = await ensureUserDocument(user);

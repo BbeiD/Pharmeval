@@ -39,6 +39,10 @@ export function startOnboarding(user) {
     organizationName: '',
     acceptedTerms: false,
   };
+  // Masquer l'app-root au cas où revealApp() aurait été appelé avant
+  // (race condition entre le catch block de auth.js et ce callback).
+  var appEl = document.getElementById('app-root');
+  if (appEl) appEl.style.display = 'none';
   var screen = document.getElementById('onboarding-screen');
   if (!screen) return;
   screen.style.display = 'flex';
