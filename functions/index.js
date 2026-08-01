@@ -3609,4 +3609,79 @@ app.get("/api/admin/export-questions-csv", requireAuth, async (req, res) => {
   }
 });
 
+// OUTIL ADMIN — import corrections CSV par pedagogicalId
+// Reçoit un tableau JSON de lignes (parsing fait côté client).
+// Chaque ligne identifiée par pedagogicalId : mise à jour des champs
+// présents, ou suppression si status === 'deleted'.
+app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
+    const { rows, dryRun } = req.body || {};
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: "Aucune ligne fournie" });
+    if (rows.length > 1200) return res.status(400).json({ error: "Trop de lignes (max 1200)" });
+
+    const db = admin.firestore();
+    let updated = 0, deleted = 0, skipped = 0;
+    const notFound = [];
+
+    const commitQueue = [];
+    let writeBatch = db.batch();
+    let writeCount = 0;
+
+    function flushBatch() {
+      if (writeCount > 0) { commitQueue.push(writeBatch.commit()); writeBatch = db.batch(); writeCount = 0; }
+    }
+    function enqueue(type, ref, data) {
+      if (type === "delete") writeBatch.delete(ref); else writeBatch.update(ref, data);
+      writeCount++;
+      if (writeCount >= 499) flushBatch();
+    }
+
+    const ids = [...new Set(rows.map((r) => r.pedagogicalId).filter(Boolean))];
+    const docMap = {};
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const snaps = await Promise.all(chunk.map((id) => db.collection(QUESTIONS_COLLECTION).doc(id).get()));
+      chunk.forEach((id, j) => { docMap[id] = snaps[j]; });
+    }
+
+    for (const row of rows) {
+      const pid = row.pedagogicalId;
+      if (!pid) { skipped++; continue; }
+      const snap = docMap[pid];
+      if (!snap || !snap.exists) { notFound.push(pid); continue; }
+      const ref = db.collection(QUESTIONS_COLLECTION).doc(pid);
+
+      if (row.status === "deleted") {
+        deleted++;
+        if (!dryRun) enqueue("delete", ref);
+      } else {
+        const update = { updatedAt: FieldValue.serverTimestamp() };
+        if (row.question) update.question = row.question;
+        if (row.explication) update.explanation = row.explication;
+        if (row.status) update.status = row.status;
+        if (row.difficulty) update.difficulty = row.difficulty;
+        const answersChanged = [row.reponse_A, row.reponse_B, row.reponse_C, row.reponse_D].some(Boolean);
+        if (answersChanged) {
+          const ea = Array.isArray(snap.data().answers) ? snap.data().answers : ["", "", "", ""];
+          update.answers = [
+            row.reponse_A || ea[0], row.reponse_B || ea[1],
+            row.reponse_C || ea[2], row.reponse_D || ea[3],
+          ];
+        }
+        const idx = parseInt(row.bonne_reponse_index, 10);
+        if (!isNaN(idx) && idx >= 0 && idx <= 3) update.correctAnswer = idx;
+        updated++;
+        if (!dryRun) enqueue("update", ref, update);
+      }
+    }
+
+    if (!dryRun) { flushBatch(); await Promise.all(commitQueue); }
+    res.json({ updated, deleted, skipped, notFound, dryRun: !!dryRun });
+  } catch (err) {
+    console.error("[import-corrections-csv]", err && err.code, err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);

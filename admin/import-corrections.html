@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="../assets/icons/pwa/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/icons/pwa/apple-touch-icon.png">
+<title>Pharmeval — Import corrections</title>
+<style>body{background:#0C1A18}</style>
+<link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<div id="ic-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
+
+<div id="ic-denied" style="display:none;">
+  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+    <h2>Accès refusé</h2>
+    <p>Cette page est réservée aux administrateurs.</p>
+    <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
+  </div>
+</div>
+
+<div id="site-header-mount"></div>
+
+<div id="ic-view" style="display:none;">
+  <div class="bank-page">
+    <div class="bank-header">
+      <h2>Import corrections CSV</h2>
+      <a href="../index.html?admin=1" class="btn-secondary">← Retour à l'administration</a>
+    </div>
+
+    <div id="ic-message" class="admin-message" style="display:none;"></div>
+
+    <!-- ÉTAPE 1 : choisir le fichier -->
+    <div id="ic-step1" class="admin-modal" style="max-width:600px;margin:0 0 24px;">
+      <h3 style="margin-top:0">1. Choisir le fichier CSV</h3>
+      <p style="color:var(--text2);margin-bottom:16px;">
+        Format attendu : <code>pedagogicalId, question, reponse_A…D, bonne_reponse_index, explication, status, difficulty</code><br>
+        Utilisez <strong>status = deleted</strong> pour supprimer une question.
+      </p>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <input type="file" id="ic-file-input" accept=".csv" style="flex:1;min-width:200px;">
+        <button id="ic-analyze-btn" class="btn-primary" onclick="analyzeFile()" disabled>Analyser</button>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 2 : aperçu -->
+    <div id="ic-step2" style="display:none;">
+      <div class="admin-modal" style="max-width:600px;margin:0 0 24px;">
+        <h3 style="margin-top:0">2. Aperçu (dry-run)</h3>
+        <div id="ic-preview"></div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button class="btn-secondary" onclick="resetForm()">Choisir un autre fichier</button>
+          <button id="ic-import-btn" class="btn-primary" onclick="confirmImport()">Confirmer l'import</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ÉTAPE 3 : résultats -->
+    <div id="ic-step3" style="display:none;">
+      <div class="admin-modal" style="max-width:600px;margin:0 0 24px;">
+        <h3 style="margin-top:0">3. Résultats</h3>
+        <div id="ic-results"></div>
+        <div class="btn-row" style="margin-top:20px;">
+          <a href="bank.html" class="btn-secondary">Voir la banque de questions</a>
+          <button class="btn-primary" onclick="resetForm()">Nouvel import</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module" src="import-corrections.js"></script>
+<script src="../js/sw-register.js"></script>
+</body>
+</html>
