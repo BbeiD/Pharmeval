@@ -101,6 +101,32 @@ export async function getAllQuestionProgressForUser(userId) {
  * @param {Array<{userId:string, pedagogicalId:string, isCorrect:boolean}>} entries
  * @returns {Promise<{success:boolean, applied:boolean, error:boolean}>}
  */
+/**
+ * Reconstruit question_progress depuis zéro à partir de tous les résultats
+ * existants — bypasse le système de marqueurs (correctif bug 01/08/2026,
+ * marqueurs posés sans que les incréments aient été écrits). Idempotent :
+ * peut être rappelé sans danger.
+ * @returns {Promise<{success:boolean, questionsRebuilt:number, error:boolean}>}
+ */
+export async function rebuildQuestionProgressForUser() {
+  try {
+    if (!auth.currentUser) return { success: false, questionsRebuilt: 0, error: true };
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${API_BASE_URL}/api/question-progress/rebuild`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      logProgressError('rebuild de progression (API ' + res.status + ')', null);
+      return { success: false, questionsRebuilt: 0, error: true };
+    }
+    return await res.json();
+  } catch (err) {
+    logProgressError('rebuild de progression', err);
+    return { success: false, questionsRebuilt: 0, error: true };
+  }
+}
+
 export async function applyEvaluationResultIfNew(resultId, entries) {
   try {
     if (!auth.currentUser) return { success: false, applied: false, error: true };

@@ -24,6 +24,7 @@ import { createResultDocument, getResultById, getAllResultsForUser } from "./eva
 import { getExistingQuestionsByPedagogicalIds } from "./question-catalog-service.js";
 import { updateProgressionFromResult } from "./competency-progress-service.js";
 import { updateQuestionProgressFromResult } from "./question-progress-service.js";
+import { rebuildQuestionProgressForUser } from "./question-progress-catalog-service.js";
 import { applyDailyChallengeResultIfNew } from "./daily-challenge-service.js";
 
 function success(message, extra) { return Object.assign({ status: 'success', message: message }, extra || {}); }
@@ -160,19 +161,26 @@ export async function getResultForCurrentUser(resultId) {
  */
 export async function reconcileProgressForUser(uid) {
   if (!uid) return { error: false, resultsChecked: 0 };
+
+  // CORRECTIF (bug 01/08/2026) : le système de marqueurs de /apply posait
+  // le marqueur même quand les incréments n'étaient pas écrits (resultData
+  // hors scope). Le rebuild recalcule question_progress depuis zéro à partir
+  // de tous les evaluation_results, en bypasse les marqueurs bloqués.
+  const rebuildResult = await rebuildQuestionProgressForUser().catch(function(err) {
+    console.error('[evaluation-result-service] rebuild question_progress impossible', err);
+    return { error: true };
+  });
+  if (rebuildResult.error) return { error: true, resultsChecked: 0 };
+
+  // Réconciliation compétences (inchangée — pas affectée par le bug /apply).
   const { items, error } = await getAllResultsForUser(uid);
   if (error) return { error: true, resultsChecked: 0 };
 
   await Promise.all(items.map(function(evaluationResult) {
-    const writes = [updateQuestionProgressFromResult(evaluationResult).catch(function(err) {
-      console.error('[evaluation-result-service] reconciliation (question) impossible pour ' + evaluationResult.id, err);
-    })];
-    if (evaluationResult.competencyId) {
-      writes.push(updateProgressionFromResult(evaluationResult).catch(function(err) {
-        console.error('[evaluation-result-service] reconciliation (compétence) impossible pour ' + evaluationResult.id, err);
-      }));
-    }
-    return Promise.all(writes);
+    if (!evaluationResult.competencyId) return Promise.resolve();
+    return updateProgressionFromResult(evaluationResult).catch(function(err) {
+      console.error('[evaluation-result-service] reconciliation (compétence) impossible pour ' + evaluationResult.id, err);
+    });
   }));
 
   return { error: false, resultsChecked: items.length };

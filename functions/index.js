@@ -2278,12 +2278,13 @@ app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
   }
 
   let entries;
+  let resultData;
   try {
     const resultSnap = await admin.firestore().collection(EVALUATION_RESULTS_COLLECTION).doc(resultId).get();
     if (!resultSnap.exists || resultSnap.data().userId !== req.user.uid) {
       return res.status(403).json({ success: false, applied: false, error: true });
     }
-    const resultData = resultSnap.data();
+    resultData = resultSnap.data();
     entries = [];
     (resultData.competencyResults || []).forEach((cr) => {
       (cr.questionResults || []).forEach((qr) => {
@@ -2338,6 +2339,54 @@ app.post("/api/question-progress/apply", requireAuth, async (req, res) => {
     // le marqueur EST pose (meme limite honnete que la version client) -
     // ne jamais presenter ce cas comme "non applique" a ce stade
     res.status(500).json({ success: false, applied: true, error: true });
+  }
+});
+
+// CORRECTIF (bug 01/08/2026, resultData hors scope dans /apply) : reconstruit
+// question_progress depuis zero a partir de tous les evaluation_results de
+// l'utilisateur, sans passer par le systeme de marqueurs (bypasse les
+// marqueurs poses alors que les increments n'avaient pas ete ecrits). Peut
+// etre appele plusieurs fois sans danger (set sans merge = toujours correct).
+app.post("/api/question-progress/rebuild", requireAuth, async (req, res) => {
+  const uid = req.user.uid;
+  try {
+    const snap = await admin.firestore()
+      .collection(EVALUATION_RESULTS_COLLECTION)
+      .where("userId", "==", uid)
+      .get();
+
+    const progressMap = new Map();
+    const docs = snap.docs.map((d) => d.data()).sort(function(a, b) {
+      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+    });
+    docs.forEach((resultData) => {
+      const sessionType = resultData.dailyChallengeDate
+        ? "daily_challenge"
+        : (resultData.sessionType || "free_training");
+      (resultData.competencyResults || []).forEach((cr) => {
+        (cr.questionResults || []).forEach((qr) => {
+          const pid = qr.pedagogicalId;
+          if (!pid) return;
+          const p = progressMap.get(pid) || { timesCorrect: 0, timesSeen: 0, lastSeenAt: null, lastStatus: null, lastSessionType: null };
+          p.timesSeen += 1;
+          if (qr.status === "correct") p.timesCorrect += 1;
+          p.lastSeenAt = resultData.createdAt || p.lastSeenAt;
+          p.lastStatus = qr.status === "correct" ? "correct" : "not_correct";
+          p.lastSessionType = sessionType;
+          progressMap.set(pid, p);
+        });
+      });
+    });
+
+    await Promise.all(Array.from(progressMap.entries()).map(([pedagogicalId, p]) => {
+      const ref = admin.firestore().collection(QUESTION_PROGRESS_COLLECTION).doc(`${uid}_${pedagogicalId}`);
+      return ref.set({ userId: uid, pedagogicalId, timesCorrect: p.timesCorrect, timesSeen: p.timesSeen, lastSeenAt: p.lastSeenAt, lastStatus: p.lastStatus, lastSessionType: p.lastSessionType });
+    }));
+
+    res.json({ success: true, questionsRebuilt: progressMap.size, error: false });
+  } catch (err) {
+    console.error("[question-progress/rebuild]", err && err.code, err);
+    res.status(500).json({ success: false, error: true });
   }
 });
 
