@@ -1,4 +1,13 @@
 {
+  "hosting": {
+    "site": "pharmeval-1",
+    "public": ".",
+    "ignore": [
+      "firebase.json", ".firebaserc", ".git",
+      "functions/**", "node_modules/**",
+      "**/*.local", "firebase-debug.log"
+    ]
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
