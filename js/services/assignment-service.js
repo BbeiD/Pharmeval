@@ -29,7 +29,7 @@ import {
   listAssignmentsByParcours,
   assignmentExists,
 } from "./assignment-catalog-service.js";
-import { getParcoursById } from "./parcours-catalog-service.js";
+import { getParcoursById, queryParcoursPage } from "./parcours-catalog-service.js";
 import { logParcoursAction } from "./parcours-audit-service.js";
 import { getUserByUid, fetchAllUsersBounded } from "./user-management-service.js";
 import { formatUserFullName } from "./user-profile-metadata-service.js";
@@ -258,4 +258,38 @@ export async function getAssignedParcoursForUser(uid) {
   } catch {
     return { items: [], error: true };
   }
+}
+
+/**
+ * Parcours DISPONIBLES pour un utilisateur : union des attributions formelles
+ * et des parcours gratuits du catalogue global (publiés, sans organisation,
+ * accessTier ≠ premium). Un parcours gratuit publié est implicitement
+ * disponible pour tous sans attribution explicite.
+ *
+ * Utilisée dans les contextes d'AFFICHAGE (home.js, completion, activité
+ * récente) — jamais pour le contrôle d'accès réel (voir
+ * resolveAccessibleParcoursEntry dans parcours-service.js, inchangée).
+ *
+ * @param {string} uid
+ * @returns {Promise<{items:Array<{parcours:object, assignment:object|null}>, error:boolean}>}
+ */
+export async function getAvailableParcoursForUser(uid) {
+  if (!uid) return { items: [], error: false };
+
+  const [assigned, catalogResult] = await Promise.all([
+    getAssignedParcoursForUser(uid),
+    queryParcoursPage({ filters: { status: 'published' }, pageSize: 100 }),
+  ]);
+
+  if (assigned.error) return { items: [], error: true };
+
+  const assignedIds = new Set(assigned.items.map(function(e) { return e.parcours.id; }));
+
+  const freeItems = (catalogResult.error ? [] : (catalogResult.items || []))
+    .filter(function(p) {
+      return !p.organizationId && p.accessTier !== 'premium' && !assignedIds.has(p.id);
+    })
+    .map(function(p) { return { parcours: p, assignment: null }; });
+
+  return { items: assigned.items.concat(freeItems), error: false };
 }

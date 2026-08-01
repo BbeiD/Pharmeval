@@ -17,7 +17,7 @@
 // de chaque bucket avec `question_progress` - jamais denormalise a
 // l'ecriture (volume actuel largement compatible, voir RAPPORT correspondant).
 
-import { getAssignedParcoursForUser } from "./assignment-service.js";
+import { getAvailableParcoursForUser } from "./assignment-service.js";
 import { resolveParcoursCompetenciesDisplay, resolveParcoursDirectContentDisplay, resolveDerivedCompetenciesFromPool } from "./parcours-service.js";
 import { getPublishedQuestionIdsBySourceIds } from "./question-catalog-service.js";
 import { getQuestionProgressForMany } from "./question-progress-catalog-service.js";
@@ -129,7 +129,7 @@ async function buildParcoursCompletion(uid, parcours) {
 export async function getParcoursCompletionForUser(uid) {
   if (!uid) return { error: false, items: [] };
 
-  const assigned = await getAssignedParcoursForUser(uid);
+  const assigned = await getAvailableParcoursForUser(uid);
   if (assigned.error) return { error: true, items: [] };
 
   const items = await Promise.all(

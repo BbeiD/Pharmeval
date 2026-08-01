@@ -9,7 +9,7 @@
 // "Agrège et renseigne" (demande directe de David, 22/07/2026).
 
 import { getAllResultsForUser } from "./evaluation-result-catalog-service.js";
-import { getAssignedParcoursForUser } from "./assignment-service.js";
+import { getAvailableParcoursForUser } from "./assignment-service.js";
 import { getDailyChallengeProgress } from "./daily-challenge-catalog-service.js";
 import { todayDateStr, shiftDateStr } from "./date-utils.js";
 import { buildRecentActivityFromResults, buildStreakActivityEvent } from "./recent-activity-logic.js";
@@ -26,7 +26,7 @@ export async function getRecentActivityForUser(uid, maxItems) {
 
   const [resultsResult, assignedResult, streakProgress] = await Promise.all([
     getAllResultsForUser(uid),
-    getAssignedParcoursForUser(uid),
+    getAvailableParcoursForUser(uid),
     getDailyChallengeProgress(uid),
   ]);
   if (resultsResult.error) return { error: true, items: [] };

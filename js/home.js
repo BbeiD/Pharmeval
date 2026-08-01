@@ -20,7 +20,7 @@ import { auth } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
-import { getAssignedParcoursForUser } from "./services/assignment-service.js";
+import { getAvailableParcoursForUser } from "./services/assignment-service.js";
 import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
@@ -209,7 +209,7 @@ async function loadHomeParcours() {
 
   const ctx = getCurrentUserContext();
   const [result, attemptResult] = await Promise.all([
-    getAssignedParcoursForUser(ctx && ctx.uid),
+    getAvailableParcoursForUser(ctx && ctx.uid),
     getParcoursAttemptSummaryForUser(ctx && ctx.uid),
   ]);
 
@@ -316,7 +316,7 @@ async function loadMedals() {
   const todayStr = todayDateStr();
 
   const [assignedResult, attemptResult] = await Promise.all([
-    getAssignedParcoursForUser(ctx && ctx.uid),
+    getAvailableParcoursForUser(ctx && ctx.uid),
     getParcoursAttemptSummaryForUser(ctx && ctx.uid),
   ]);
 
