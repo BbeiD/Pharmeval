@@ -30,6 +30,7 @@ import {
 } from "../js/services/question-report-service.js";
 import { renderSiteHeader } from "../js/site-header.js";
 import { icon } from "../js/icons.js";
+import { API_BASE_URL } from "../js/config.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
 // desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
@@ -568,3 +569,30 @@ window.resolveReport = resolveReport;
 window.requestBankAction = requestBankAction;
 window.cancelBankAction = cancelBankAction;
 window.confirmBankAction = confirmBankAction;
+window.downloadQuestionsCSV = downloadQuestionsCSV;
+
+async function downloadQuestionsCSV() {
+  const btn = document.getElementById('bank-export-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Export en cours…'; }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/export-questions-csv', {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'questions-export.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('[export-csv]', err);
+    alert('Erreur lors de l\'export : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Exporter CSV'; }
+  }
+}
