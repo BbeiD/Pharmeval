@@ -84,6 +84,23 @@ function parseCSV(text) {
   return rows;
 }
 
+async function parseFile(file) {
+  const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
+  if (isXlsx) {
+    const XLSX = window.XLSX;
+    if (!XLSX) throw new Error("Librairie SheetJS non chargée — rechargez la page.");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    return raw
+      .map((r) => { const o = {}; Object.keys(r).forEach((k) => { o[k.trim()] = String(r[k] ?? "").trim(); }); return o; })
+      .filter((r) => r.pedagogicalId);
+  }
+  const text = await file.text();
+  return parseCSV(text);
+}
+
 window.analyzeFile = async function analyzeFile() {
   const file = document.getElementById("ic-file-input").files[0];
   if (!file) return;
@@ -93,9 +110,8 @@ window.analyzeFile = async function analyzeFile() {
   showMessage("", false);
 
   try {
-    const text = await file.text();
-    parsedRows = parseCSV(text);
-    if (!parsedRows.length) { showMessage("Le fichier CSV est vide ou mal formaté.", true); btn.textContent = "Analyser"; btn.disabled = false; return; }
+    parsedRows = await parseFile(file);
+    if (!parsedRows.length) { showMessage("Le fichier est vide ou mal formaté.", true); btn.textContent = "Analyser"; btn.disabled = false; return; }
 
     const token = await auth.currentUser.getIdToken();
     const res = await fetch(API_BASE_URL + "/api/admin/import-corrections-csv", {
