@@ -74,8 +74,8 @@ async function render(result) {
   // quel. Comportement "parcours" historique ci-dessous entierement
   // inchange dans le bloc else.
   if (!result.competencyId) {
-    qs('er-breadcrumb-root').textContent = 'Entraînement libre';
-    qs('er-breadcrumb-root').href = 'entrainement-libre.html';
+    qs('er-breadcrumb-root').textContent = 'Accueil';
+    qs('er-breadcrumb-root').href = 'index.html';
     qs('er-breadcrumb-sep1').style.display = 'none';
     qs('er-breadcrumb-parcours').style.display = 'none';
     qs('er-breadcrumb-sep2').style.display = 'none';
