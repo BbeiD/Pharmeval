@@ -58,6 +58,8 @@ export const BANK_TO_THEME = Object.freeze({
   ALAUNE_MEDICAMENTS: 'medicaments',
   GAL_QDB: 'galenique',
   ADM_QDB: 'adm',
+  // AJOUT (Parcours à la une 30 "Pharmacie du voyageur", 02/08/2026)
+  VYG_QDB: 'conseil',
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
