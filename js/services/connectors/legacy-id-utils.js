@@ -60,6 +60,15 @@ export const BANK_TO_THEME = Object.freeze({
   ADM_QDB: 'adm',
   // AJOUT (Parcours à la une 30 "Pharmacie du voyageur", 02/08/2026)
   VYG_QDB: 'conseil',
+  // AJOUT (chantier "Révision catalogue 975 questions + 65 parcours", 02/08/2026) :
+  // banques dédiées aux questions révisées par ChatGPT pour les 65 parcours
+  // d'entraînement libre — traçables, distinctes des banques legacy et ALAUNE.
+  PARC_CONSEIL: 'conseil',
+  PARC_MED: 'medicaments',
+  PARC_BAP: 'bapcoc',
+  PARC_BPP: 'bppo',
+  PARC_DEO: 'deon',
+  PARC_FTM: 'ftm',
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
