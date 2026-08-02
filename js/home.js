@@ -258,7 +258,8 @@ async function loadHomeParcours() {
   const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
 
   emptyEl.style.display = 'none';
-  gridEl.innerHTML = result.items.slice(0, MAX_HOME_PARCOURS).map(function(entry) {
+  const nonEditorial = result.items.filter(function(e) { return !e.parcours.editorialOnly; });
+  gridEl.innerHTML = nonEditorial.slice(0, MAX_HOME_PARCOURS).map(function(entry) {
     return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id));
   }).join('');
 }
