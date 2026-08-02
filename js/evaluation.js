@@ -41,7 +41,9 @@ function qs(id) { return document.getElementById(id); }
 function splitExplanationSource(text) {
   const idx = text.lastIndexOf('Source :');
   if (idx <= 0) return { main: text, source: null };
-  return { main: text.slice(0, idx).trim(), source: text.slice(idx + 'Source :'.length).trim() };
+  const raw = text.slice(idx + 'Source :'.length).trim();
+  const source = raw.replace(/,?\s*consulté le \d{2}\/\d{2}\/\d{4}/gi, '').trim();
+  return { main: text.slice(0, idx).trim(), source: source };
 }
 function showOnly(id) {
   ['ev-loading', 'ev-denied', 'ev-session-dialog', 'ev-taking'].forEach(function(v) {
