@@ -102,6 +102,7 @@ export const ICONS = Object.freeze({
   'nav-evaluations-stats': 'chart-bar',
   'nav-free-training': 'target',
   'nav-home': 'home',
+  'nav-lundi-legi': 'gavel',
   'nav-paths-formations': 'route',
   'nav-profile': 'user',
   'nav-skills': 'settings',

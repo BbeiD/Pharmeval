@@ -167,7 +167,7 @@ function renderResult(el, q, selectedIdx, correct, weekLabel, diffColor) {
         '<div class="ll-expl-label">Explication</div>' +
         '<div class="ll-expl-text">' + escapeHtml(q.explanation) + '</div>' +
         (q.resourceRefs && q.resourceRefs.length
-          ? '<div class="ll-source"><i class="ti ti-book" aria-hidden="true"></i>' + escapeHtml(q.resourceRefs[0]) + '</div>'
+          ? '<p style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic;">(' + escapeHtml(q.resourceRefs[0]) + ')</p>'
           : '') +
       '</div>'
     : '';

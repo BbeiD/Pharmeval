@@ -49,6 +49,7 @@ const NAV_ITEMS = [
   // "l'icone defi doit toujours etre la flamme" (David, 29/07/2026) - meme
   // cle que le streak (icons.js), jamais une autre icone pour ce concept.
   { key: 'defi', href: 'defi.html', iconKey: 'feedback-streak-regularity', label: 'Défi' },
+  { key: 'lundi-legi', href: 'lundi-legi.html', iconKey: 'nav-lundi-legi', label: 'Lundi Légi' },
   { key: 'entrainement-libre', href: 'entrainement-libre.html', iconKey: 'nav-free-training', label: 'Entraînement libre' },
   // B2B : visible uniquement pour les rôles possédant VIEW_ORG_DASHBOARD
   // (teacher + admin). Jamais affiché si l'utilisateur n'a pas d'organisation.

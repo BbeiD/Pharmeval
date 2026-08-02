@@ -1,10 +1,10 @@
 // ===================== SERVICE "DEFI DU JOUR" (ORCHESTRATION) =====================
 // Point d'entree UNIQUE pour js/defi.js. Coordonne :
-//   - js/services/document-source-service.js (browseActiveDocumentSources(),
-//     DEJA filtree sur hiddenFromFreeTraining - jamais un second filtre
-//     duplique ici, voir son en-tete)
-//   - js/services/question-catalog-service.js (getPublishedQuestionIdsBySourceIds(),
-//     deja utilisee par parcours-completion-service.js)
+//   - js/services/parcours-service.js (getSelfServiceCatalogParcours() —
+//     CORRECTIF 02/08/2026 : remplace browseActiveDocumentSources() dont le
+//     catalogue document_sources etait vide ; le pool eligible est desormais
+//     l'union des directQuestionIds de tous les parcours d'entrainement libre
+//     publies (non editoriaux), identique au pool de l'entrainement libre)
 //   - js/services/daily-challenge-logic.js (selection deterministe + calcul
 //     de serie - AUCUN appel Firestore dans ce fichier-la)
 //   - js/services/daily-challenge-catalog-service.js (lecture/ecriture du
@@ -21,27 +21,29 @@
 // ce fichier) - jamais un second point de declenchement dans le projet.
 
 import { getCurrentUserContext } from "./app-context.js";
-import { browseActiveDocumentSources } from "./document-source-service.js";
-import { getPublishedQuestionIdsBySourceIds } from "./question-catalog-service.js";
+import { getSelfServiceCatalogParcours } from "./parcours-service.js";
 import { todayDateStr } from "./date-utils.js";
 import { pickDailyChallengeIds, computeDailyChallengeStreak, completeDailyChallengeProgress } from "./daily-challenge-logic.js";
 import { getDailyChallengeProgress, saveDailyChallengeProgress } from "./daily-challenge-catalog-service.js";
 import { startDailyChallengeSession as createDailyChallengeSession } from "./evaluation-session-service.js";
 
 /**
- * Pool ELIGIBLE au défi du jour : questions publiées de sources actives ET
- * NON masquées de l'entraînement libre (même filtre que l'entraînement
- * libre lui-même, browseActiveDocumentSources() - jamais dupliqué ici).
+ * Pool ELIGIBLE au défi du jour : union des directQuestionIds de tous les
+ * parcours d'entraînement libre publiés (editorialOnly absent ou false),
+ * identique au pool utilisé par l'entraînement libre (même source de vérité,
+ * getSelfServiceCatalogParcours() — correctif 02/08/2026, browseActive
+ * DocumentSources() renvoyait un pool vide car aucune source n'était active).
  * @returns {Promise<{ids:Array<string>, error:boolean}>}
  */
 async function getEligibleQuestionIds() {
-  const sourcesResult = await browseActiveDocumentSources();
-  if (!sourcesResult || sourcesResult.error) return { ids: [], error: true };
-  const sourceIds = (sourcesResult.items || []).map(function(s) { return s.id; });
-  if (sourceIds.length === 0) return { ids: [], error: false };
-
-  const ids = await getPublishedQuestionIdsBySourceIds(sourceIds);
-  return { ids: ids, error: false };
+  const result = await getSelfServiceCatalogParcours();
+  if (!result || result.error) return { ids: [], error: true };
+  const allIds = new Set();
+  (result.items || []).forEach(function(p) {
+    if (p.editorialOnly) return; // exclure ALAUNE, Lundi Légi
+    (p.directQuestionIds || []).forEach(function(id) { allIds.add(id); });
+  });
+  return { ids: Array.from(allIds), error: false };
 }
 
 /**
