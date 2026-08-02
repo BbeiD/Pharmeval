@@ -54,6 +54,11 @@
         <option value="trash">🔴 Corbeille</option>
       </select>
 
+      <select id="parcours-filter-editorial" class="bank-select" onchange="onParcoursFilterChange()">
+        <option value="">Type : Tous</option>
+        <option value="linkedin">LinkedIn</option>
+      </select>
+
       <input type="text" id="parcours-filter-author" class="bank-select bank-author-input" placeholder="Auteur…" oninput="onParcoursFilterChange()">
 
       <select id="parcours-sort-field" class="bank-select" onchange="onParcoursFilterChange()">

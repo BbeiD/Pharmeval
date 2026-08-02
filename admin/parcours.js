@@ -572,6 +572,12 @@ export function onParcoursSearchInput() {
 export function onParcoursFilterChange() {
   state.filters.status = valueOf('parcours-filter-status');
   state.filters.author = valueOf('parcours-filter-author');
+  const editorial = valueOf('parcours-filter-editorial');
+  if (editorial === 'linkedin') {
+    state.filters.editorialOnly = true;
+  } else {
+    delete state.filters.editorialOnly;
+  }
   state.sortField = valueOf('parcours-sort-field');
   resetPagination();
   return loadPage();

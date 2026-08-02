@@ -1847,6 +1847,9 @@ function buildParcoursFilterClauses(query, filters) {
   if (Object.prototype.hasOwnProperty.call(f, "organizationId")) {
     q = q.where("organizationId", "==", f.organizationId);
   }
+  if (Object.prototype.hasOwnProperty.call(f, "editorialOnly")) {
+    q = q.where("editorialOnly", "==", f.editorialOnly);
+  }
   return q;
 }
 
