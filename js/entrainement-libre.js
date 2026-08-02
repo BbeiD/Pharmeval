@@ -177,7 +177,7 @@ async function populateClassifications() {
   // accessTier : un parcours premium restait donc entierement entrainable
   // gratuitement via ce detour. Exclu ici, jamais dans groupParcoursByClassification()
   // (logique pure, ne doit rien savoir du palier d'acces).
-  const parcoursItems = ((result && result.items) || []).filter(function(p) { return p.accessTier !== ACCESS_TIERS.PREMIUM; });
+  const parcoursItems = ((result && result.items) || []).filter(function(p) { return p.accessTier !== ACCESS_TIERS.PREMIUM && !p.editorialOnly; });
   state.classifications = groupParcoursByClassification(parcoursItems);
   renderClassificationTiles();
 }

@@ -38,6 +38,11 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function qs(id) { return document.getElementById(id); }
+function splitExplanationSource(text) {
+  const idx = text.lastIndexOf('Source :');
+  if (idx <= 0) return { main: text, source: null };
+  return { main: text.slice(0, idx).trim(), source: text.slice(idx + 'Source :'.length).trim() };
+}
 function showOnly(id) {
   ['ev-loading', 'ev-denied', 'ev-session-dialog', 'ev-taking'].forEach(function(v) {
     var el = qs(v);
@@ -433,8 +438,11 @@ async function applyAnswerFeedback(pedagogicalId, snapshot, value) {
   // jamais afficher une justification sur la mauvaise question.
   if (state.session.questionIds[state.session.currentQuestionIndex] !== pedagogicalId) return;
 
-  let html = verdict.replace('</strong>', ' :</strong>') + ' ' +
-    escapeHtml(text || 'Aucune justification disponible pour cette question.');
+  const { main: mainText, source: sourceText } = splitExplanationSource(text || 'Aucune justification disponible pour cette question.');
+  let html = verdict.replace('</strong>', ' :</strong>') + ' ' + escapeHtml(mainText);
+  if (sourceText) {
+    html += '<p style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic;">(' + escapeHtml(sourceText) + ')</p>';
+  }
   refs.forEach(function(filename) {
     html += '<img class="er-question-explanation-image" src="' + escapeHtml(JUSTIFICATION_IMAGE_BASE_PATH + filename) + '" alt="Illustration de la justification" loading="lazy">';
   });

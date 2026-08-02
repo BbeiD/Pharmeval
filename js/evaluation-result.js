@@ -39,6 +39,11 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function qs(id) { return document.getElementById(id); }
+function splitExplanationSource(text) {
+  const idx = text.lastIndexOf('Source :');
+  if (idx <= 0) return { main: text, source: null };
+  return { main: text.slice(0, idx).trim(), source: text.slice(idx + 'Source :'.length).trim() };
+}
 
 onAuthStateChanged(auth, async function(user) {
   if (!user) { clearCurrentUserContext(); window.location.href = 'index.html'; return; }
@@ -218,7 +223,12 @@ function renderQuestionList(competencyResults, explanations, resourceRefs) {
     }
     html += '</div>';
     if (explanation) {
-      html += '<div class="er-question-explanation">' + icon('highlight-lightbulb', { size: 14 }) + ' ' + escapeHtml(explanation) + '</div>';
+      const { main: mainText, source: sourceText } = splitExplanationSource(explanation);
+      html += '<div class="er-question-explanation">' + icon('highlight-lightbulb', { size: 14 }) + ' ' + escapeHtml(mainText);
+      if (sourceText) {
+        html += '<p style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic;">(' + escapeHtml(sourceText) + ')</p>';
+      }
+      html += '</div>';
     }
     // PROTOTYPE (test David, 23/07/2026) : affichage local des images de
     // justification - voir JUSTIFICATION_IMAGE_BASE_PATH en tete de fichier.
