@@ -186,7 +186,7 @@ async function loadEntriesForActiveTopTab(ctx) {
   // l'utilisateur, juste filtre en plus sur sa fenetre de mise en avant.
   if (state.activeTopTab === 'a-la-une') {
     const items = Array.from(byId.values()).filter(function(entry) {
-      return isParcoursCurrentlyFeatured(entry.parcours, today) && !entry.parcours.editorialOnly;
+      return isParcoursCurrentlyFeatured(entry.parcours, today);
     });
     return { error: false, items: items };
   }
