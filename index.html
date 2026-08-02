@@ -96,6 +96,17 @@
        cette semaine (hors calendrier ou question introuvable => reste vide). -->
   <div id="home-lundi-legi-card" style="margin-bottom:var(--space-3);"></div>
 
+  <!-- Parcours a la une (ALAUNE featured:true) — masque si aucun actif -->
+  <div id="home-alaune-section" style="display:none;margin-bottom:var(--space-3);">
+    <div class="card" style="border-top:3px solid var(--accent-green);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
+        <h3 style="margin:0;">★ À la une</h3>
+        <a href="mes-parcours.html?tab=a-la-une" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous</a>
+      </div>
+      <div id="home-alaune-grid" class="mesparcours-grid"></div>
+    </div>
+  </div>
+
   <!-- Apercu des parcours attribues a l'utilisateur -->
   <div class="card home-parcours-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-blue);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">

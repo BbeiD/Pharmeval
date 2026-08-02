@@ -99,6 +99,7 @@ onAuthStateChanged(auth, async function(user) {
   renderWelcomeTitle();
 
   await Promise.all([
+    loadHomeAlaune(),
     loadHomeParcours(),
     loadHomeStats(),
     loadMasteryDonut(),
@@ -198,6 +199,35 @@ async function loadMasteryDonut() {
   // "maitrisee" seule (voir renderMasteryDonutHtml(), centerValue).
   const centerValue = (summary.percentages.mastered || 0) + (summary.percentages.in_progress || 0);
   el.innerHTML = renderMasteryDonutHtml(summary, Object.assign({ centerValue: centerValue }, QUESTION_MASTERY_DONUT_OPTIONS));
+}
+
+// ---------------------------------------------------------------------------
+// Parcours ALAUNE actifs (editorialOnly + featured)
+// ---------------------------------------------------------------------------
+
+async function loadHomeAlaune() {
+  const section = document.getElementById('home-alaune-section');
+  const gridEl = document.getElementById('home-alaune-grid');
+  if (!section || !gridEl) return;
+
+  const ctx = getCurrentUserContext();
+  const todayStr = todayDateStr();
+  const [result, attemptResult] = await Promise.all([
+    getAvailableParcoursForUser(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+  ]);
+
+  const alauneItems = (result.error ? [] : result.items).filter(function(entry) {
+    return entry.parcours.editorialOnly && isParcoursCurrentlyFeatured(entry.parcours, todayStr);
+  });
+
+  if (alauneItems.length === 0) { section.style.display = 'none'; return; }
+
+  const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
+  section.style.display = 'block';
+  gridEl.innerHTML = alauneItems.map(function(entry) {
+    return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id));
+  }).join('');
 }
 
 // ---------------------------------------------------------------------------
