@@ -341,19 +341,25 @@ async function loadMedals() {
   let html = '';
 
   if (featuredList.length > 0) {
+    const earnedFeatured = featuredList.filter(hasMedal);
+    const pctFeatured = Math.round(earnedFeatured.length / featuredList.length * 100);
     html += '<div class="home-medals-section">';
     if (classicList.length > 0) {
       html += '<div class="home-medals-section-label">Parcours à la une</div>';
     }
-    html += featuredList.map(function(p) {
-      const earned = hasMedal(p);
-      return (
-        '<div class="home-medal-row' + (earned ? ' home-medal-row-earned' : ' home-medal-row-pending') + '">' +
-          '<span class="home-medal-dot' + (earned ? ' home-medal-dot-earned' : '') + '"></span>' +
+    // Seules les médailles gagnées affichent leur nom — les non-gagnées ne
+    // doivent pas révéler les thèmes à venir.
+    earnedFeatured.forEach(function(p) {
+      html += (
+        '<div class="home-medal-row home-medal-row-earned">' +
+          '<span class="home-medal-dot home-medal-dot-earned"></span>' +
           '<span class="home-medal-name">' + escapeHtml(p.name) + '</span>' +
         '</div>'
       );
-    }).join('');
+    });
+    html += '<div class="home-medals-count">' + earnedFeatured.length + ' <span class="home-medals-total">/ ' + featuredList.length + '</span></div>';
+    html += '<div class="home-medals-label">médailles à la une</div>';
+    html += '<div class="home-medals-bar" style="margin-top:10px;"><div class="home-medals-bar-fill" style="width:' + pctFeatured + '%;"></div></div>';
     html += '</div>';
   }
 
