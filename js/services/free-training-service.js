@@ -141,11 +141,12 @@ export async function composeFreeTrainingPool(filters) {
       if (!seenIds.has(q.pedagogicalId)) { seenIds.add(q.pedagogicalId); merged.push(q); }
     });
   });
-  if (merged.length === 0) {
+  const filtered = merged.filter(function(q) { return !q.editorialOnly; });
+  if (filtered.length === 0) {
     return { ready: false, message: 'Aucune question ne correspond à cette sélection.', items: [] };
   }
 
-  const items = applySecondaryFilters(merged, {
+  const items = applySecondaryFilters(filtered, {
     tag: f.tag,
     difficulty: f.difficulty,
     sectionAlreadyScoped: sectionAlreadyScoped,
@@ -190,7 +191,7 @@ export async function composeFreeTrainingPoolByIds(pedagogicalIds, filters) {
   // getExistingQuestionsByPedagogicalIds() - un id de directQuestionIds
   // dont la question aurait ete depubliee depuis est silencieusement
   // absent de `map`, jamais une entree vide/cassee.
-  const merged = ids.map(function(id) { return map.get(id); }).filter(Boolean);
+  const merged = ids.map(function(id) { return map.get(id); }).filter(Boolean).filter(function(q) { return !q.editorialOnly; });
   if (merged.length === 0) {
     return { ready: false, message: 'Aucune question ne correspond à cette sélection.', items: [] };
   }

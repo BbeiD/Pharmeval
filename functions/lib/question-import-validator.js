@@ -53,6 +53,7 @@ const OPTIONAL_QUESTION_FIELDS = Object.freeze([
   // apres le correctif questionType.
   'documentSourceId', 'documentSectionId', 'competencyId', 'tagIds',
   'fromEditorialCatalog', 'createdAt', 'updatedAt',
+  'editorialOnly',
 ]);
 const ALL_QUESTION_FIELDS = Object.freeze(REQUIRED_QUESTION_FIELDS.concat(OPTIONAL_QUESTION_FIELDS));
 

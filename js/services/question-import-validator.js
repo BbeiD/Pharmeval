@@ -114,6 +114,8 @@ const OPTIONAL_QUESTION_FIELDS = Object.freeze([
   // "champs inconnus", faisant echouer 100% des synchronisations.
   'documentSourceId', 'documentSectionId', 'competencyId', 'tagIds',
   'fromEditorialCatalog', 'createdAt', 'updatedAt',
+  // AJOUT (2026-08-02) : flag editorial exclusif - voir free-training-service.js
+  'editorialOnly',
 ]);
 const ALL_QUESTION_FIELDS = Object.freeze(REQUIRED_QUESTION_FIELDS.concat(OPTIONAL_QUESTION_FIELDS));
 

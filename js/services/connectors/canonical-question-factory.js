@@ -76,6 +76,7 @@ export function buildCanonicalQuestion(fields) {
     sourceDocument: fields.sourceDocument || { name: '', level1: '', level2: '', level3: '', preciseReference: '' },
     primaryCompetency: fields.primaryCompetencyLabel ? { label: fields.primaryCompetencyLabel } : null,
     pendingResourceRefs: fields.pendingResourceRefs || [],
+    editorialOnly: fields.editorialOnly === true,
   };
   // `source` (champ 1.0) doit être ABSENT si non renseigné, jamais `null` -
   // le validateur (question-import-validator.js) traite un champ optionnel

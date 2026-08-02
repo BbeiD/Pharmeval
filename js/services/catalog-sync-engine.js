@@ -206,6 +206,7 @@ export class CatalogSyncEngine {
         documentSourceId: referential.sourceId, documentSectionId: referential.sectionId,
         competencyId: competency.competencyId,
         tagIds: tagsResolution.tagIds,
+        editorialOnly: q.editorialOnly === true,
       };
 
       let action;
@@ -373,6 +374,7 @@ export class CatalogSyncEngine {
             documentSourceId: qa.resolved.documentSourceId, documentSectionId: qa.resolved.documentSectionId,
             competencyId: qa.resolved.competencyId,
             tagIds: qa.resolved.tagIds,
+            editorialOnly: qa.resolved.editorialOnly === true,
             externalIds: { editorialCatalog: qa.externalId },
             fromEditorialCatalog: true,
             pendingResourceRefs: qa.pendingResourceRefs,

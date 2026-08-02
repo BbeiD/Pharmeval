@@ -171,6 +171,9 @@ export class ExcelCatalogConnector extends CatalogConnector {
         ? cell(row, 'Pièces jointes pédagogiques').split(';').map(function(s) { return s.trim(); }).filter(Boolean)
         : [];
 
+      const exclusifCell = cell(row, 'Exclusif').trim().toLowerCase();
+      const editorialOnly = exclusifCell === 'o' || exclusifCell === 'oui' || exclusifCell === 'true';
+
       questions.push(buildCanonicalQuestion({
         domain: taxonomy.domain, theme: taxonomy.theme, subtheme: taxonomy.subtheme,
         difficulty: difficulty,
@@ -180,6 +183,7 @@ export class ExcelCatalogConnector extends CatalogConnector {
         tags: tags,
         editorialCatalogId: editorialId,
         pendingResourceRefs: pendingResourceRefs,
+        editorialOnly: editorialOnly,
       }));
     });
 
