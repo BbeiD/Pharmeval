@@ -12,7 +12,8 @@
  *    Pharmeval_1535_CatalogSync_COMPLET.xlsx et avant son import.
  */
 
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 const path = require('path');
 
 const keyPath = process.argv[2];
@@ -21,10 +22,8 @@ if (!keyPath) {
   process.exit(1);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(require(path.resolve(keyPath))),
-});
-const db = admin.firestore();
+initializeApp({ credential: cert(require(path.resolve(keyPath))) });
+const db = getFirestore();
 
 // ── Utilitaire de suppression par lots ──────────────────────────────────────
 async function deleteAll(query, label) {
