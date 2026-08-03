@@ -1,4 +1,4 @@
-// ===================== CONTROLEUR "DEFI DU JOUR" =====================
+﻿// ===================== CONTROLEUR "DEFI DU JOUR" =====================
 // Espace UTILISATEUR (pas un ecran d'administration), meme principe que
 // js/mes-parcours.js/js/entrainement-libre.js. Aucune logique metier ici :
 // appelle js/services/daily-challenge-service.js et affiche le resultat.
@@ -79,6 +79,7 @@ onAuthStateChanged(auth, async function(user) {
   if (loadingEl) loadingEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
   renderSiteHeader('defi');
+  wireHeaderInfo();
 
   await loadState();
 });
@@ -87,6 +88,22 @@ onAuthStateChanged(auth, async function(user) {
 window.addEventListener('pageshow', function(event) {
   if (event.persisted) loadState();
 });
+
+// ---------------------------------------------------------------------------
+// Câblage du bouton "i" statique dans l'en-tête
+// ---------------------------------------------------------------------------
+
+function wireHeaderInfo() {
+  const btn = qs('defi-how-btn');
+  if (!btn) return;
+  const panel = qs('defi-how-panel');
+  if (!panel) return;
+  btn.addEventListener('click', function() {
+    const hidden = panel.hasAttribute('hidden');
+    if (hidden) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+    else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Chargement de l'état
@@ -134,7 +151,6 @@ function render(state) {
     html += renderNotStarted(questionCount);
   }
 
-  html += howItWorksHtml();
   el.innerHTML = html;
 }
 
@@ -259,21 +275,6 @@ function renderDone(state) {
   );
 }
 
-function howItWorksHtml() {
-  return (
-    '<div class="defi-how-card">' +
-      '<div class="defi-how-header" id="defi-how-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="defi-how-body" onclick="toggleDefiHow()" onkeydown="if(event.key===\'Enter\'||event.key===\' \')toggleDefiHow()">' +
-        '<span class="defi-how-title">Comment ça marche ?</span>' +
-        '<i class="ti ti-chevron-down defi-how-chevron" aria-hidden="true"></i>' +
-      '</div>' +
-      '<div class="defi-how-body" id="defi-how-body" hidden>' +
-        '<p>Chaque jour, cinq questions identiques sont proposées à tous les utilisateurs Pharmeval.</p>' +
-        '<p>Terminez le défi avant minuit (heure locale) pour prolonger votre série. Un défi commencé mais non terminé ne compte pas pour la série.</p>' +
-        '<p>Votre meilleure série est conservée même si la série actuelle est interrompue.</p>' +
-      '</div>' +
-    '</div>'
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -308,23 +309,7 @@ export function toggleDefiSerieInfo() {
   else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
 }
 
-export function toggleDefiHow() {
-  const toggle = qs('defi-how-toggle');
-  const body = qs('defi-how-body');
-  const chevron = document.querySelector('.defi-how-chevron');
-  if (!toggle || !body) return;
-  const hidden = body.hasAttribute('hidden');
-  if (hidden) {
-    body.removeAttribute('hidden');
-    toggle.setAttribute('aria-expanded', 'true');
-    if (chevron) chevron.style.transform = 'rotate(180deg)';
-  } else {
-    body.setAttribute('hidden', '');
-    toggle.setAttribute('aria-expanded', 'false');
-    if (chevron) chevron.style.transform = '';
-  }
 }
 
 window.startDefi = startDefi;
 window.toggleDefiSerieInfo = toggleDefiSerieInfo;
-window.toggleDefiHow = toggleDefiHow;
