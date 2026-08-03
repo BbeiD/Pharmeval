@@ -315,7 +315,5 @@ export function toggleDefiSerieInfo() {
   else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
 }
 
-}
-
 window.startDefi = startDefi;
 window.toggleDefiSerieInfo = toggleDefiSerieInfo;
