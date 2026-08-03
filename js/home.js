@@ -469,7 +469,7 @@ function cardHtml(entry, attempts, hasActiveSession, contextTag) {
           '</div>' +
           '<div class="mesparcours-card-title-block">' +
             categoryHtml +
-            '<h3 class="mesparcours-card-title">' + escapeHtml(parts.title) + '</h3>' +
+            '<h3 class="mesparcours-card-title"' + (parts.category ? '' : ' style="color:' + escapeHtml(hex) + ';"') + '>' + escapeHtml(parts.title) + '</h3>' +
             subtitleHtml +
           '</div>' +
           medalBadge +
