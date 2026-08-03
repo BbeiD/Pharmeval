@@ -224,7 +224,6 @@ function renderNotStarted(questionCount) {
         '<span class="defi-question-pill">' + questionCount + ' ' + escapeHtml(plural(questionCount, 'question')) + '</span>' +
         '<span class="defi-duration">Environ 3 minutes</span>' +
       '</div>' +
-      '<p class="defi-pitch">Cinq questions vous attendent aujourd\'hui.<br>Elles se montrent remarquablement patientes.</p>' +
       '<div class="btn-row">' +
         '<button class="btn-primary defi-main-btn" id="defi-start-btn" onclick="startDefi()">' +
           '<i class="ti ti-player-play" aria-hidden="true"></i> Commencer le défi' +

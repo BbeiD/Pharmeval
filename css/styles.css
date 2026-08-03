@@ -146,6 +146,14 @@
        menus deroulants). */
     box-shadow: var(--shadow-sm);
   }
+  .card-clickable {
+    cursor: pointer;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .card-clickable:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--green);
+  }
   .stat-card {
     background: var(--surface);
     border: 1px solid var(--border);
