@@ -2512,3 +2512,20 @@
 @media (max-width: 600px) {
   .org-members-grid { grid-template-columns: 1fr; }
 }
+
+/* ===================== ACCUEIL — AMÉLIORATIONS (chantier graphique 2026-08) ===================== */
+
+/* Texte secondaire sous le statut du défi */
+.home-hero-defi-sub { font-size: 12px; color: var(--text2); margin: 0 0 var(--space-2); }
+
+/* Badges contextuels sur les cartes parcours de l'accueil */
+.home-chip-active { background: rgba(29,158,117,.15); color: var(--green); }
+.home-chip-featured { background: rgba(251,191,36,.15); color: #D4A017; }
+
+/* Médailles — nouveau layout (compte large + tagline + dernière) */
+.home-medals-hero { margin-bottom: 12px; }
+.home-medals-count-large { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; }
+.home-medals-tagline { font-size: 12px; color: var(--text2); font-style: italic; margin-top: 4px; }
+.home-medal-last { margin-top: 12px; padding: 10px 12px; background: rgba(212,160,23,.07); border-radius: 8px; border-left: 3px solid #D4A017; }
+.home-medal-last-label { font-size: 11px; font-weight: 600; color: #D4A017; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.home-medal-last-name { font-size: 14px; font-weight: 600; color: var(--text); }

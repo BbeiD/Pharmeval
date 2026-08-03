@@ -21,6 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAvailableParcoursForUser } from "./services/assignment-service.js";
+import { getActiveSession } from "./services/evaluation-session-service.js";
 import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
@@ -37,6 +38,52 @@ import { renderMasteryDonutHtml } from "./mastery-donut-chart.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
+
+const CATEGORY_COLORS = {
+  'Bon usage et sécurité': '#1D9E75',
+  'Déontologie': '#6B46C1',
+  'Douleur et fièvre': '#D97A2A',
+  'Maladies cardiovasculaires': '#E53E3E',
+  'Maladies infectieuses': '#D69E2E',
+  'Maladies respiratoires': '#3182CE',
+  'Nutrition et métabolisme': '#38A169',
+  'Oncologie': '#9F4F96',
+  'Pédiatrie': '#319795',
+  'Pharmacovigilance': '#C05621',
+  'Psychiatrie et neurologie': '#553C9A',
+  'Rhumatologie': '#744210',
+  'Santé de la femme': '#B83280',
+  'Skincare et dermatologie': '#2C7A7B',
+  'Soins palliatifs': '#4A5568',
+  'Urologie et néphro': '#2B6CB0',
+  'Gastro-entérologie': '#276749',
+  'Ophtalmologie': '#2D3748',
+  'Endocrinologie': '#6B4226',
+  'Pharmacie du voyageur': '#2F855A',
+};
+
+function categoryColorFor(category, fallbackHex) {
+  return (category && CATEGORY_COLORS[category]) || fallbackHex || '#1D9E75';
+}
+
+function parseParcoursTitleParts(name) {
+  const s = (name || '').toString();
+  const dashIdx = s.indexOf(' — ');
+  if (dashIdx >= 0) {
+    const category = s.slice(0, dashIdx).trim();
+    const rest = s.slice(dashIdx + 3).trim();
+    const colonIdx = rest.indexOf(' : ');
+    if (colonIdx >= 0) {
+      return { category: category, title: rest.slice(0, colonIdx).trim(), subtitle: rest.slice(colonIdx + 3).trim() };
+    }
+    return { category: category, title: rest, subtitle: null };
+  }
+  const colonIdx = s.indexOf(' : ');
+  if (colonIdx >= 0) {
+    return { category: null, title: s.slice(0, colonIdx).trim(), subtitle: s.slice(colonIdx + 3).trim() };
+  }
+  return { category: null, title: s, subtitle: null };
+}
 
 // AJOUT ("Activité récente", demande directe de David) : une icone + une
 // couleur par type d'evenement (voir recent-activity-logic.js) - jamais de
@@ -226,7 +273,7 @@ async function loadHomeAlaune() {
   const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
   section.style.display = 'block';
   gridEl.innerHTML = alauneItems.map(function(entry) {
-    return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id));
+    return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id), false, 'a-la-une');
   }).join('');
 }
 
@@ -235,11 +282,13 @@ async function loadHomeAlaune() {
 // ---------------------------------------------------------------------------
 
 async function loadHomeParcours() {
+  const titleEl = document.getElementById('home-parcours-title');
   const gridEl = document.getElementById('home-parcours-grid');
   const emptyEl = document.getElementById('home-parcours-empty');
   if (!gridEl) return;
 
   const ctx = getCurrentUserContext();
+  const todayStr = todayDateStr();
   const [result, attemptResult] = await Promise.all([
     getAvailableParcoursForUser(ctx && ctx.uid),
     getParcoursAttemptSummaryForUser(ctx && ctx.uid),
@@ -247,20 +296,74 @@ async function loadHomeParcours() {
 
   if (result.error || result.items.length === 0) {
     gridEl.innerHTML = '';
-    emptyEl.style.display = result.error ? 'none' : 'block';
+    if (emptyEl) {
+      emptyEl.innerHTML = result.error
+        ? 'Impossible de charger vos parcours.'
+        : 'Aucun parcours en cours. <span style="color:var(--text2);">C\'est une situation remarquablement facile à corriger.</span> <a href="mes-parcours.html" style="margin-left:8px;">Découvrir les parcours →</a>';
+      emptyEl.style.display = 'block';
+    }
     return;
   }
 
-  // AJOUT (demande directe de David, "les parcours posés là comme ça c'est
-  // pas ouf") : meme metrique par tentative que js/mes-parcours.js (nombre
-  // de fois termine + meilleur score) - jamais une barre de % par question,
-  // pour rester coherent avec cette page.
   const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
-
-  emptyEl.style.display = 'none';
   const nonEditorial = result.items.filter(function(e) { return !e.parcours.editorialOnly; });
-  gridEl.innerHTML = nonEditorial.slice(0, MAX_HOME_PARCOURS).map(function(entry) {
-    return cardHtml(entry, attemptsByParcoursId.get(entry.parcours.id));
+
+  if (nonEditorial.length === 0) {
+    if (emptyEl) {
+      emptyEl.innerHTML = 'Aucun parcours disponible. <a href="mes-parcours.html" style="margin-left:8px;">Découvrir le catalogue →</a>';
+      emptyEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  function priorityScore(entry) {
+    const att = attemptsByParcoursId.get(entry.parcours.id);
+    const attempts = att ? att.attemptsCount : 0;
+    const best = att ? att.bestPercent : null;
+    const featured = isParcoursCurrentlyFeatured(entry.parcours, todayStr);
+    const mandatory = entry.assignment && entry.assignment.mandatory;
+    if (attempts > 0 && (best === null || best < 100)) return 0;
+    if (featured) return 1;
+    if (mandatory) return 2;
+    if (attempts === 0) return 3;
+    return 4;
+  }
+
+  const sorted = nonEditorial.slice().sort(function(a, b) {
+    return priorityScore(a) - priorityScore(b);
+  });
+
+  const displayed = sorted.slice(0, MAX_HOME_PARCOURS);
+
+  const activeSessionMap = new Map();
+  await Promise.all(displayed.map(function(entry) {
+    return getActiveSession(entry.parcours.id, null)
+      .then(function(active) { if (active) activeSessionMap.set(entry.parcours.id, true); })
+      .catch(function() {});
+  }));
+
+  const hasAnyActive = displayed.some(function(e) { return activeSessionMap.get(e.parcours.id); });
+  const allNeverStarted = displayed.every(function(e) {
+    const att = attemptsByParcoursId.get(e.parcours.id);
+    return !att || att.attemptsCount === 0;
+  });
+
+  if (titleEl) {
+    if (hasAnyActive) titleEl.textContent = 'Continuer vos parcours';
+    else if (allNeverStarted) titleEl.textContent = 'Parcours à découvrir';
+    else titleEl.textContent = 'Vos parcours';
+  }
+
+  gridEl.innerHTML = displayed.map(function(entry) {
+    const att = attemptsByParcoursId.get(entry.parcours.id);
+    const hasSession = !!activeSessionMap.get(entry.parcours.id);
+    let contextTag = null;
+    if (hasSession) contextTag = 'en-cours';
+    else if (isParcoursCurrentlyFeatured(entry.parcours, todayStr)) contextTag = 'a-la-une';
+    else if (entry.assignment && entry.assignment.mandatory) contextTag = 'obligatoire';
+    return cardHtml(entry, att, hasSession, contextTag);
   }).join('');
 }
 
@@ -291,29 +394,70 @@ export function showPremiumUpsell() {
 }
 window.showPremiumUpsell = showPremiumUpsell;
 
-function cardHtml(entry, attempts) {
+function cardHtml(entry, attempts, hasActiveSession, contextTag) {
   const p = entry.parcours;
-  const hex = (p.color ? resolveParcoursColorHex(p.color) : null) || '#1D9E75';
-  const mandatoryBadge = entry.assignment && entry.assignment.mandatory
-    ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
+  const parts = parseParcoursTitleParts(p.name);
+  const fallbackHex = (p.color ? resolveParcoursColorHex(p.color) : null) || '#1D9E75';
+  const hex = categoryColorFor(parts.category, fallbackHex);
 
-  // AJOUT (demande directe de David, 29/07/2026) : meme medaille + teinte
-  // "reussi" que js/mes-parcours.js#cardHtml() - un parcours termine a
-  // 100% doit le montrer partout ou il apparait, pas seulement sur "Mes
-  // parcours".
   const isMastered = !!(attempts && attempts.bestPercent === 100);
   const masteredCls = isMastered ? ' mesparcours-card-mastered' : '';
   const medalBadge = isMastered ? '<i class="ti ti-medal mesparcours-medal" title="Parcours réussi à 100%"></i>' : '';
 
-  // AJOUT (demande directe de David, 29/07/2026, "flag gratuit") : meme
-  // traitement que js/mes-parcours.js#cardHtml() - visible mais invite a
-  // passer premium plutot que d'ouvrir directement.
   const isPremium = p.accessTier === ACCESS_TIERS.PREMIUM;
   const premiumBadge = isPremium
     ? '<span class="bank-chip" style="background:rgba(192,132,252,.15);color:var(--accent-purple);">' + icon('highlight-star-premium', { size: 13 }) + ' Premium</span>' : '';
-  const actionBtn = isPremium
-    ? '<button class="btn-secondary" onclick="showPremiumUpsell()">' + icon('highlight-star-premium', { size: 14 }) + ' Passer premium</button>'
-    : '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '">' + (isMastered ? 'Réviser' : 'Ouvrir') + '</a>';
+  const mandatoryBadge = entry.assignment && entry.assignment.mandatory && contextTag !== 'obligatoire'
+    ? '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>' : '';
+
+  let contextBadge = '';
+  if (contextTag === 'en-cours') {
+    contextBadge = '<span class="bank-chip home-chip-active">En cours</span>';
+  } else if (contextTag === 'a-la-une') {
+    contextBadge = '<span class="bank-chip home-chip-featured">★ À la une</span>';
+  } else if (contextTag === 'obligatoire') {
+    contextBadge = '<span class="bank-chip" style="background:#C62828;color:#fff;">Obligatoire</span>';
+  }
+
+  let actionBtn;
+  if (isPremium) {
+    actionBtn = '<button class="btn-secondary" onclick="showPremiumUpsell()">' + icon('highlight-star-premium', { size: 14 }) + ' Passer premium</button>';
+  } else if (hasActiveSession) {
+    actionBtn = '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '"><i class="ti ti-player-play" aria-hidden="true"></i> Continuer</a>';
+  } else if (attempts && attempts.attemptsCount > 0) {
+    actionBtn = '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '"><i class="ti ti-refresh" aria-hidden="true"></i> Recommencer</a>';
+  } else {
+    actionBtn = '<a class="btn-primary" href="evaluation.html?parcoursId=' + encodeURIComponent(p.id) + '"><i class="ti ti-arrow-right" aria-hidden="true"></i> Commencer</a>';
+  }
+
+  const qCount = (p.directQuestionIds || []).length || (p.questionCount || 0);
+  const estMin = qCount > 0 ? Math.max(1, Math.round(qCount * 0.5)) : null;
+  const metaHtml = qCount > 0
+    ? '<div class="mesparcours-card-meta">' + qCount + ' question' + (qCount > 1 ? 's' : '') + (estMin ? ' · ~' + estMin + ' min' : '') + '</div>'
+    : '';
+
+  let statusHtml;
+  if (hasActiveSession) {
+    statusHtml = '<div class="mesparcours-pills"><span class="mesparcours-pill mesparcours-pill-active">Évaluation en cours</span></div>';
+  } else if (!attempts || attempts.attemptsCount === 0) {
+    statusHtml = '<div class="mesparcours-pills"><span class="mesparcours-pill">Pas encore commencé</span></div>';
+  } else {
+    const n = attempts.attemptsCount;
+    const pct = attempts.bestPercent;
+    const barColor = pct >= 80 ? 'var(--green)' : pct >= 50 ? '#D69E2E' : 'var(--accent-orange)';
+    statusHtml = (
+      '<div class="mesparcours-pills"><span class="mesparcours-pill">Terminé ' + n + ' fois</span><span class="mesparcours-pill mesparcours-pill-strong">Meilleur score ' + pct + ' %</span></div>' +
+      '<div class="mesparcours-progress-bar-wrap" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><div class="mesparcours-progress-bar" style="width:' + pct + '%;background:' + barColor + ';"></div></div>'
+    );
+  }
+
+  const categoryHtml = parts.category
+    ? '<div class="mesparcours-card-category" style="color:' + escapeHtml(hex) + ';">' + escapeHtml(parts.category.toUpperCase()) + '</div>'
+    : '';
+  const subtitleHtml = parts.subtitle
+    ? '<div class="mesparcours-card-subtitle">' + escapeHtml(parts.subtitle) + '</div>'
+    : '';
+  const hasBadges = contextBadge || premiumBadge || mandatoryBadge;
 
   return (
     '<div class="mesparcours-card' + masteredCls + '">' +
@@ -323,10 +467,16 @@ function cardHtml(entry, attempts) {
           '<div class="mesparcours-card-icon" style="background:' + escapeHtml(hex) + '22;color:' + escapeHtml(hex) + ';">' +
             renderAnyIcon(resolveParcoursIconKey(p, KNOWN_ICON_KEYS), { size: 22 }) +
           '</div>' +
-          '<h3>' + escapeHtml(p.name) + '</h3>' + medalBadge +
+          '<div class="mesparcours-card-title-block">' +
+            categoryHtml +
+            '<h3 class="mesparcours-card-title">' + escapeHtml(parts.title) + '</h3>' +
+            subtitleHtml +
+          '</div>' +
+          medalBadge +
         '</div>' +
-        '<div class="bank-detail-tags-row">' + premiumBadge + mandatoryBadge + '</div>' +
-        '<div class="mesparcours-pills">' + progressPillsHtml(attempts) + '</div>' +
+        metaHtml +
+        (hasBadges ? '<div class="bank-detail-tags-row">' + contextBadge + premiumBadge + mandatoryBadge + '</div>' : '') +
+        statusHtml +
         actionBtn +
       '</div>' +
     '</div>'
@@ -346,7 +496,6 @@ async function loadMedals() {
   if (!el) return;
 
   const ctx = getCurrentUserContext();
-  const todayStr = todayDateStr();
 
   const [assignedResult, attemptResult] = await Promise.all([
     getAvailableParcoursForUser(ctx && ctx.uid),
@@ -354,65 +503,58 @@ async function loadMedals() {
   ]);
 
   if (assignedResult.error || assignedResult.items.length === 0) {
-    emptyEl.style.display = 'block';
+    if (emptyEl) {
+      emptyEl.textContent = 'Votre collection est actuellement vide. C\'est une situation temporaire.';
+      emptyEl.style.display = 'block';
+    }
     return;
   }
 
   const attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
   const allParcours = assignedResult.items.map(function(e) { return e.parcours; });
 
-  const featuredList = allParcours.filter(function(p) { return isParcoursCurrentlyFeatured(p, todayStr); });
-  const classicList  = allParcours.filter(function(p) { return !isParcoursCurrentlyFeatured(p, todayStr); });
-
   function hasMedal(p) {
     const att = attemptsByParcoursId.get(p.id);
     return !!(att && att.bestPercent === 100);
   }
 
+  const earned = allParcours.filter(hasMedal);
+  const total = allParcours.length;
+
+  if (earned.length === 0) {
+    if (emptyEl) {
+      emptyEl.innerHTML = 'Aucune médaille obtenue pour l\'instant.<br><span style="font-size:12px;color:var(--text2);">Terminez un parcours avec 100 % pour en décrocher une.</span>';
+      emptyEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const taglines = [
+    'Leur valeur financière reste inchangée.',
+    'La collection progresse. Sa valeur marchande beaucoup moins.',
+    'Une récompense parfaitement symbolique.',
+    'Pharmeval vous félicite avec une sobriété toute pharmaceutique.',
+  ];
+  const tagline = taglines[earned.length % taglines.length];
+
+  const pct = Math.round(earned.length / total * 100);
+  const lastEarned = earned[earned.length - 1];
+  const lastParts = parseParcoursTitleParts(lastEarned.name);
+
   let html = '';
+  html += '<div class="home-medals-hero">';
+  html += '<div class="home-medals-count-large">' + earned.length + ' <span class="home-medals-total">/ ' + total + '</span></div>';
+  html += '<div class="home-medals-tagline">' + escapeHtml(tagline) + '</div>';
+  html += '</div>';
+  html += '<div class="home-medal-last">';
+  html += '<div class="home-medal-last-label"><i class="ti ti-medal" style="color:#D4A017;" aria-hidden="true"></i> Dernière médaille</div>';
+  html += '<div class="home-medal-last-name">' + escapeHtml(lastParts.title || lastEarned.name) + '</div>';
+  html += '</div>';
+  html += '<div class="home-medals-bar" style="margin-top:12px;"><div class="home-medals-bar-fill" style="width:' + pct + '%;"></div></div>';
 
-  if (featuredList.length > 0) {
-    const earnedFeatured = featuredList.filter(hasMedal);
-    const pctFeatured = Math.round(earnedFeatured.length / featuredList.length * 100);
-    html += '<div class="home-medals-section">';
-    if (classicList.length > 0) {
-      html += '<div class="home-medals-section-label">Parcours à la une</div>';
-    }
-    // Seules les médailles gagnées affichent leur nom — les non-gagnées ne
-    // doivent pas révéler les thèmes à venir.
-    earnedFeatured.forEach(function(p) {
-      html += (
-        '<div class="home-medal-row home-medal-row-earned">' +
-          '<span class="home-medal-dot home-medal-dot-earned"></span>' +
-          '<span class="home-medal-name">' + escapeHtml(p.name) + '</span>' +
-        '</div>'
-      );
-    });
-    html += '<div class="home-medals-count">' + earnedFeatured.length + ' <span class="home-medals-total">/ ' + featuredList.length + '</span></div>';
-    html += '<div class="home-medals-label">médailles à la une</div>';
-    html += '<div class="home-medals-bar" style="margin-top:10px;"><div class="home-medals-bar-fill" style="width:' + pctFeatured + '%;"></div></div>';
-    html += '</div>';
-  }
-
-  if (classicList.length > 0) {
-    const earned = classicList.filter(hasMedal).length;
-    const pct = Math.round(earned / classicList.length * 100);
-    html += '<div class="home-medals-section">';
-    if (featuredList.length > 0) {
-      html += '<div class="home-medals-section-label">Parcours classiques</div>';
-    }
-    html += '<div class="home-medals-count">' + earned + ' <span class="home-medals-total">/ ' + classicList.length + '</span></div>';
-    html += '<div class="home-medals-label">médailles obtenues</div>';
-    html += '<div class="home-medals-bar" style="margin-top:10px;"><div class="home-medals-bar-fill" style="width:' + pct + '%;"></div></div>';
-    html += '</div>';
-  }
-
-  if (!html) {
-    emptyEl.style.display = 'block';
-  } else {
-    emptyEl.style.display = 'none';
-    el.innerHTML = html;
-  }
+  el.innerHTML = html;
 }
 
 // activityRowHtml reste disponible pour mon-profil.js via getRecentActivityForUser
@@ -516,14 +658,17 @@ async function renderHero() {
 
   if (state.alreadyCompletedToday) {
     bodyEl.innerHTML =
-      '<p class="home-hero-defi-status">' + icon('highlight-check-validated', { size: 16 }) + ' Défi relevé pour aujourd\'hui !</p>' +
+      '<p class="home-hero-defi-status">' + icon('highlight-check-validated', { size: 16 }) + ' Défi terminé pour aujourd\'hui.</p>' +
+      '<p class="home-hero-defi-sub">Pharmeval consent à vous laisser poursuivre votre journée.</p>' +
       '<a class="btn-secondary" href="defi.html">Voir mon défi</a>';
     return;
   }
 
   const questionCount = Math.min(DAILY_CHALLENGE_QUESTION_COUNT, state.eligibleCount);
+  const estMin = Math.max(1, Math.round(questionCount * 0.5));
   bodyEl.innerHTML =
-    '<p class="home-hero-defi-status">' + questionCount + ' questions vous attendent aujourd\'hui.</p>' +
+    '<p class="home-hero-defi-status">Votre défi du jour vous attend.</p>' +
+    '<p class="home-hero-defi-sub">' + questionCount + ' questions — environ ' + estMin + ' minute' + (estMin > 1 ? 's' : '') + '.</p>' +
     '<button class="btn-primary" id="home-hero-defi-btn">Commencer le défi</button>';
 
   document.getElementById('home-hero-defi-btn').addEventListener('click', async function() {

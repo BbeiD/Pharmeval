@@ -110,39 +110,39 @@
   <!-- Apercu des parcours attribues a l'utilisateur -->
   <div class="card home-parcours-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--accent-blue);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--space-3);">
-      <h3 style="margin:0;">Vos parcours</h3>
-      <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous mes parcours</a>
+      <h3 id="home-parcours-title" style="margin:0;">Vos parcours</h3>
+      <a href="mes-parcours.html" class="btn-secondary" style="padding:7px 14px;font-size:12px;">Voir tous →</a>
     </div>
     <div id="home-parcours-message" class="admin-message" style="display:none;"></div>
-    <div id="home-parcours-empty" class="bank-list-empty" style="display:none;">Aucun parcours ne vous a été attribué pour l'instant.</div>
+    <div id="home-parcours-empty" class="bank-list-empty" style="display:none;"></div>
     <div id="home-parcours-grid" class="mesparcours-grid"></div>
   </div>
 
   <div class="card home-etl-card" style="margin-bottom:var(--space-3);border-top:3px solid var(--green);">
-    <h3 style="margin-bottom:var(--space-3);"><span class="page-header-icon page-header-icon-green"><i class="ti ti-target" aria-hidden="true"></i></span> Entraînement libre</h3>
-    <p class="import-intro" style="margin-bottom:var(--space-3);">
-      Testez-vous sur des thèmes choisis ou aléatoires.
-    </p>
-    <a href="entrainement-libre.html" class="btn-primary"><i class="ti ti-target-arrow"></i> Me tester !</a>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <h3 style="margin:0;"><span class="page-header-icon page-header-icon-green"><i class="ti ti-target" aria-hidden="true"></i></span> Entraînement libre</h3>
+      <a href="entrainement-libre.html" class="btn-primary" style="white-space:nowrap;"><i class="ti ti-target-arrow"></i> Me tester !</a>
+    </div>
   </div>
 
-  <div class="import-card-grid home-duo-grid" style="margin-bottom:var(--space-3);">
-    <div class="card home-clickable-card" style="border-top:3px solid var(--accent-purple);" onclick="openHistoryView()" role="button" tabindex="0" aria-label="Voir Mes évaluations">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <h3 style="margin:0;">Maîtrise des questions</h3>
-        <button class="stats-info-btn" aria-label="En savoir plus" aria-expanded="false" onclick="event.stopPropagation();var p=document.getElementById('home-donut-info');var opening=p.hasAttribute('hidden');if(opening)p.removeAttribute('hidden');else p.setAttribute('hidden','');this.setAttribute('aria-expanded',opening?'true':'false');">i</button>
-      </div>
-      <div id="home-donut-info" class="stats-info-panel" hidden>Calculé sur toutes vos sessions confondues. <strong>Maîtrisée</strong> : au moins une bonne réponse, et votre dernière tentative était correcte — une seule rencontre suffit si vous répondez juste. <strong>En cours</strong> : déjà réussie dans le passé, mais votre dernière tentative était incorrecte. <strong>À travailler</strong> : jamais répondu correctement.</div>
-      <p style="font-size:12px;color:var(--text2);margin:0 0 var(--space-3) 0;">Questions évaluées dans toutes vos sessions</p>
-      <div id="home-mastery-donut"></div>
+  <!-- Maîtrise des questions (masquée pour le lancement — code conservé, ne pas supprimer) -->
+  <div class="card" style="display:none;border-top:3px solid var(--accent-purple);margin-bottom:var(--space-3);">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <h3 style="margin:0;">Maîtrise des questions</h3>
+      <button class="stats-info-btn" aria-label="En savoir plus" aria-expanded="false" onclick="var p=document.getElementById('home-donut-info');var opening=p.hasAttribute('hidden');if(opening)p.removeAttribute('hidden');else p.setAttribute('hidden','');this.setAttribute('aria-expanded',opening?'true':'false');">i</button>
     </div>
-    <div class="card home-clickable-card" style="border-top:3px solid #D4A017;" onclick="openHistoryView()" role="button" tabindex="0" aria-label="Voir Mes évaluations">
-      <h3 style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;">
-        <i class="ti ti-medal" style="color:#D4A017;font-size:20px;"></i>Vos médailles
-      </h3>
-      <div id="home-medals-empty" class="bank-list-empty" style="display:none;">Aucune médaille obtenue pour l'instant.</div>
-      <div id="home-medals-content"></div>
-    </div>
+    <div id="home-donut-info" class="stats-info-panel" hidden>Calculé sur toutes vos sessions confondues. <strong>Maîtrisée</strong> : au moins une bonne réponse, et votre dernière tentative était correcte — une seule rencontre suffit si vous répondez juste. <strong>En cours</strong> : déjà réussie dans le passé, mais votre dernière tentative était incorrecte. <strong>À travailler</strong> : jamais répondu correctement.</div>
+    <p style="font-size:12px;color:var(--text2);margin:0 0 var(--space-3) 0;">Questions évaluées dans toutes vos sessions</p>
+    <div id="home-mastery-donut"></div>
+  </div>
+
+  <!-- Médailles -->
+  <div class="card" style="margin-bottom:var(--space-3);border-top:3px solid #D4A017;">
+    <h3 style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;">
+      <i class="ti ti-medal" style="color:#D4A017;font-size:20px;"></i>Vos médailles
+    </h3>
+    <div id="home-medals-empty" class="bank-list-empty" style="display:none;"></div>
+    <div id="home-medals-content"></div>
   </div>
 </div>
 
