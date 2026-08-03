@@ -88,7 +88,7 @@ function renderAttestationHtml(ctx, selectedItems, attemptResult) {
     const date = firstHundredDate(att);
 
     // Compétences ou thèmes testés (buckets non-questions, priorité aux compétences)
-    const compBuckets = (item.buckets || []).filter(function(b) { return b.type === 'competency'; });
+    const compBuckets = (item.buckets || []).filter(function(b) { return b.type === 'competency' && b.label !== 'Compétence générale' && b.label !== 'Compétence sans nom'; });
     const srcBuckets  = (item.buckets || []).filter(function(b) { return b.type === 'source'; });
     const subBuckets  = compBuckets.length > 0 ? compBuckets : srcBuckets;
     const subLabel    = compBuckets.length > 0 ? 'Compétences' : 'Thèmes';
