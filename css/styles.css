@@ -2393,6 +2393,76 @@
   .defi-done-block p { margin-bottom: 8px; color: var(--text); }
   .defi-done-block .btn-secondary { margin-top: 8px; }
 
+  /* ---- Défi du jour — v2 (2026-08) ---- */
+  .defi-page-header-card { padding: 14px 20px !important; }
+  .defi-header-sub { font-size: 12px; color: var(--text2); margin: 0; }
+  .defi-streak-sublabel { font-size: 10px; color: var(--text2); margin-top: 1px; }
+
+  /* Info tooltip "Comment fonctionne ma série ?" */
+  .defi-serie-info-row { display: flex; justify-content: center; margin: -4px 0 12px; }
+  .defi-info-toggle {
+    background: none; border: none; cursor: pointer;
+    font-size: 12px; color: var(--text2); text-decoration: underline dotted;
+    padding: 2px 4px; border-radius: 4px;
+  }
+  .defi-info-toggle:hover { color: var(--text); }
+  .defi-info-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .defi-serie-info-panel {
+    font-size: 13px; color: var(--text2); background: var(--surface2);
+    border-radius: var(--radius-lg); padding: 12px 14px; margin-bottom: 16px;
+    border: 1px solid var(--border); line-height: 1.55;
+  }
+
+  /* Bloc d'état (commun) */
+  .defi-state-block { padding: var(--space-2) 0; }
+  .defi-meta-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .defi-duration { font-size: 13px; color: var(--text2); }
+  .defi-pitch { font-size: 14px; color: var(--text); line-height: 1.55; margin-bottom: 10px; }
+
+  /* Badge "En cours" */
+  .defi-active-badge-row { margin-bottom: 4px; }
+  .defi-active-badge {
+    display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; padding: 2px 8px; border-radius: 4px;
+    background: rgba(245,158,11,.15); color: var(--accent-orange);
+  }
+
+  /* Barre de progression (état en cours) */
+  .defi-active-progress-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+  .defi-active-bar { flex: 1; }
+  .defi-active-pct { font-size: 12px; font-weight: 700; color: var(--text2); min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+  .defi-last-activity { font-size: 12px; color: var(--text2); margin-bottom: 0; }
+
+  /* Bouton principal */
+  .defi-main-btn { gap: 6px; }
+
+  /* État terminé */
+  .defi-done-state { text-align: center; }
+  .defi-done-icon { margin-bottom: 10px; color: var(--green); }
+  .defi-done-quip { color: var(--text2) !important; font-style: italic; }
+  .defi-renewal-text { font-size: 13px; color: var(--text2); margin-bottom: 16px; }
+
+  /* "Comment ça marche ?" */
+  .defi-how-card { margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: 14px; }
+  .defi-how-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; padding: 4px 0; border-radius: var(--radius-lg); user-select: none;
+  }
+  .defi-how-header:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .defi-how-title { font-size: 13px; font-weight: 600; color: var(--text2); }
+  .defi-how-chevron { color: var(--text2); transition: transform .2s; font-size: 14px; }
+  .defi-how-body { padding: 8px 0 2px; }
+  .defi-how-body p { font-size: 13px; color: var(--text2); margin-bottom: 8px; line-height: 1.55; }
+  .defi-how-body p:last-child { margin-bottom: 0; }
+
+  /* Responsive défi */
+  @media (max-width: 600px) {
+    .defi-streak-row { gap: var(--space-2); }
+    .defi-streak-value { font-size: 22px; }
+    .defi-meta-row { flex-wrap: wrap; }
+    .defi-main-btn { width: 100%; justify-content: center; }
+  }
+
   .home-welcome-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
   .home-welcome-text { flex: 1; min-width: 0; }
 

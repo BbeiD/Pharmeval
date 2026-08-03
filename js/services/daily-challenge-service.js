@@ -25,7 +25,7 @@ import { getSelfServiceCatalogParcours } from "./parcours-service.js";
 import { todayDateStr } from "./date-utils.js";
 import { pickDailyChallengeIds, computeDailyChallengeStreak, completeDailyChallengeProgress } from "./daily-challenge-logic.js";
 import { getDailyChallengeProgress, saveDailyChallengeProgress } from "./daily-challenge-catalog-service.js";
-import { startDailyChallengeSession as createDailyChallengeSession } from "./evaluation-session-service.js";
+import { startDailyChallengeSession as createDailyChallengeSession, getActiveDailyChallengeSession } from "./evaluation-session-service.js";
 
 /**
  * Pool ELIGIBLE au défi du jour : union des directQuestionIds de tous les
@@ -59,9 +59,10 @@ export async function getDailyChallengeStateForUser() {
     return { error: true, dateStr: dateStr, alreadyCompletedToday: false, progress: completeDailyChallengeProgress(null), eligibleCount: 0 };
   }
 
-  const [rawProgress, eligible] = await Promise.all([
+  const [rawProgress, eligible, activeSession] = await Promise.all([
     getDailyChallengeProgress(ctx.uid),
     getEligibleQuestionIds(),
+    getActiveDailyChallengeSession(dateStr),
   ]);
 
   const progress = completeDailyChallengeProgress(rawProgress);
@@ -71,6 +72,7 @@ export async function getDailyChallengeStateForUser() {
     alreadyCompletedToday: progress.lastCompletedDate === dateStr,
     progress: progress,
     eligibleCount: eligible.ids.length,
+    activeSession: activeSession || null,
   };
 }
 
