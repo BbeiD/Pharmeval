@@ -8,6 +8,8 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "./services/app-context.js";
 import { getDailyChallengeStateForUser, startTodaysChallenge } from "./services/daily-challenge-service.js";
+import { getActiveDailyChallengeSession } from "./services/evaluation-session-service.js";
+import { todayDateStr } from "./services/date-utils.js";
 import { DAILY_CHALLENGE_QUESTION_COUNT } from "./services/daily-challenge-logic.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon } from "./icons.js";
@@ -115,13 +117,26 @@ let _hasActiveSession = false;
 
 async function loadState() {
   const el = qs('defi-card');
-  el.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
+  if (el) el.innerHTML = '<div class="bank-list-loading">Chargement…</div>';
 
-  const state = await getDailyChallengeStateForUser();
-  if (state.error) {
+  try {
+    // Chargement principal (série, pool) + session en cours en parallèle.
+    // getActiveDailyChallengeSession est isolé dans son propre .catch() :
+    // s'il échoue ou tarde, la page charge quand même (état "non commencé").
+    const [state, activeSession] = await Promise.all([
+      getDailyChallengeStateForUser(),
+      getActiveDailyChallengeSession(todayDateStr()).catch(function() { return null; }),
+    ]);
+    state.activeSession = activeSession || null;
+    if (state.error) {
+      showMessage('error', 'Impossible de charger le défi du jour pour le moment. Réessayez plus tard.');
+    }
+    render(state);
+  } catch (err) {
+    console.error('[defi.js] Erreur lors du chargement :', err);
     showMessage('error', 'Impossible de charger le défi du jour pour le moment. Réessayez plus tard.');
+    if (el) el.innerHTML = '';
   }
-  render(state);
 }
 
 // ---------------------------------------------------------------------------
