@@ -2611,3 +2611,133 @@
   color: var(--text);
   margin-top: 3px;
 }
+
+/* ===================== ENTRAÎNEMENT LIBRE — REFONTE UX (2026-08) ===================== */
+
+/* --- En-tête compact --- */
+.etl-page-header-card { padding: 14px 20px !important; }
+.etl-page-sub { font-size: 12px; color: var(--text2); margin: 0; }
+
+/* --- Session en cours --- */
+.etl-active-card { position: relative; }
+.etl-active-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.etl-active-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 8px; border-radius: 4px;
+  background: rgba(245,158,11,.15); color: var(--accent-orange);
+  white-space: nowrap;
+}
+.etl-active-desc { font-size: 13px; color: var(--text2); margin: 0 0 10px; }
+.etl-active-progress-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+}
+.etl-active-bar { flex: 1; }
+.etl-active-progress-label { font-size: 12px; font-weight: 600; color: var(--text); min-width: 36px; text-align: right; }
+
+/* --- Bouton destructif --- */
+.etl-btn-danger { color: #E53E3E !important; border-color: rgba(229,62,62,.35) !important; }
+.etl-btn-danger:hover { background: rgba(229,62,62,.08) !important; border-color: #E53E3E !important; }
+
+/* --- Test rapide compact --- */
+.etl-testme-card { padding: 16px 20px; }
+.etl-testme-main {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.etl-testme-text { flex: 1; min-width: 0; }
+.etl-section-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--green); margin-bottom: 4px; display: flex; align-items: center; gap: 5px;
+}
+.etl-testme-desc { font-size: 13px; color: var(--text2); margin: 0; }
+.etl-testme-btn { white-space: nowrap; }
+.etl-testme-note {
+  font-size: 12px; color: var(--text2); margin-top: 10px;
+  padding: 8px 12px; background: rgba(245,158,11,.08); border-radius: 6px;
+  border-left: 3px solid var(--accent-orange);
+}
+
+/* --- Séparateur de section --- */
+.etl-section-divider {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  margin: 20px 0 16px; text-align: center;
+}
+.etl-section-divider-label {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text2);
+}
+.etl-section-divider-sub { font-size: 12px; color: var(--text2); }
+
+/* --- Thèmes : en-tête + actions --- */
+.etl-themes-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.etl-theme-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.etl-btn-sm { padding: 5px 10px !important; font-size: 11px !important; }
+.etl-selected-count { font-size: 12px; color: var(--green); font-weight: 600; }
+.etl-selected-count-empty { color: var(--text2); font-weight: 400; }
+
+/* --- Recherche de thèmes --- */
+.etl-theme-search-row { margin-bottom: 10px; }
+.etl-theme-search {
+  width: 100%; max-width: 320px; padding: 7px 12px;
+  background: var(--surface2); border: 1.5px solid var(--border2); border-radius: var(--radius);
+  color: var(--text); font-size: 13px;
+}
+.etl-theme-search:focus { outline: none; border-color: var(--green); }
+
+/* --- Coche sur tuile sélectionnée --- */
+.etl-tile-check {
+  position: absolute; top: 4px; right: 5px;
+  font-size: 11px; font-weight: 700; color: var(--green);
+}
+
+/* --- Accessibilité : texte pour lecteurs d'écran uniquement --- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* --- Presets de nombre de questions --- */
+.etl-count-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.etl-count-preset {
+  padding: 6px 14px; border: 1.5px solid var(--border2); border-radius: var(--radius);
+  background: var(--surface2); color: var(--text); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.etl-count-preset:hover { border-color: var(--green); }
+.etl-count-preset.etl-count-preset-active {
+  border-color: var(--green); background: var(--green-light); color: var(--green-dark);
+}
+.etl-count-custom {
+  width: 72px; padding: 6px 10px;
+  background: var(--surface2); border: 1.5px solid var(--border2); border-radius: var(--radius);
+  color: var(--text); font-size: 13px;
+}
+.etl-count-custom:focus { outline: none; border-color: var(--green); }
+
+/* --- Compteur live --- */
+.etl-count-info {
+  font-size: 12px; color: var(--text2); min-height: 18px; margin-bottom: 4px;
+}
+
+/* --- Zone d'erreur intégrée --- */
+.etl-error-block { margin-top: 8px; }
+.etl-error-msg {
+  font-size: 13px; color: #E53E3E; padding: 8px 12px;
+  background: rgba(229,62,62,.08); border-radius: 6px; border-left: 3px solid #E53E3E; margin: 0;
+}
+
+/* --- Hint sous le bouton --- */
+.etl-launch-hint { font-size: 12px; color: var(--text2); margin: 6px 0 0; }
+
+/* --- Responsive --- */
+@media (max-width: 600px) {
+  .etl-testme-main { flex-direction: column; align-items: flex-start; }
+  .etl-testme-btn { width: 100%; }
+  .etl-themes-header { flex-direction: column; }
+  .etl-theme-search { max-width: 100%; }
+}
