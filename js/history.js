@@ -196,7 +196,11 @@ function renderCards() {
 
   if (state.allLoaded.length === 0) {
     grid.innerHTML = '';
-    if (emptyState) emptyState.style.display = 'flex';
+    if (emptyState) {
+      emptyState.style.display = 'flex';
+      const msg = emptyState.querySelector('p');
+      if (msg) msg.textContent = 'Aucune évaluation pour l\'instant — mais ça ne va pas durer.';
+    }
     if (loadMoreBtn) loadMoreBtn.style.display = 'none';
     return;
   }
@@ -212,18 +216,38 @@ function renderCards() {
   if (loadMoreBtn) loadMoreBtn.style.display = state.hasMore ? 'inline-flex' : 'none';
 }
 
+function parseParcoursTitle(name) {
+  if (!name) return null;
+  const dashIdx = name.indexOf(' — ');
+  if (dashIdx >= 0) {
+    const rest = name.slice(dashIdx + 3).trim();
+    const colonIdx = rest.indexOf(' : ');
+    return colonIdx >= 0 ? rest.slice(0, colonIdx).trim() : rest;
+  }
+  const colonIdx = name.indexOf(' : ');
+  return colonIdx >= 0 ? name.slice(0, colonIdx).trim() : name;
+}
+
 function sessionLabelHtml(ev) {
   const type = ev.sessionType;
   const pid = ev.parcoursId;
   if (type === 'daily_challenge') {
-    return '<div class="history-session-label history-session-defi">Défi du jour</div>';
+    return '<div class="history-session-label">' +
+      '<span class="history-type-chip history-type-defi">Défi du jour</span>' +
+    '</div>';
   }
   if (type === 'parcours' || (!type && pid)) {
-    const name = pid ? parcoursNames.get(pid) : null;
-    return '<div class="history-session-label history-session-parcours">Parcours' + (name ? ' — ' + escapeHtml(name) : '') + '</div>';
+    const fullName = pid ? parcoursNames.get(pid) : null;
+    const title = fullName ? parseParcoursTitle(fullName) : null;
+    return '<div class="history-session-label">' +
+      '<span class="history-type-chip history-type-parcours">Parcours</span>' +
+      (title ? '<span class="history-session-name">' + escapeHtml(title) + '</span>' : '') +
+    '</div>';
   }
   if (type === 'free_training') {
-    return '<div class="history-session-label history-session-libre">Entraînement libre</div>';
+    return '<div class="history-session-label">' +
+      '<span class="history-type-chip history-type-libre">Entraînement libre</span>' +
+    '</div>';
   }
   return '';
 }

@@ -2529,3 +2529,85 @@
 .home-medal-last { margin-top: 12px; padding: 10px 12px; background: rgba(212,160,23,.07); border-radius: 8px; border-left: 3px solid #D4A017; }
 .home-medal-last-label { font-size: 11px; font-weight: 600; color: #D4A017; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
 .home-medal-last-name { font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* ===================== MA PROGRESSION — AMÉLIORATIONS (2026-08) ===================== */
+
+/* --- Mes parcours : catégorie colorée + sous-titre --- */
+.mpc-category-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.mpc-parcours-subtitle {
+  font-size: 12px;
+  color: var(--text2);
+  margin: 2px 0 6px;
+}
+
+/* --- En-têtes de groupe (En cours / Terminés) --- */
+.mpc-group-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 14px 0 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.mpc-group-header:first-of-type { border-top: none; padding-top: 4px; }
+
+/* --- Lien catalogue (dans la barre de filtres) --- */
+.mpc-catalogue-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text2);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: center;
+}
+.mpc-catalogue-link:hover { color: var(--green); }
+
+/* --- Pastille "X non commencés" en bas --- */
+.mpc-notstarted-row {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.mpc-notstarted-row a { color: var(--green); }
+
+/* --- État vide section --- */
+.mpc-empty-section {
+  font-size: 13px;
+  color: var(--text2);
+  padding: 16px 0;
+}
+.mpc-empty-section a { color: var(--green); }
+
+/* --- Chips de type dans l'historique --- */
+.history-type-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.history-type-defi    { background: rgba(245,158,11,.15);  color: #D97706; }
+.history-type-parcours { background: rgba(49,130,206,.15);  color: #3182CE; }
+.history-type-libre   { background: rgba(29,158,117,.15);  color: var(--green); }
+
+/* Titre du parcours sous le chip de type */
+.history-session-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 3px;
+}

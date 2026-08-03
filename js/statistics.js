@@ -85,7 +85,7 @@ function render(evaluations, truncated) {
   if (!container) return;
 
   if (!evaluations || evaluations.length === 0) {
-    container.innerHTML = '<div class="stats-empty">Réalisez une première évaluation pour commencer votre suivi.</div>';
+    container.innerHTML = '<div class="stats-empty">Réalisez une première évaluation et cette section prendra vie.</div>';
     return;
   }
 

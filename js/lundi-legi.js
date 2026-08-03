@@ -79,7 +79,7 @@ function render(state) {
       '<div class="ll-out-of-season">' +
         '<div class="ll-out-of-season-icon"><i class="ti ti-calendar-off" aria-hidden="true"></i></div>' +
         '<h3 style="margin-bottom:8px;">Pas de question cette semaine</h3>' +
-        '<p class="import-intro">Le Lundi Légi démarre le lundi 3 août 2026 et couvre 50 semaines.</p>' +
+        '<p class="import-intro">Le Lundi Légi démarre le lundi 7 septembre 2026 et couvre 50 semaines.</p>' +
       '</div>';
     return;
   }
