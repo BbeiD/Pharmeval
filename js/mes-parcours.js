@@ -195,6 +195,8 @@ function renderToolbar() {
   const el = document.getElementById('mesparcours-tabs');
   if (!el) return;
 
+  const hadSearchFocus = document.activeElement && document.activeElement.id === 'mesparcours-search-input';
+
   const cats = (function() {
     const set = new Set();
     state.entries.forEach(function(e) {
@@ -253,6 +255,15 @@ function renderToolbar() {
         sortHtml +
       '</div>' +
     '</div>';
+
+  if (hadSearchFocus) {
+    const newInput = document.getElementById('mesparcours-search-input');
+    if (newInput) {
+      newInput.focus();
+      const len = newInput.value.length;
+      newInput.setSelectionRange(len, len);
+    }
+  }
 }
 
 function statusForEntry(parcoursId) {
