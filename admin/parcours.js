@@ -1863,6 +1863,41 @@ async function downloadParcoursAuditCSV() {
 }
 window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
 
+async function executeAuditFinalCorrections(dryRun) {
+  const btnId = dryRun ? 'audit-final-dryrun-btn' : 'audit-final-execute-btn';
+  const btn = document.getElementById(btnId);
+  const label = dryRun ? 'Dry-run Audit final' : 'Exécuter Audit final';
+  if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Analyse…' : 'Exécution…'; }
+  if (!dryRun && !confirm('Exécuter les 4 corrections de l\'audit final ?\n- Ajouter PHARM-MED-001559 → PARC-74295162\n- Retirer 3 questions de PARC-2d6d79e4 (Lithium)\nCette action modifie Firestore. Continuer ?')) {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/execute-audit-final-corrections', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    const warnings = report.corrections.filter(c => c.status === 'warning').length;
+    const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
+    alert(
+      mode + 'Audit final — corrections\n\n' +
+      '✓ Corrections : ' + report.corrections.length + (warnings > 0 ? ' (⚠ ' + warnings + ' absentes)' : '') + '\n' +
+      '\nDétail complet dans la console (F12).'
+    );
+    console.log('[AuditFinal-corrections]', report);
+  } catch (err) {
+    console.error('[audit-final-corrections]', err);
+    alert('Erreur : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.executeAuditFinalCorrections = executeAuditFinalCorrections;
+
 async function executeMacroLot7Reassignments(dryRun) {
   const btnId = dryRun ? 'macrolot7-dryrun-btn' : 'macrolot7-execute-btn';
   const btn = document.getElementById(btnId);

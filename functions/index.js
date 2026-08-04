@@ -4734,4 +4734,76 @@ app.post("/api/admin/execute-macrolot7-reassignments", requireAuth, async (req, 
   }
 });
 
+// ===================== AUDIT FINAL 05/08/2026 — 4 corrections certaines =====================
+app.post("/api/admin/execute-audit-final-corrections", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 1 rattachement manquant (Critique) + 3 retraits redondants (Lithium)
+    const CORRECTIONS = [
+      { op: "addAlso", qid: "PHARM-MED-001559", tgt: "PARC-74295162",  note: "Critique — rattachement manquant Nausées/transit" },
+      { op: "remove",  qid: "PHARM-MED-001574", src: "PARC-2d6d79e4",  note: "Lithium +3 — gastro-entérite doublon PHARM-MED-001461" },
+      { op: "remove",  qid: "PHARM-MED-001575", src: "PARC-2d6d79e4",  note: "Lithium +3 — régime sans sel doublon bloc déshydratation" },
+      { op: "remove",  qid: "PHARM-MED-001710", src: "PARC-2d6d79e4",  note: "Lithium +3 — interaction thiazidique doublon PHARM-MED-001771" },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const updates = {};
+      const locations = [];
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, corrections: [], errors: [] };
+
+    for (const c of CORRECTIONS) {
+      const entry = { questionId: c.qid, op: c.op, note: c.note, status: "ok" };
+      if (c.op === "addAlso") {
+        entry.target = c.tgt;
+        await addToParcours(c.tgt, c.qid);
+      } else if (c.op === "remove") {
+        entry.source = c.src;
+        const rem = await removeFromParcours(c.src, c.qid);
+        entry.removeFrom = rem;
+        if (!rem.found) { entry.status = "warning"; entry.warning = rem.error; }
+      }
+      report.corrections.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-audit-final-corrections]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);
