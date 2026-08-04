@@ -1901,3 +1901,42 @@ async function executeLot1Reassignments(dryRun) {
   }
 }
 window.executeLot1Reassignments = executeLot1Reassignments;
+
+async function executeLot2Reassignments(dryRun) {
+  const btnId = dryRun ? 'lot2-dryrun-btn' : 'lot2-execute-btn';
+  const btn = document.getElementById(btnId);
+  const label = dryRun ? 'Dry-run Lot 2' : 'Exécuter Lot 2';
+  if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Analyse…' : 'Exécution…'; }
+  if (!dryRun && !confirm('Exécuter les 43 réaffectations + rattachement des 21 nouvelles questions ?\nCette action modifie Firestore. Continuer ?')) {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/execute-lot2-reassignments', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    const warnings = report.reassignments.filter(r => r.status === 'warning').length;
+    const errors = report.errors.length;
+    const newLinksOk = report.newLinks.filter(l => l.status === 'ok').length;
+    const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
+    alert(
+      mode + 'Rapport Lot 2\n\n' +
+      '✓ Réaffectations : ' + report.reassignments.length + ' (⚠ ' + warnings + ' absentes de la source)\n' +
+      '✓ Nouvelles questions rattachées : ' + newLinksOk + '/21\n' +
+      (errors > 0 ? '✗ Erreurs : ' + errors + ' (voir console)\n' : '') +
+      '\nDétail complet dans la console (F12).'
+    );
+    console.log('[Lot2-reassignments]', report);
+  } catch (err) {
+    console.error('[lot2-reassignments]', err);
+    alert('Erreur : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.executeLot2Reassignments = executeLot2Reassignments;

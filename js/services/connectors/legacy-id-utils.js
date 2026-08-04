@@ -75,6 +75,12 @@ export const BANK_TO_THEME = Object.freeze({
   LOT1_GI: 'medicaments',    // Reflux et risque digestif
   LOT1_NEURO: 'medicaments', // Parkinson et dopaminergiques
   LOT1_IATB: 'medicaments',  // Antibiotiques et interactions
+  // AJOUT (Lot 2 recomposition parcours, 04/08/2026) : nouvelles questions Gold Standard
+  // générées pour les 3 parcours du chantier de recomposition Lot 2 —
+  // traçables, distinctes des banques LOT1_* du lot précédent.
+  LOT2_DUREE: 'medicaments',   // Bon usage et sécurité — Durées, doses maximales et arrêts
+  LOT2_ALERTE: 'medicaments',  // Bon usage et sécurité — Signaux d'alerte : peau, foie, santé mentale
+  LOT2_KQT: 'medicaments',     // Système cardio-vasculaire — Potassium, QT et diurétiques
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
