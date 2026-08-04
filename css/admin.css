@@ -283,10 +283,10 @@ body {
   display: flex; gap: 16px; align-items: flex-start; margin-top: 4px;
 }
 .adm-split-list {
-  flex: 1; min-width: 300px; max-width: 580px;
+  flex: 1.1; min-width: 300px;
 }
 .adm-split-detail {
-  flex: 1.7; min-width: 380px;
+  flex: 0.9; min-width: 380px;
 }
 
 .adm-list-header {
@@ -325,7 +325,7 @@ body {
    FICHE DÉTAIL
    =================================================================== */
 .adm-detail-placeholder {
-  padding: 60px 20px; text-align: center; color: var(--text2);
+  padding: 24px 20px; text-align: center; color: var(--text2);
   font-size: var(--adm-font-md);
   background: var(--surface); border: 1.5px dashed var(--border2);
   border-radius: var(--radius-lg);
@@ -407,7 +407,7 @@ body {
 /* ===================================================================
    CARDS STAT (dashboard)
    =================================================================== */
-.adm-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: var(--adm-gap-lg); }
+.adm-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: var(--adm-gap-lg); }
 .adm-stat-card {
   background: var(--surface); border: 1.5px solid var(--border2);
   border-radius: var(--radius-lg); padding: 16px;
@@ -528,6 +528,42 @@ body {
 .adm-message-success { background: var(--adm-status-published-bg); border: 1px solid rgba(29,158,117,.3); color: var(--adm-status-published-color); }
 .adm-message-error   { background: var(--adm-status-error-bg); border: 1px solid rgba(226,75,74,.3); color: var(--adm-status-error-color); }
 .adm-message-warn    { background: var(--adm-status-flagged-bg); border: 1px solid rgba(251,146,60,.3); color: var(--adm-status-flagged-color); }
+
+/* ===================================================================
+   OVERRIDES STYLES.CSS — contexte admin uniquement
+   =================================================================== */
+
+/* La banque de questions utilise .bank-table/.bank-row (de styles.css).
+   On neutralise les contraintes de largeur héritées pour l'affichage admin
+   et on impose un style tabulaire pleine largeur. */
+.adm-content .bank-row-question { max-width: none; white-space: normal; }
+.adm-content .bank-list-column  { max-width: none; }
+
+.adm-content .bank-table {
+  width: 100%; border-collapse: collapse; table-layout: auto;
+  font-size: var(--adm-font-sm); background: var(--surface);
+  border: 1.5px solid var(--border2); border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.adm-content .bank-table th {
+  padding: 8px 12px; text-align: left;
+  font-size: var(--adm-font-xs); font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1.5px solid var(--border2); white-space: nowrap;
+  background: var(--surface2);
+}
+.adm-content .bank-table th:first-child { border-radius: var(--radius-lg) 0 0 0; }
+.adm-content .bank-table th:last-child  { border-radius: 0 var(--radius-lg) 0 0; }
+.adm-content .bank-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.adm-content .bank-table tr:last-child td { border-bottom: none; }
+.adm-content .bank-row { cursor: pointer; transition: background .12s; }
+.adm-content .bank-row:hover { background: rgba(255,255,255,.03); }
+.adm-content .bank-row-selected { background: rgba(29,158,117,.08) !important; }
+.adm-content .bank-row-id { font-family: monospace; font-size: 11px; color: var(--text2); white-space: nowrap; max-width: 120px; }
+.adm-content .bank-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 
 /* ===================================================================
    RESPONSIVE

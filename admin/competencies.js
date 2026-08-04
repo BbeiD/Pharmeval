@@ -190,6 +190,7 @@ function rowHtml(c) {
 function renderPagination() {
   const el = document.getElementById('competencies-pagination');
   if (!el) return;
+  if (state.page === 0 && !state.hasMore) { el.innerHTML = ''; return; }
   const isSearch = !!state.searchText.trim();
   const pageLabel = 'Page ' + (state.page + 1);
   el.innerHTML =

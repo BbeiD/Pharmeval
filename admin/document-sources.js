@@ -115,35 +115,40 @@ async function loadSources() {
     return;
   }
   emptyEl.style.display = 'none';
-  listEl.innerHTML = result.items.map(sourceRowHtml).join('');
+  listEl.innerHTML =
+    '<table class="adm-table">' +
+      '<thead><tr>' +
+        '<th>Source</th>' +
+        '<th>Type</th>' +
+        '<th>Statut</th>' +
+        '<th style="text-align:right;">Sections</th>' +
+        '<th style="text-align:right;">Questions</th>' +
+      '</tr></thead>' +
+      '<tbody>' + result.items.map(sourceRowHtml).join('') + '</tbody>' +
+    '</table>';
 }
 
-// AJOUT (refonte visuelle, phase 1, decision validee avec David) :
-// presentation "comme l'entrainement libre" - tuile a icone + nom
-// uniquement, la fiche complete (statut, type, compteurs...) n'apparait
-// plus qu'au clic, dans le panneau de detail en dessous (voir
-// sourceDetailHtml). Le badge de statut reste visible en surimpression
-// (coin superieur droit) - seule information conservee sur la tuile.
 function sourceRowHtml(s) {
   const badge = STATUS_BADGES[s.status] || STATUS_BADGES.draft;
-  const selectedCls = s.id === state.selectedSourceId ? ' source-tile-selected' : '';
+  const selectedCls = s.id === state.selectedSourceId ? ' adm-table-row-selected' : '';
   const iconKey = resolveSourceIconKey(s, KNOWN_ICON_KEYS);
-  // AJOUT (demande directe de David, 22/07/2026) : la tuile ne laissait
-  // jusqu'ici deviner "masquee de l'entrainement libre" qu'en ouvrant le
-  // panneau de detail (voir sourceDetailHtml ci-dessous) - une seconde
-  // pastille, en surimpression du coin OPPOSE au badge de statut, le
-  // rend visible directement dans le catalogue.
-  const hiddenBadge = s.hiddenFromFreeTraining
-    ? '<span class="source-tile-hidden-dot" aria-hidden="true">' + icon('admin-disable', { size: 12 }) + '</span>'
-    : '';
-  const title = badge.label + (s.hiddenFromFreeTraining ? ' · Masquée de l\'entraînement libre' : '');
+  const typeLabel = DOCUMENT_SOURCE_TYPE_LABELS[s.sourceType] || s.sourceType || '—';
   return (
-    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')" title="' + escapeHtml(title) + '">' +
-      '<span class="source-tile-status-dot" aria-hidden="true">' + icon(badge.iconKey, { size: 12 }) + '</span>' +
-      hiddenBadge +
-      '<span class="source-tile-emoji" aria-hidden="true">' + renderAnyIcon(iconKey, { size: 24 }) + '</span>' +
-      '<span class="source-tile-name">' + escapeHtml(s.name) + '</span>' +
-    '</button>'
+    '<tr class="adm-table-row' + selectedCls + '" onclick="selectSource(\'' + escapeHtml(s.id) + '\')">' +
+      '<td>' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span style="flex-shrink:0;color:var(--green);">' + renderAnyIcon(iconKey, { size: 18 }) + '</span>' +
+          '<div>' +
+            '<div style="font-weight:600;">' + escapeHtml(s.name) + '</div>' +
+            (s.hiddenFromFreeTraining ? '<div style="font-size:11px;color:var(--text2);margin-top:1px;">' + icon('admin-disable', { size: 11 }) + ' Masquée de l\'entraînement libre</div>' : '') +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td style="white-space:nowrap;">' + escapeHtml(typeLabel) + '</td>' +
+      '<td><span class="bank-badge ' + badge.cls + '">' + icon(badge.iconKey, { size: 12 }) + ' ' + badge.label + '</span></td>' +
+      '<td style="text-align:right;font-variant-numeric:tabular-nums;">' + (s.sectionCount != null ? s.sectionCount : '—') + '</td>' +
+      '<td style="text-align:right;font-variant-numeric:tabular-nums;">' + (s.questionCount != null ? s.questionCount : '—') + '</td>' +
+    '</tr>'
   );
 }
 

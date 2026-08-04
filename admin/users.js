@@ -19,7 +19,7 @@ import {
 import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher, promoteToManager, revokeManager } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
 import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
-import { icon, renderAnyIcon } from "../js/icons.js";
+import { icon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
 // desormais le SVG inline deja rendu (icon(...)), plus un caractere - les
@@ -148,27 +148,40 @@ function renderList() {
     return;
   }
   emptyEl.style.display = 'none';
-  listEl.innerHTML = state.items.map(userTileHtml).join('');
+  listEl.innerHTML =
+    '<table class="adm-table">' +
+      '<thead><tr>' +
+        '<th>Utilisateur</th>' +
+        '<th>Statut</th>' +
+        '<th>Organisation</th>' +
+        '<th>Profil</th>' +
+        '<th>Groupe(s)</th>' +
+        '<th>Dernière connexion</th>' +
+      '</tr></thead>' +
+      '<tbody>' + state.items.map(userTileHtml).join('') + '</tbody>' +
+    '</table>';
 }
-
-// CORRECTIF (demande directe de David, 23/07/2026) : tuile a icone (meme
-// composant que admin/document-sources.js, .source-tile) plutot que la
-// liste bank-row - n'affiche QUE l'e-mail et le statut (pastille de
-// couleur, coin superieur droit), jamais le nom/l'organisation/le profil
-// ici (la fiche complete reste accessible au clic, panneau de detail en
-// dessous).
-const USER_STATUS_DOT = { active: 'dot-green', suspended: 'dot-red', pending: 'dot-orange' };
 
 function userTileHtml(u) {
   const badge = STATUS_BADGES[u.status] || STATUS_BADGES.active;
-  const selectedCls = u.uid === state.selectedId ? ' source-tile-selected' : '';
-  const dotKey = USER_STATUS_DOT[u.status] || 'dot-white-grey';
+  const selected = u.uid === state.selectedId ? ' adm-table-row-selected' : '';
+  const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ') || '—';
+  const lastLogin = u.lastLogin ? formatDateFr(u.lastLogin) : '—';
+  const groups = u.groupLabels && u.groupLabels.length
+    ? u.groupLabels.slice(0, 2).map(escapeHtml).join(', ') + (u.groupLabels.length > 2 ? ' <span style="color:var(--text2);">+' + (u.groupLabels.length - 2) + '</span>' : '')
+    : '<span style="color:var(--text2);">—</span>';
   return (
-    '<button type="button" class="source-tile' + selectedCls + '" onclick="selectUser(\'' + escapeHtml(u.uid) + '\')" title="' + escapeHtml((u.email || '') + ' · ' + badge.label) + '">' +
-      '<span class="source-tile-status-dot" aria-hidden="true">' + renderAnyIcon(dotKey, { size: 12 }) + '</span>' +
-      '<span class="source-tile-emoji" aria-hidden="true">' + icon('nav-profile', { size: 24 }) + '</span>' +
-      '<span class="source-tile-name">' + escapeHtml(u.email || '(sans e-mail)') + '</span>' +
-    '</button>'
+    '<tr class="adm-table-row' + selected + '" onclick="selectUser(\'' + escapeHtml(u.uid) + '\')">' +
+      '<td>' +
+        '<div style="font-weight:600;font-size:13px;line-height:1.3;">' + escapeHtml(fullName) + '</div>' +
+        '<div style="font-size:11px;color:var(--text2);margin-top:1px;">' + escapeHtml(u.email || '—') + '</div>' +
+      '</td>' +
+      '<td><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></td>' +
+      '<td>' + escapeHtml(u.organizationLabel || '—') + '</td>' +
+      '<td>' + escapeHtml(u.profileLabel || '—') + '</td>' +
+      '<td>' + groups + '</td>' +
+      '<td style="white-space:nowrap;font-size:12px;">' + escapeHtml(lastLogin) + '</td>' +
+    '</tr>'
   );
 }
 
