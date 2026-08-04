@@ -22,7 +22,7 @@
 <div id="users-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="users-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>La gestion des utilisateurs est réservée aux administrateurs.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
@@ -32,21 +32,22 @@
 <div id="site-header-mount"></div>
 
 <div id="users-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2><i class="ti ti-users" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Utilisateurs</h2>
-      <div class="btn-row" style="margin:0;">
-        <a href="reference-banks.html" class="btn-secondary"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12V5h7l9 9-7 7-9-9z"/><circle cx="7.5" cy="8.5" r="1"/></svg> Organisations / Profils / Groupes</a>
-        <a href="dashboard.html" class="btn-secondary">← Administration</a>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-users" aria-hidden="true"></i> Utilisateurs</h1>
+      <div class="adm-page-actions">
+        <a href="reference-banks.html" class="btn-secondary">Organisations / Profils / Groupes</a>
+        <button class="btn-secondary" onclick="openBulkImportForm()">+ Import en masse (Excel)</button>
+        <button class="btn-primary" onclick="openInviteForm()">+ Pré-provisionner</button>
       </div>
     </div>
 
     <p class="admin-users-disclaimer">Ce module gère les données métier des utilisateurs (fiche, organisation, profil, groupes). La création ou la suppression d'un compte de connexion reste gérée exclusivement par Firebase Authentication — voir « + Pré-provisionner » ci-dessous pour préparer la fiche d'une personne avant sa première connexion.</p>
 
-    <div id="users-message" class="admin-message" style="display:none;"></div>
+    <div id="users-message" class="adm-message" style="display:none;"></div>
 
-    <div class="bank-toolbar">
-      <input type="text" id="users-search-input" class="admin-users-search-input bank-search-input"
+    <div class="adm-toolbar">
+      <input type="text" id="users-search-input" class="adm-search"
              placeholder="Rechercher (nom, prénom, e-mail, identifiant)…" oninput="onUsersSearchInput()">
       <select id="users-filter-status" class="bank-select" onchange="onUsersFilterChange()">
         <option value="">Statut : Tous</option>
@@ -63,8 +64,6 @@
       <select id="users-filter-group" class="bank-select" onchange="onUsersFilterChange()">
         <option value="">Groupe : Tous</option>
       </select>
-      <button class="btn-primary" onclick="openInviteForm()">+ Pré-provisionner</button>
-      <button class="btn-secondary" onclick="openBulkImportForm()">+ Import en masse (Excel)</button>
     </div>
 
     <div id="users-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
@@ -124,19 +123,8 @@
     <div id="users-list" class="source-tile-grid" style="margin-bottom:var(--space-3);"></div>
     <div id="users-pagination" class="bank-pagination" style="margin-bottom:var(--space-3);"></div>
 
-    <div id="users-detail-placeholder" class="bank-detail-placeholder">Sélectionnez un utilisateur dans la liste pour afficher sa fiche complète.</div>
+    <div id="users-detail-placeholder" class="adm-detail-placeholder">Sélectionnez un utilisateur dans la liste pour afficher sa fiche complète.</div>
     <div id="users-detail" class="bank-detail" style="display:none;"></div>
-  </div>
-</div>
-
-<div id="users-confirm-overlay" class="admin-modal-overlay" style="display:none;">
-  <div class="admin-modal admin-confirm-modal">
-    <h3>Confirmation</h3>
-    <p id="users-confirm-message"></p>
-    <div class="btn-row">
-      <button class="btn-secondary" onclick="cancelUserAction()">Annuler</button>
-      <button class="btn-primary" id="users-confirm-btn" onclick="confirmUserAction()">Confirmer</button>
-    </div>
   </div>
 </div>
 

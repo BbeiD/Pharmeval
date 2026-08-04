@@ -18,7 +18,7 @@ import {
 } from "../js/services/user-directory-service.js";
 import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher, promoteToManager, revokeManager } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
@@ -35,7 +35,6 @@ let state = {
   page: 0, items: [], hasMore: false, selectedId: null,
 };
 let refOptions = { organizations: [], profiles: [], groups: [] };
-let pendingAction = null;
 let bulkImportRows = [];
 
 function escapeHtml(str) {
@@ -52,7 +51,7 @@ function showMessage(status, message) {
   const el = document.getElementById('users-message');
   if (!el) return;
   if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = message;
   el.style.display = 'block';
 }
@@ -370,21 +369,15 @@ const ACTION_LABELS = {
   'promote-manager': 'attribuer le rôle responsable à cet utilisateur',
   'revoke-manager': 'retirer le rôle responsable de cet utilisateur',
 };
-export function requestUserAction(kind) {
+export async function requestUserAction(kind) {
   const uid = state.selectedId;
   if (!uid) return;
-  pendingAction = { kind: kind, uid: uid };
-  document.getElementById('users-confirm-message').textContent = 'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' ?';
-  document.getElementById('users-confirm-overlay').style.display = 'flex';
-}
-export function cancelUserAction() {
-  pendingAction = null;
-  document.getElementById('users-confirm-overlay').style.display = 'none';
-}
-export async function confirmUserAction() {
-  if (!pendingAction) return;
-  const { kind, uid } = pendingAction;
-  document.getElementById('users-confirm-overlay').style.display = 'none';
+  const confirmed = await showAdminConfirm({
+    title: 'Confirmation',
+    body: 'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' ?',
+    destructive: kind === 'revoke' || kind === 'revoke-teacher' || kind === 'revoke-manager',
+  });
+  if (!confirmed) return;
   const user = await getUserDetail(uid);
   let result;
   if (kind === 'deactivate') result = await deactivateUser(user);
@@ -396,7 +389,6 @@ export async function confirmUserAction() {
   else if (kind === 'promote-manager') result = await promoteToManager(user);
   else if (kind === 'revoke-manager') result = await revokeManager(user);
   else result = { status: 'error', message: 'Action inconnue.' };
-  pendingAction = null;
   showMessage(result.status, result.message);
   if (result.status === 'success') { await loadPage(); await selectUser(uid); }
 }
@@ -472,7 +464,7 @@ export async function analyzeBulkImportFile() {
   const input = document.getElementById('users-bulk-file-input');
   const previewEl = document.getElementById('users-bulk-preview');
   const file = input.files && input.files[0];
-  if (!file) { previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">Choisissez d\'abord un fichier Excel.</p>'; return; }
+  if (!file) { previewEl.innerHTML = '<p class="adm-message adm-message-error" style="display:block;">Choisissez d\'abord un fichier Excel.</p>'; return; }
 
   previewEl.innerHTML = '<div class="bank-list-loading">Analyse du fichier…</div>';
   const arrayBuffer = await file.arrayBuffer();
@@ -481,12 +473,12 @@ export async function analyzeBulkImportFile() {
     parsed = parseUserImportWorkbook(window.XLSX, arrayBuffer, refOptions);
   } catch (err) {
     console.error('[admin/users] échec de lecture du fichier d\'import', err);
-    previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">Fichier illisible - vérifiez qu\'il s\'agit bien d\'un .xlsx exporté depuis le modèle.</p>';
+    previewEl.innerHTML = '<p class="adm-message adm-message-error" style="display:block;">Fichier illisible - vérifiez qu\'il s\'agit bien d\'un .xlsx exporté depuis le modèle.</p>';
     bulkImportRows = [];
     return;
   }
   if (parsed.headerError) {
-    previewEl.innerHTML = '<p class="admin-message admin-message-error" style="display:block;">' + escapeHtml(parsed.headerError) + '</p>';
+    previewEl.innerHTML = '<p class="adm-message adm-message-error" style="display:block;">' + escapeHtml(parsed.headerError) + '</p>';
     bulkImportRows = [];
     return;
   }
@@ -521,7 +513,7 @@ export async function confirmBulkImportClick() {
   const successes = results.filter(function(r) { return r.status === 'success'; });
   const failures = results.filter(function(r) { return r.status !== 'success'; });
 
-  let html = '<p class="admin-message admin-message-' + (failures.length ? 'error' : 'success') + '" style="display:block;">' +
+  let html = '<p class="adm-message adm-message-' + (failures.length ? 'error' : 'success') + '" style="display:block;">' +
     successes.length + ' fiche(s) pré-provisionnée(s) avec succès' + (failures.length ? ', ' + failures.length + ' échec(s) ci-dessous.' : '.') + '</p>';
   if (failures.length) {
     html += '<ul>' + failures.map(function(f) { return '<li>' + escapeHtml(f.email) + ' : ' + escapeHtml(f.message) + '</li>'; }).join('') + '</ul>';
@@ -541,8 +533,6 @@ window.goToUsersPage = goToUsersPage;
 window.selectUser = selectUser;
 window.saveUserEdit = saveUserEdit;
 window.requestUserAction = requestUserAction;
-window.cancelUserAction = cancelUserAction;
-window.confirmUserAction = confirmUserAction;
 window.openInviteForm = openInviteForm;
 window.closeInviteForm = closeInviteForm;
 window.submitInvite = submitInvite;

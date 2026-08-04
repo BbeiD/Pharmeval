@@ -18,7 +18,7 @@
 <div id="refbanks-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="refbanks-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>La gestion des données de référence est réservée aux administrateurs.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
@@ -28,12 +28,12 @@
 <div id="site-header-mount"></div>
 
 <div id="refbanks-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2 id="refbanks-title"><i class="ti ti-building" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Données de référence</h2>
-      <div class="btn-row" style="margin:0;">
-        <a href="users.html" class="btn-secondary"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c.8-4 3.2-6 6-6s5.2 2 6 6"/><path d="M14 15c3 0 5 1.5 6 5"/></svg> Utilisateurs</a>
-        <a href="dashboard.html" class="btn-secondary">← Administration</a>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title" id="refbanks-title"><i class="ti ti-building" aria-hidden="true"></i> Données de référence</h1>
+      <div class="adm-page-actions">
+        <a href="users.html" class="btn-secondary">Utilisateurs</a>
+        <button class="btn-primary" onclick="openCreateForm()">+ Nouveau</button>
       </div>
     </div>
 
@@ -44,10 +44,10 @@
       <button class="btn-secondary" id="refbanks-tab-groups" onclick="switchBank('groups')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c.8-4 3.2-6 6-6s5.2 2 6 6"/><path d="M14 15c3 0 5 1.5 6 5"/></svg> Groupes</button>
     </div>
 
-    <div id="refbanks-message" class="admin-message" style="display:none;"></div>
+    <div id="refbanks-message" class="adm-message" style="display:none;"></div>
 
-    <div class="bank-toolbar">
-      <input type="text" id="refbanks-search-input" class="admin-users-search-input bank-search-input"
+    <div class="adm-toolbar">
+      <input type="text" id="refbanks-search-input" class="adm-search"
              placeholder="Rechercher (nom, description)…" oninput="onSearchInput()">
       <select id="refbanks-filter-status" class="bank-select" onchange="onFilterChange()">
         <option value="">Statut : Tous</option>
@@ -62,7 +62,6 @@
         <option value="name">Nom</option>
       </select>
       <button class="btn-secondary bank-sort-dir-btn" id="refbanks-sort-dir-btn" onclick="toggleSortDirection()" title="Inverser l'ordre"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="12" y1="4" x2="12" y2="19"/><polyline points="6,13 12,19 18,13"/></svg></button>
-      <button class="btn-primary" onclick="openCreateForm()">+ Nouveau</button>
     </div>
 
     <div id="refbanks-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
@@ -81,27 +80,16 @@
       </div>
     </div>
 
-    <div class="bank-columns">
-      <div class="bank-list-column">
+    <div class="adm-split">
+      <div class="adm-split-list">
         <div id="refbanks-list-empty" class="bank-list-empty" style="display:none;"></div>
         <div id="refbanks-list" class="bank-list"></div>
         <div id="refbanks-pagination" class="bank-pagination"></div>
       </div>
-      <div class="bank-detail-column">
-        <div id="refbanks-detail-placeholder" class="bank-detail-placeholder">Sélectionnez un élément dans la liste pour afficher sa fiche complète.</div>
+      <div class="adm-split-detail">
+        <div id="refbanks-detail-placeholder" class="adm-detail-placeholder">Sélectionnez un élément dans la liste pour afficher sa fiche complète.</div>
         <div id="refbanks-detail" class="bank-detail" style="display:none;"></div>
       </div>
-    </div>
-  </div>
-</div>
-
-<div id="refbanks-confirm-overlay" class="admin-modal-overlay" style="display:none;">
-  <div class="admin-modal admin-confirm-modal">
-    <h3>Confirmation</h3>
-    <p id="refbanks-confirm-message"></p>
-    <div class="btn-row">
-      <button class="btn-secondary" onclick="cancelAction()">Annuler</button>
-      <button class="btn-primary" onclick="confirmAction()">Confirmer</button>
     </div>
   </div>
 </div>

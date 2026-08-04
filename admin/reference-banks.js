@@ -14,7 +14,7 @@ import { formatDateFr } from "../js/services/date-utils.js";
 import { organizationsBank, ORGANIZATION_TYPE_OPTIONS } from "../js/services/organizations-bank-service.js";
 import { profilesBank, SUGGESTED_PROFILE_NAMES } from "../js/services/profiles-bank-service.js";
 import { groupsBank, SUGGESTED_GROUP_NAMES } from "../js/services/groups-bank-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
@@ -49,7 +49,6 @@ let state = {
   page: 0, cursorStack: [null], cursorIndex: 0,
   items: [], hasMore: false, selectedId: null,
 };
-let pendingAction = null;
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -63,7 +62,7 @@ function showMessage(status, message) {
   const el = document.getElementById('refbanks-message');
   if (!el) return;
   if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = message;
   el.style.display = 'block';
 }
@@ -376,21 +375,16 @@ const ACTION_LABELS = {
   trash: 'mettre cet élément à la corbeille', restore: 'restaurer cet élément depuis la corbeille',
   purge: 'supprimer DÉFINITIVEMENT cet élément (irréversible)',
 };
-export function requestAction(kind) {
+export async function requestAction(kind) {
   const item = state.items.find(function(i) { return i.id === state.selectedId; });
   if (!item) return;
-  pendingAction = { kind: kind, item: item };
-  document.getElementById('refbanks-confirm-message').textContent = 'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' « ' + item.name + ' » ?';
-  document.getElementById('refbanks-confirm-overlay').style.display = 'flex';
-}
-export function cancelAction() {
-  pendingAction = null;
-  document.getElementById('refbanks-confirm-overlay').style.display = 'none';
-}
-export async function confirmAction() {
-  if (!pendingAction) return;
-  const { kind, item } = pendingAction;
-  document.getElementById('refbanks-confirm-overlay').style.display = 'none';
+  const confirmed = await showAdminConfirm({
+    title: 'Confirmation',
+    body: 'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' « ' + item.name + ' » ?',
+    destructive: kind === 'purge',
+    confirmLabel: kind === 'purge' ? 'Supprimer définitivement' : 'Confirmer',
+  });
+  if (!confirmed) return;
   const svc = currentService();
   let result;
   if (kind === 'publish') result = await svc.publish(item);
@@ -400,7 +394,6 @@ export async function confirmAction() {
   else if (kind === 'restore') result = await svc.restoreFromTrash(item);
   else if (kind === 'purge') result = await svc.permanentlyDelete(item);
   else result = { status: 'error', message: 'Action inconnue.' };
-  pendingAction = null;
   showMessage(result.status, result.message);
   if (result.status === 'success') await loadPage();
 }
@@ -421,5 +414,3 @@ window.submitCreate = submitCreate;
 window.selectItem = selectItem;
 window.saveEdit = saveEdit;
 window.requestAction = requestAction;
-window.cancelAction = cancelAction;
-window.confirmAction = confirmAction;
