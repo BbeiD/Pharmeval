@@ -69,6 +69,12 @@ export const BANK_TO_THEME = Object.freeze({
   PARC_BPP: 'bppo',
   PARC_DEO: 'deon',
   PARC_FTM: 'ftm',
+  // AJOUT (Lot 1 recomposition parcours, 04/08/2026) : nouvelles questions Gold Standard
+  // générées pour les 3 parcours pilotes du chantier de recomposition —
+  // tracables, distinctes des banques PARC_* generiques du chantier precedent.
+  LOT1_GI: 'medicaments',    // Reflux et risque digestif
+  LOT1_NEURO: 'medicaments', // Parkinson et dopaminergiques
+  LOT1_IATB: 'medicaments',  // Antibiotiques et interactions
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
