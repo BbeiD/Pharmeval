@@ -18,7 +18,7 @@
 <div id="parcours-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="parcours-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>La gestion des parcours est réservée aux administrateurs.</p>
     <div class="btn-row">
@@ -27,22 +27,22 @@
   </div>
 </div>
 
-<!-- Reutilise le meme style que la Banque de questions (Sprint 11) :
-     memes classes CSS (.bank-*), meme disposition deux colonnes. -->
 <div id="site-header-mount"></div>
 
 <div id="parcours-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2><span class="page-header-icon page-header-icon-blue"><i class="ti ti-route" aria-hidden="true"></i></span> Parcours</h2>
-      <a href="dashboard.html" class="btn-secondary">← Administration</a>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-route" aria-hidden="true"></i> Parcours</h1>
+      <div class="adm-page-actions">
+        <button class="btn-primary" onclick="openCreateParcoursForm()">+ Nouveau parcours</button>
+      </div>
     </div>
 
-    <div id="parcours-message" class="admin-message" style="display:none;"></div>
+    <div id="parcours-message" class="adm-message" style="display:none;"></div>
 
-    <!-- BARRE D'OUTILS : recherche, filtres, tri, creation -->
-    <div class="bank-toolbar">
-      <input type="text" id="parcours-search-input" class="admin-users-search-input bank-search-input"
+    <!-- BARRE D'OUTILS : recherche, filtres, tri -->
+    <div class="adm-toolbar">
+      <input type="text" id="parcours-search-input" class="adm-search"
              placeholder="Rechercher (nom, description, public cible, compétence)…"
              oninput="onParcoursSearchInput()">
 
@@ -69,7 +69,6 @@
       </select>
 
       <button class="btn-secondary bank-sort-dir-btn" id="parcours-sort-dir-btn" onclick="toggleParcoursSortDirection()" title="Inverser l'ordre"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="12" y1="4" x2="12" y2="19"/><polyline points="6,13 12,19 18,13"/></svg></button>
-      <button class="btn-primary" onclick="openCreateParcoursForm()">+ Nouveau parcours</button>
     </div>
 
     <div id="parcours-search-disclaimer" class="admin-users-disclaimer" style="display:none;"></div>
@@ -95,10 +94,10 @@
     </div>
 
     <!-- DEUX COLONNES -->
-    <div class="bank-columns">
+    <div class="adm-split">
 
       <!-- COLONNE GAUCHE : liste -->
-      <div class="bank-list-column">
+      <div class="adm-split-list">
         <!-- AJOUT (selection multiple, demande directe de David, 28/07/2026) :
              "Tout sélectionner" toujours visible, barre d'actions groupees
              affichee uniquement si au moins un parcours est coche (voir
@@ -113,8 +112,8 @@
       </div>
 
       <!-- COLONNE DROITE : fiche détaillée -->
-      <div class="bank-detail-column">
-        <div id="parcours-detail-placeholder" class="bank-detail-placeholder">
+      <div class="adm-split-detail">
+        <div id="parcours-detail-placeholder" class="adm-detail-placeholder">
           Sélectionnez un parcours dans la liste pour afficher sa fiche complète.
         </div>
         <div id="parcours-detail" class="bank-detail" style="display:none;"></div>

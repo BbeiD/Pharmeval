@@ -48,7 +48,7 @@ import {
   listParcoursAssignments, createAssignment, removeAssignment, searchAssignmentTargets,
 } from "../js/services/assignment-service.js";
 import { fetchAllUsersBounded } from "../js/services/user-management-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
@@ -1597,17 +1597,36 @@ const ACTION_LABELS = {
   trash: 'mettre à la corbeille', restore: 'restaurer depuis la corbeille', purge: 'supprimer définitivement',
 };
 
-export function requestParcoursAction(kind) {
+export async function requestParcoursAction(kind) {
   const p = state.items.find(function(item) { return item.id === state.selectedId; });
   if (!p) return;
-  pendingAction = { kind: kind, parcours: p };
   const verb = ACTION_LABELS[kind] || kind;
   let extra = '';
   if (kind === 'purge') extra = ' Cette action est définitive et ne peut pas être annulée.';
   else if (kind === 'trash') extra = ' Ce parcours pourra être restauré depuis la corbeille, ou supprimé définitivement plus tard.';
-  document.getElementById('parcours-confirm-message').textContent = 'Voulez-vous vraiment ' + verb + ' le parcours « ' + p.name + ' » ?' + extra;
-  showFeaturedDatesFields(false);
-  document.getElementById('parcours-confirm-overlay').style.display = 'flex';
+  const confirmed = await showAdminConfirm({
+    title: 'Confirmation',
+    body: 'Voulez-vous vraiment ' + verb + ' le parcours « ' + p.name + ' » ?' + extra,
+    destructive: kind === 'purge',
+    confirmLabel: kind === 'purge' ? 'Supprimer définitivement' : 'Confirmer',
+  });
+  if (!confirmed) return;
+  let result;
+  if (kind === 'publish') result = await publishParcours(p);
+  else if (kind === 'archive') result = await archiveParcours(p);
+  else if (kind === 'draft') result = await revertParcoursToDraft(p);
+  else if (kind === 'trash') result = await moveParcoursToTrash(p);
+  else if (kind === 'restore') result = await restoreParcoursFromTrash(p);
+  else if (kind === 'purge') result = await permanentlyDeleteParcours(p);
+  showParcoursMessage(result.status, result.message);
+  if (result.status === 'success') {
+    if (kind === 'purge') {
+      state.selectedId = null;
+      document.getElementById('parcours-detail').style.display = 'none';
+      document.getElementById('parcours-detail-placeholder').style.display = 'block';
+    }
+    await loadPage();
+  }
 }
 
 export function cancelParcoursAction() {
@@ -1730,23 +1749,6 @@ export async function confirmParcoursAction() {
     return;
   }
 
-  let result;
-  if (action.kind === 'publish') result = await publishParcours(action.parcours);
-  else if (action.kind === 'archive') result = await archiveParcours(action.parcours);
-  else if (action.kind === 'draft') result = await revertParcoursToDraft(action.parcours);
-  else if (action.kind === 'trash') result = await moveParcoursToTrash(action.parcours);
-  else if (action.kind === 'restore') result = await restoreParcoursFromTrash(action.parcours);
-  else if (action.kind === 'purge') result = await permanentlyDeleteParcours(action.parcours);
-
-  showParcoursMessage(result.status, result.message);
-  if (result.status === 'success') {
-    if (action.kind === 'purge') {
-      state.selectedId = null;
-      document.getElementById('parcours-detail').style.display = 'none';
-      document.getElementById('parcours-detail-placeholder').style.display = 'block';
-    }
-    await loadPage();
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1756,7 +1758,7 @@ export async function confirmParcoursAction() {
 function showParcoursMessage(status, text) {
   const el = document.getElementById('parcours-message');
   if (!el) return;
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = text;
   el.style.display = 'block';
 }
