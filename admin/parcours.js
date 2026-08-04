@@ -1863,18 +1863,18 @@ async function downloadParcoursAuditCSV() {
 }
 window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
 
-async function executeLot3Reassignments(dryRun) {
-  const btnId = dryRun ? 'lot3-dryrun-btn' : 'lot3-execute-btn';
+async function executeLot4Reassignments(dryRun) {
+  const btnId = dryRun ? 'lot4-dryrun-btn' : 'lot4-execute-btn';
   const btn = document.getElementById(btnId);
-  const label = dryRun ? 'Dry-run Lot 3' : 'Exécuter Lot 3';
+  const label = dryRun ? 'Dry-run Lot 4' : 'Exécuter Lot 4';
   if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Analyse…' : 'Exécution…'; }
-  if (!dryRun && !confirm('Exécuter les 28 réaffectations + rattachement des 10 nouvelles questions ?\nCette action modifie Firestore. Continuer ?')) {
+  if (!dryRun && !confirm('Exécuter les 28 réaffectations + rattachement des 11 nouvelles questions ?\nCette action modifie Firestore. Continuer ?')) {
     if (btn) { btn.disabled = false; btn.textContent = label; }
     return;
   }
   try {
     const token = await auth.currentUser.getIdToken();
-    const res = await fetch(API_BASE_URL + '/api/admin/execute-lot3-reassignments', {
+    const res = await fetch(API_BASE_URL + '/api/admin/execute-lot4-reassignments', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ dryRun }),
@@ -1886,18 +1886,18 @@ async function executeLot3Reassignments(dryRun) {
     const newLinksOk = report.newLinks.filter(l => l.status === 'ok').length;
     const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
     alert(
-      mode + 'Rapport Lot 3\n\n' +
+      mode + 'Rapport Lot 4\n\n' +
       '✓ Réaffectations : ' + report.reassignments.length + ' (⚠ ' + warnings + ' absentes de la source)\n' +
-      '✓ Nouvelles questions rattachées : ' + newLinksOk + '/10\n' +
+      '✓ Nouvelles questions rattachées : ' + newLinksOk + '/11\n' +
       (errors > 0 ? '✗ Erreurs : ' + errors + ' (voir console)\n' : '') +
       '\nDétail complet dans la console (F12).'
     );
-    console.log('[Lot3-reassignments]', report);
+    console.log('[Lot4-reassignments]', report);
   } catch (err) {
-    console.error('[lot3-reassignments]', err);
+    console.error('[lot4-reassignments]', err);
     alert('Erreur : ' + (err.message || 'inconnue'));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = label; }
   }
 }
-window.executeLot3Reassignments = executeLot3Reassignments;
+window.executeLot4Reassignments = executeLot4Reassignments;

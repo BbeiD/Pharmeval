@@ -87,6 +87,10 @@ export const BANK_TO_THEME = Object.freeze({
   LOT3_AGE_RISK: 'medicaments', // Patient âgé — Rein, potassium et prescriptions à risque
   LOT3_HTA: 'medicaments',      // Système cardio-vasculaire — Hypertension : traitements à surveiller
   LOT3_RENAL: 'medicaments',    // Patient âgé — Adapter les doses à la fonction rénale
+  // AJOUT (Lot 4 recomposition parcours, 05/08/2026)
+  LOT4_LITH: 'medicaments',  // Système nerveux — Lithium et antipsychotiques
+  LOT4_HEAT: 'medicaments',  // Bon usage et sécurité — Chaleur et médicaments
+  LOT4_NAT: 'medicaments',   // Bon usage et sécurité — Compléments naturels
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
