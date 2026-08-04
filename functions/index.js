@@ -4395,4 +4395,104 @@ app.post("/api/admin/execute-lot4-reassignments", requireAuth, async (req, res) 
   }
 });
 
+// ─── Lot 5 : recomposition de 3 parcours (RESP / PSY / AGE-FALL) ─────────────
+app.post("/api/admin/execute-lot5-reassignments", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 9 réaffectations depuis Pharmeval_Lot5_recomposition_3_parcours.xlsx (feuille Réaffectations)
+    const REASSIGNMENTS = [
+      // ─── Depuis AGE-FALL (PARC-1c2fbf22) — 3 questions retirées ─────────────
+      { qid: "PHARM-MED-001609", src: "PARC-1c2fbf22", tgt: "PARC-518cf48c", op: "move" },
+      { qid: "PHARM-MED-001610", src: "PARC-1c2fbf22", tgt: "PARC-f4d2be14", op: "move" },
+      { qid: "PHARM-MED-001612", src: "PARC-1c2fbf22", tgt: "PARC-7e183e7c", op: "move" },
+      // ─── Depuis PSY (PARC-5d51e294) — 3 questions retirées ───────────────────
+      { qid: "PHARM-MED-001724", src: "PARC-5d51e294", tgt: "PARC-cb994abd", op: "move" },
+      { qid: "PHARM-MED-001732", src: "PARC-5d51e294", tgt: "PARC-218ef505", op: "move" },
+      { qid: "PHARM-MED-001736", src: "PARC-5d51e294", tgt: "PARC-f64bdabf", op: "move" },
+      // ─── Depuis RESP (PARC-5aa8f0d6) — 3 questions retirées ──────────────────
+      { qid: "PHARM-CON-000208", src: "PARC-5aa8f0d6", tgt: "PARC-0da80efd", op: "move" },
+      { qid: "PHARM-CON-000213", src: "PARC-5aa8f0d6", tgt: "PARC-47e2d2dc", op: "move" },
+      { qid: "PHARM-CON-000218", src: "PARC-5aa8f0d6", tgt: "PARC-47e2d2dc", op: "move" },
+    ];
+
+    // 7 nouvelles questions (à lier après import catalog-sync Lot 5)
+    const NEW_LINKS = [
+      { eid: "LEGACY-LOT5_RESP-resp-001",      tgt: "PARC-5aa8f0d6" },
+      { eid: "LEGACY-LOT5_RESP-resp-002",      tgt: "PARC-5aa8f0d6" },
+      { eid: "LEGACY-LOT5_RESP-resp-003",      tgt: "PARC-5aa8f0d6" },
+      { eid: "LEGACY-LOT5_PSY-psycho-001",     tgt: "PARC-5d51e294" },
+      { eid: "LEGACY-LOT5_PSY-psycho-002",     tgt: "PARC-5d51e294" },
+      { eid: "LEGACY-LOT5_AGE_FALL-chutes-001", tgt: "PARC-1c2fbf22" },
+      { eid: "LEGACY-LOT5_AGE_FALL-chutes-002", tgt: "PARC-1c2fbf22" },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const locations = [];
+      const updates = {};
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, reassignments: [], newLinks: [], errors: [] };
+
+    for (const r of REASSIGNMENTS) {
+      const entry = { questionId: r.qid, from: r.src, to: r.tgt, op: r.op, status: "ok" };
+      const rem = await removeFromParcours(r.src, r.qid);
+      entry.removeFrom = rem;
+      if (!rem.found) { entry.status = "warning"; entry.warning = "Question absente du parcours source."; }
+      await addToParcours(r.tgt, r.qid);
+      report.reassignments.push(entry);
+    }
+
+    for (const link of NEW_LINKS) {
+      const entry = { editorialId: link.eid, targetParcours: link.tgt, status: "ok" };
+      const qSnap = await db.collection("questions")
+        .where("externalIds.editorialCatalog", "==", link.eid).limit(1).get();
+      if (qSnap.empty) {
+        entry.status = "error"; entry.error = "Question introuvable par ID éditorial";
+        report.errors.push(entry);
+      } else {
+        entry.questionId = qSnap.docs[0].id;
+        await addToParcours(link.tgt, entry.questionId);
+      }
+      report.newLinks.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-lot5-reassignments]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);

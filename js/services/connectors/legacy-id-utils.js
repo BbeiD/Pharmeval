@@ -91,6 +91,10 @@ export const BANK_TO_THEME = Object.freeze({
   LOT4_LITH: 'medicaments',  // Système nerveux — Lithium et antipsychotiques
   LOT4_HEAT: 'medicaments',  // Bon usage et sécurité — Chaleur et médicaments
   LOT4_NAT: 'medicaments',   // Bon usage et sécurité — Compléments naturels
+  // AJOUT (Lot 5 recomposition parcours, 05/08/2026)
+  LOT5_RESP: 'medicaments',     // Système respiratoire — Prévention respiratoire
+  LOT5_PSY: 'medicaments',      // Système nerveux — Psychotropes : sédation et syndrome sérotoninergique
+  LOT5_AGE_FALL: 'medicaments', // Patient âgé — Sédation, chutes et charge anticholinergique
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
