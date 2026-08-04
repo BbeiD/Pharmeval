@@ -25,7 +25,7 @@
 <!-- ACCES REFUSE : meme principe que admin/import.html - reserve a
      MANAGE_QUESTIONS, aucune nouvelle permission creee. -->
 <div id="cs-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p id="cs-denied-message">La synchronisation du catalogue éditorial est réservée aux administrateurs.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'administration</a></div>
@@ -35,10 +35,9 @@
 <div id="site-header-mount"></div>
 
 <div id="cs-view" style="display:none;">
-  <div class="import-page cs-page">
-    <div class="import-header">
-      <h2><i class="ti ti-refresh" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Synchronisation du catalogue éditorial</h2>
-      <a href="dashboard.html" class="btn-secondary">← Administration</a>
+  <div class="adm-content cs-page">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-refresh" aria-hidden="true"></i> Synchronisation du catalogue éditorial</h1>
     </div>
     <p class="import-intro">
       Le catalogue éditorial est la <strong>source de référence</strong> des questions Pharmeval.
@@ -47,7 +46,7 @@
       qu'après une <strong>confirmation explicite</strong> de votre part.
     </p>
 
-    <div class="admin-message admin-message-denied" id="cs-demo-banner" style="display:none;">
+    <div class="adm-message adm-message-denied" id="cs-demo-banner" style="display:none;">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polygon points="12,3 22,20 2,20"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="0.7"/></svg> <strong>Mode démonstration :</strong> cette page utilise pour l'instant un backend Firestore <strong>simulé</strong> (même moteur, mêmes règles de dédoublonnage, mais aucune écriture réelle dans Pharmeval).
     </div>
 

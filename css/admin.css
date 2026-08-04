@@ -188,6 +188,12 @@ body {
   padding: var(--adm-gap-lg);
   flex: 1;
 }
+/* Le wrapper injecté par _ensureLayout ET la div page-spécifique portent
+   tous deux .adm-content — évite le double-padding (24px × 2). */
+.adm-content .adm-content {
+  padding: 0;
+  flex: unset;
+}
 .adm-content .bank-page {
   max-width: none;
   padding: 0;
