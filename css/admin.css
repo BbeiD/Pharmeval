@@ -440,6 +440,18 @@ body {
 /* Actions rapides */
 .adm-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* Grille modules dashboard */
+.dash-module-card {
+  display: flex; align-items: center; gap: 12px; padding: 14px;
+  background: var(--surface); border: 1.5px solid var(--border2);
+  border-radius: var(--radius-lg); text-decoration: none; color: inherit;
+  transition: border-color .12s, background .12s;
+}
+.dash-module-card:hover { border-color: var(--green); background: var(--surface2); }
+.dash-module-card > i { font-size: 22px; color: var(--green); flex-shrink: 0; }
+.dash-module-label { font-size: 13px; font-weight: 700; }
+.dash-module-desc  { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
 /* ===================================================================
    TOAST
    =================================================================== */
