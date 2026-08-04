@@ -3754,4 +3754,77 @@ app.get("/api/admin/stats", requireAuth, async (req, res) => {
   }
 });
 
+// OUTIL ADMIN — export CSV d'audit parcours/questions
+// Pour chaque parcours, liste les questions liees (via competences ou
+// directement) avec domaine/theme/sous-theme/difficulte.
+// Permet de reperer les questions hors-theme dans un parcours.
+app.get("/api/admin/export-parcours-questions", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const db = admin.firestore();
+
+    // 1. Tous les parcours (Admin SDK contourne les règles Firestore)
+    const parcoursSnap = await db.collection("parcours").orderBy("name").get();
+
+    // 2. Lignes à générer + ensemble des questionIds à résoudre
+    const rows = [];
+    const questionIdSet = new Set();
+    parcoursSnap.forEach((doc) => {
+      const p = doc.data();
+      const pid = doc.id;
+      const pName = p.name || "";
+      const pStatus = p.status || "";
+      (p.competencies || []).forEach((comp) => {
+        const compName = comp.name || "";
+        (comp.questionIds || []).forEach((qid) => {
+          rows.push({ pid, pName, pStatus, compName, qid });
+          questionIdSet.add(qid);
+        });
+      });
+      (p.directQuestionIds || []).forEach((qid) => {
+        rows.push({ pid, pName, pStatus, compName: "(directe)", qid });
+        questionIdSet.add(qid);
+      });
+    });
+
+    // 3. Batch-fetch questions (blocs de 500 — limite Admin SDK getAll)
+    const questionIds = Array.from(questionIdSet);
+    const questionsMap = {};
+    for (let i = 0; i < questionIds.length; i += 500) {
+      const chunk = questionIds.slice(i, i + 500);
+      const refs = chunk.map((qid) => db.collection("questions").doc(qid));
+      const snaps = await db.getAll(...refs);
+      snaps.forEach((snap) => {
+        if (snap.exists) questionsMap[snap.id] = snap.data();
+      });
+    }
+
+    // 4. CSV avec BOM UTF-8 (ouverture directe dans Excel)
+    function esc(v) {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+    const header = ["parcours_id","parcours_nom","parcours_statut","competence","question_id","domaine","theme","sous_theme","difficulte","question_texte","question_statut"];
+    const csvRows = [header.map(esc).join(",")];
+    for (const row of rows) {
+      const q = questionsMap[row.qid] || {};
+      csvRows.push([
+        row.pid, row.pName, row.pStatus, row.compName, row.qid,
+        q.domain || "", q.theme || "", q.subtheme || "", q.difficulty || "",
+        q.question || "", q.status || "",
+      ].map(esc).join(","));
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="parcours-questions-audit.csv"');
+    res.send("﻿" + csvRows.join("\r\n"));
+  } catch (err) {
+    console.error("[export-parcours-questions]", err && err.code, err);
+    res.status(500).send("Erreur serveur");
+  }
+});
+
 exports.api = onRequest(app);

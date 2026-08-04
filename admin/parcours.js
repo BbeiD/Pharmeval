@@ -50,6 +50,7 @@ import {
 import { fetchAllUsersBounded } from "../js/services/user-management-service.js";
 import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
+import { API_BASE_URL } from "../js/config.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
 
@@ -1834,3 +1835,30 @@ window.toggleBulkAssignSelectAllUsers = toggleBulkAssignSelectAllUsers;
 window.onBulkAssignUserFilterInput = onBulkAssignUserFilterInput;
 window.closeBulkAssignUsersPanel = closeBulkAssignUsersPanel;
 window.confirmBulkAssignUsersPanel = confirmBulkAssignUsersPanel;
+
+async function downloadParcoursAuditCSV() {
+  const btn = document.getElementById('parcours-export-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Export en cours…'; }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/export-parcours-questions', {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'parcours-questions-audit.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('[export-parcours-audit]', err);
+    alert('Erreur lors de l\'export : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Exporter CSV'; }
+  }
+}
+window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
