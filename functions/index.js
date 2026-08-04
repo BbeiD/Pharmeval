@@ -3898,33 +3898,37 @@ app.post("/api/admin/execute-lot1-reassignments", requireAuth, async (req, res) 
       { eid: "LEGACY-LOT1_IATB-atbint-005", tgt: "PARC-3f777035" },
     ];
 
-    // Helper: retire une question d'un parcours (directQuestionIds ou competencies[].questionIds)
+    // Helper: retire une question de TOUS les emplacements d'un parcours
+    // (directQuestionIds ET competencies[].questionIds — une question peut être aux deux endroits)
     async function removeFromParcours(parcoursId, questionId) {
       const ref = db.collection("parcours").doc(parcoursId);
       const snap = await ref.get();
       if (!snap.exists) return { found: false, error: "parcours introuvable" };
       const data = snap.data();
+      const locations = [];
+      const updates = {};
+
+      // 1. directQuestionIds
       if ((data.directQuestionIds || []).includes(questionId)) {
-        if (!dryRun) await ref.update({ directQuestionIds: admin.firestore.FieldValue.arrayRemove(questionId) });
-        return { found: true, location: "directQuestionIds" };
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
       }
+
+      // 2. competencies[].questionIds (toutes les compétences concernées)
       const comps = data.competencies || [];
-      let foundComp = null;
-      for (const c of comps) {
-        if ((c.questionIds || []).includes(questionId)) { foundComp = c.name || "(sans nom)"; break; }
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
       }
-      if (foundComp !== null) {
-        if (!dryRun) {
-          const updated = comps.map(c =>
-            (c.questionIds || []).includes(questionId)
-              ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
-              : c
-          );
-          await ref.update({ competencies: updated });
-        }
-        return { found: true, location: `competencies["${foundComp}"]` };
-      }
-      return { found: false, error: "question non trouvée dans ce parcours" };
+
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
     }
 
     // Helper: ajoute une question dans directQuestionIds d'un parcours
