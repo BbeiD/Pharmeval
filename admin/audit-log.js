@@ -27,7 +27,7 @@ import { getRecentQuestionAuditLogs } from "../js/services/question-audit-servic
 import { getRecentParcoursAuditLogs } from "../js/services/parcours-audit-service.js";
 import { getRecentCompetencyAuditLogs } from "../js/services/competency-audit-service.js";
 import { getRecentReferenceBankAuditEntries } from "../js/services/reference-bank-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 
 const READ_LIMIT = 200;
@@ -259,7 +259,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('audit');
 
   renderTabs();
   await loadTab('users');

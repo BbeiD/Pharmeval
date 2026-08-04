@@ -95,7 +95,7 @@ export function createAuthGateController(deps) {
     // AJOUT (refonte visuelle, phase 1) : optionnel et defensif - garde le
     // controleur testable SANS avoir a fournir cette dependance dans
     // tests/test-auth-gate.mjs (aucun rendu DOM reel dans ces tests).
-    if (typeof deps.renderSiteHeader === 'function') deps.renderSiteHeader('administration');
+    if (typeof deps.renderAdminNav === 'function') deps.renderAdminNav('catalog-sync');
     if (!historyLoaded) {
       historyLoaded = true;
       deps.loadHistory();

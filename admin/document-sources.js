@@ -27,7 +27,7 @@ import {
   setSourceHiddenFromFreeTraining, setSourceDisplayIcon, renameDocumentSource,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
@@ -85,7 +85,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('sources');
 
   await loadSources();
 });

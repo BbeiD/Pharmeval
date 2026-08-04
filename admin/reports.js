@@ -19,7 +19,7 @@ import { hasPermission, PERMISSIONS } from "../js/services/authorization-service
 import { formatDateFr } from "../js/services/date-utils.js";
 import { listAllQuestionReports, markReportResolved, REPORT_REASON_LABELS } from "../js/services/question-report-service.js";
 import { getExistingQuestionsByPedagogicalIds } from "../js/services/question-catalog-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 
 const TABS = [
@@ -70,7 +70,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('reports');
 
   renderTabs();
   await loadTab('open');

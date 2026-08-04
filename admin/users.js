@@ -18,7 +18,7 @@ import {
 } from "../js/services/user-directory-service.js";
 import { promoteToAdmin, revokeAdmin, promoteToTeacher, revokeTeacher, promoteToManager, revokeManager } from "../js/services/admin-service.js";
 import { parseUserImportWorkbook, buildUserImportTemplateWorkbook } from "../js/services/user-bulk-import-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon, renderAnyIcon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
@@ -80,7 +80,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('users');
 
   await loadReferenceSelectors();
   await loadPage();

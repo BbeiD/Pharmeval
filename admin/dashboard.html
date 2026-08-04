@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" type="image/png" href="../assets/icons/pwa/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/icons/pwa/apple-touch-icon.png">
+<title>Pharmeval — Administration</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.30.0/tabler-icons.min.css">
+<style>body{background:#080F0E}</style>
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+
+<div id="dash-loading" class="app-loading">
+  <img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64">
+</div>
+
+<div id="site-header-mount"></div>
+
+<div id="dash-denied" style="display:none;">
+  <div style="max-width:480px;margin:60px auto;padding:24px;">
+    <h2>Accès refusé</h2>
+    <p>L'administration est réservée aux administrateurs.</p>
+    <a class="btn-primary" href="../index.html">Retour à l'accueil</a>
+  </div>
+</div>
+
+<div id="dash-view" style="display:none;">
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-layout-dashboard" aria-hidden="true"></i> Tableau de bord</h1>
+      <div class="adm-page-actions">
+        <span id="dash-version" style="font-size:11px;color:var(--text2);"></span>
+      </div>
+    </div>
+
+    <div id="dash-message" class="adm-message"></div>
+
+    <!-- À TRAITER -->
+    <div class="adm-dash-section" id="dash-attention-section" style="display:none;">
+      <div class="adm-dash-section-title">À traiter</div>
+      <div class="adm-attention-list" id="dash-attention-list"></div>
+    </div>
+
+    <!-- STATISTIQUES -->
+    <div class="adm-dash-section">
+      <div class="adm-dash-section-title">Vue d'ensemble</div>
+      <div class="adm-stat-grid" id="dash-stat-grid">
+        <div class="adm-stat-card"><div class="adm-stat-value" id="ds-q-total">—</div><div class="adm-stat-label">Questions</div><div class="adm-stat-sub" id="ds-q-sub"></div></div>
+        <div class="adm-stat-card"><div class="adm-stat-value" id="ds-p-total">—</div><div class="adm-stat-label">Parcours</div><div class="adm-stat-sub" id="ds-p-sub"></div></div>
+        <div class="adm-stat-card"><div class="adm-stat-value" id="ds-u-total">—</div><div class="adm-stat-label">Utilisateurs</div><div class="adm-stat-sub" id="ds-u-sub"></div></div>
+        <div class="adm-stat-card" id="ds-reports-card"><div class="adm-stat-value" id="ds-reports">—</div><div class="adm-stat-label">Signalements</div><div class="adm-stat-sub" id="ds-reports-sub"></div></div>
+      </div>
+    </div>
+
+    <!-- ACTIONS RAPIDES -->
+    <div class="adm-dash-section">
+      <div class="adm-dash-section-title">Actions rapides</div>
+      <div class="adm-quick-actions">
+        <a href="catalog-sync.html" class="btn-secondary"><i class="ti ti-refresh" aria-hidden="true"></i> Synchroniser le catalogue</a>
+        <a href="parcours.html" class="btn-secondary"><i class="ti ti-books" aria-hidden="true"></i> Gérer les parcours</a>
+        <a href="users.html" class="btn-secondary"><i class="ti ti-users" aria-hidden="true"></i> Gérer les utilisateurs</a>
+        <a href="bank.html" class="btn-secondary"><i class="ti ti-help" aria-hidden="true"></i> Banque de questions</a>
+        <a href="reports.html" class="btn-secondary"><i class="ti ti-flag" aria-hidden="true"></i> Voir les signalements</a>
+        <a href="audit-log.html" class="btn-secondary"><i class="ti ti-history" aria-hidden="true"></i> Journal d'audit</a>
+      </div>
+    </div>
+
+    <!-- NAVIGATION COMPLÈTE (fallback visuel) -->
+    <div class="adm-dash-section">
+      <div class="adm-dash-section-title">Tous les modules</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;" id="dash-modules-grid"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="dashboard.js"></script>
+<script src="../js/sw-register.js"></script>
+</body>
+</html>

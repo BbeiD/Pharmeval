@@ -3,7 +3,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "../js/services/user-service.js";
 import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/app-context.js";
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { API_BASE_URL } from "../js/config.js";
 
 let parsedRows = [];
@@ -35,7 +35,7 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = '';
-  renderSiteHeader('administration');
+  renderAdminNav('bank');
 
   document.getElementById('ic-file-input').addEventListener('change', onFileChange);
 });

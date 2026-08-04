@@ -28,7 +28,7 @@ import { getDocumentSectionById } from "../js/services/document-section-catalog-
 import {
   getReportsForQuestion, getOpenReportCounts, markReportResolved, REPORT_REASON_LABELS,
 } from "../js/services/question-report-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 import { API_BASE_URL } from "../js/config.js";
 
@@ -97,7 +97,7 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('bank');
 
   await loadPage();
 });

@@ -28,7 +28,7 @@ import {
   moveCompetencyToTrash, restoreCompetencyFromTrash, permanentlyDeleteCompetency,
   countCompetencyUsage, getCompetencyTimeline, publishAllDraftCompetencies,
 } from "../js/services/competency-service.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
@@ -104,7 +104,7 @@ onAuthStateChanged(auth, async function(user) {
 
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderSiteHeader('administration');
+  renderAdminNav('competencies');
 
   await loadPage();
 });

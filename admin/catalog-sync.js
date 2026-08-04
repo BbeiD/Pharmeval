@@ -23,7 +23,7 @@ import {
   buildCorrespondenceCsv, applyUiState,
 } from "./catalog-sync-helpers.js";
 import { renderAnalysisResult, renderDetailTab, renderSyncReportBody, renderHistory } from "./catalog-sync-render.js";
-import { renderSiteHeader } from "../js/site-header.js";
+import { renderAdminNav } from "./admin-shell.js";
 
 const { engine, backend, isDemoBackend } = createCatalogSyncEngine();
 const connector = new ExcelCatalogConnector(typeof window !== 'undefined' ? window.XLSX : globalThis.XLSX);
@@ -50,7 +50,7 @@ const authGate = createAuthGateController({
   hasPermission: hasPermission,
   PERMISSIONS: PERMISSIONS,
   loadHistory: function() { loadHistory(); },
-  renderSiteHeader: renderSiteHeader,
+  renderAdminNav: renderAdminNav,
   document: typeof document !== 'undefined' ? document : null,
 });
 
