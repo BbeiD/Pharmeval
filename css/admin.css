@@ -60,6 +60,11 @@
 body {
   background: var(--adm-bg);
   margin: 0;
+  /* styles.css applique padding-left: var(--sidebar-width) (232px) pour la
+     sidebar utilisateur. Les pages admin masquent cette sidebar via JS mais
+     le padding reste sinon — le neutraliser ici pour que le layout admin
+     (sidebar fixe + adm-main margin-left) reprenne le contrôle complet. */
+  padding-left: 0;
 }
 
 /* ===================================================================
