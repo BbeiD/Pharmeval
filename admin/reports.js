@@ -39,7 +39,7 @@ function showMessage(status, message) {
   const el = document.getElementById('qr-message');
   if (!el) return;
   if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = message;
   el.style.display = 'block';
 }

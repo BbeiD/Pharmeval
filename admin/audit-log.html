@@ -18,7 +18,7 @@
 <div id="al-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="al-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>Le journal d'audit est réservé aux administrateurs.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
@@ -28,12 +28,9 @@
 <div id="site-header-mount"></div>
 
 <div id="al-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2><i class="ti ti-clock" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Journal d'audit</h2>
-      <div class="btn-row" style="margin:0;">
-        <a href="dashboard.html" class="btn-secondary">← Administration</a>
-      </div>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-clock" aria-hidden="true"></i> Journal d'audit</h1>
     </div>
 
     <p class="admin-users-disclaimer">
@@ -41,13 +38,12 @@
       Chaque domaine a déjà son propre historique détaillé sur sa fiche (ex. l'historique d'une question précise) ; cette page en donne une vue d'ensemble.
     </p>
 
-    <div id="al-message" class="admin-message" style="display:none;"></div>
+    <div id="al-message" class="adm-message" style="display:none;"></div>
 
-    <div class="bank-toolbar">
-      <div id="al-tabs" class="btn-row" style="margin:0;"></div>
+    <div class="adm-toolbar">
+      <div id="al-tabs" class="btn-row" style="margin:0;flex:none;"></div>
+      <input type="text" id="al-search" class="adm-search" placeholder="Filtrer (e-mail, identifiant, mot-clé)…" oninput="onAuditSearchInput()">
     </div>
-
-    <input type="text" id="al-search" class="bank-select" placeholder="Filtrer (e-mail, identifiant, mot-clé)…" oninput="onAuditSearchInput()" style="margin-bottom:12px;">
 
     <div id="al-list-empty" class="bank-list-empty" style="display:none;"></div>
     <div id="al-list" class="bank-timeline"></div>

@@ -18,7 +18,7 @@
 <div id="ds-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="ds-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>La gestion du catalogue documentaire global est réservée aux administrateurs du catalogue.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
@@ -28,12 +28,12 @@
 <div id="site-header-mount"></div>
 
 <div id="ds-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2><i class="ti ti-book-2" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Catalogue global — Sources documentaires</h2>
-      <div class="btn-row" style="margin:0;">
-        <a href="bank.html" class="btn-secondary"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M11 9a1.5 1.5 0 1 1 2.5 1.1c-.8.7-1.5 1.1-1.5 2"/><circle cx="12" cy="15.5" r="0.7"/></svg> Banque de questions</a>
-        <a href="dashboard.html" class="btn-secondary">← Administration</a>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-book-2" aria-hidden="true"></i> Sources documentaires</h1>
+      <div class="adm-page-actions">
+        <a href="bank.html" class="btn-secondary">Banque de questions</a>
+        <button class="btn-primary" onclick="requestBulkActivateSources()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg> Activer toutes les sources en brouillon</button>
       </div>
     </div>
 
@@ -44,13 +44,9 @@
       La présentation existante de la banque de questions (Familia, Référentiels, Étudiant…) reste inchangée.
     </p>
 
-    <div id="ds-message" class="admin-message" style="display:none;"></div>
+    <div id="ds-message" class="adm-message" style="display:none;"></div>
 
-    <!-- CORRECTIF : plus d'onglets (Migration par lots / Non classées
-         retires - tout le contenu vient desormais exclusivement de l'import
-         Excel via Synchronisation du catalogue), plus de creation manuelle
-         de source ni d'outils de verification/analyse ponctuels. -->
-    <div class="bank-toolbar">
+    <div class="adm-toolbar">
       <select id="ds-filter-type" class="bank-select" onchange="onSourcesFilterChange()">
         <option value="">Type : Tous</option>
         <option value="REF">Référentiel</option>
@@ -64,30 +60,14 @@
         <option value="archived">⚫ Archivé</option>
         <option value="deleted">🔴 Supprimé</option>
       </select>
-      <button class="btn-primary" onclick="requestBulkActivateSources()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg> Activer toutes les sources en brouillon</button>
     </div>
 
-    <!-- AJOUT (refonte visuelle, phase 1, decision validee avec David) :
-         presentation "comme l'entrainement libre" - tuiles a icones (juste
-         le nom en dessous), la fiche complete apparait EN DESSOUS de la
-         grille au clic, jamais dans une colonne separee. -->
     <div id="ds-list-empty" class="bank-list-empty" style="display:none;"></div>
     <div id="ds-list" class="source-tile-grid" style="margin-bottom:var(--space-3);"></div>
 
     <div id="ds-detail-placeholder" class="bank-detail-placeholder">Sélectionnez une source pour afficher sa fiche et son arborescence de sections.</div>
     <div id="ds-detail" class="bank-detail" style="display:none;"></div>
 
-  </div>
-</div>
-
-<div id="ds-confirm-overlay" class="admin-modal-overlay" style="display:none;">
-  <div class="admin-modal admin-confirm-modal">
-    <h3>Confirmation</h3>
-    <p id="ds-confirm-message"></p>
-    <div class="btn-row">
-      <button class="btn-secondary" onclick="cancelDsAction()">Annuler</button>
-      <button class="btn-primary" onclick="confirmDsAction()">Confirmer</button>
-    </div>
   </div>
 </div>
 

@@ -27,7 +27,7 @@ import {
   setSourceHiddenFromFreeTraining, setSourceDisplayIcon, renameDocumentSource,
 } from "../js/services/document-source-service.js";
 import { getSectionTree } from "../js/services/document-section-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "../js/icons.js";
 
 const KNOWN_ICON_KEYS = new Set([...Object.keys(ICONS), ...Object.keys(DOT_ICONS)]);
@@ -52,7 +52,7 @@ function showMessage(status, message) {
   const el = qs('ds-message');
   if (!el) return;
   if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = message;
   el.style.display = 'block';
 }
@@ -60,7 +60,6 @@ function showMessage(status, message) {
 let state = {
   sourceItems: [], selectedSourceId: null, sectionItems: [],
 };
-let pendingAction = null;
 
 // ---------------------------------------------------------------------------
 // Controle d'acces
@@ -263,22 +262,36 @@ function renderSectionTree(sections) {
 // Confirmation avant action sensible
 // ---------------------------------------------------------------------------
 
-export function requestSourceStatus(newStatus) {
-  pendingAction = { kind: 'source_status', newStatus: newStatus };
-  qs('ds-confirm-message').textContent = 'Confirmer ce changement de statut ?';
-  qs('ds-confirm-overlay').style.display = 'flex';
+export async function requestSourceStatus(newStatus) {
+  const ok = await showAdminConfirm({ message: 'Confirmer ce changement de statut ?' });
+  if (!ok) return;
+  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
+  const result = await changeDocumentSourceStatus(source, newStatus);
+  showMessage(result.status, result.message);
+  if (result.status === 'success') await selectSource(state.selectedSourceId);
 }
 
-export function requestDeleteSource() {
-  pendingAction = { kind: 'delete_source' };
-  qs('ds-confirm-message').textContent = 'Supprimer ce référentiel ? Il sera masqué et toutes ses questions rattachées seront archivées. Rien n\'est supprimé réellement — action réversible manuellement (réactivation de la source, puis republication question par question si besoin).';
-  qs('ds-confirm-overlay').style.display = 'flex';
+export async function requestDeleteSource() {
+  const ok = await showAdminConfirm({
+    message: 'Supprimer ce référentiel ? Il sera masqué et toutes ses questions rattachées seront archivées. Rien n\'est supprimé réellement — action réversible manuellement (réactivation de la source, puis republication question par question si besoin).',
+    confirmLabel: 'Supprimer',
+    destructive: true,
+  });
+  if (!ok) return;
+  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
+  const result = await deleteDocumentSource(source);
+  showMessage(result.status, result.message);
+  if (result.status === 'success') await selectSource(state.selectedSourceId);
 }
 
-export function requestBulkActivateSources() {
-  pendingAction = { kind: 'bulk_activate_sources' };
-  qs('ds-confirm-message').textContent = 'Activer toutes les sources actuellement en brouillon ? Les sources déjà actives, archivées ou supprimées ne seront pas touchées.';
-  qs('ds-confirm-overlay').style.display = 'flex';
+export async function requestBulkActivateSources() {
+  const ok = await showAdminConfirm({
+    message: 'Activer toutes les sources actuellement en brouillon ? Les sources déjà actives, archivées ou supprimées ne seront pas touchées.',
+  });
+  if (!ok) return;
+  const result = await activateAllDraftSources();
+  showMessage(result.status, result.message);
+  if (result.status === 'success') await loadSources();
 }
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : palette de cles
@@ -356,35 +369,6 @@ export async function toggleSourceFreeTrainingVisibility(hidden) {
   }
 }
 
-export function cancelDsAction() { pendingAction = null; qs('ds-confirm-overlay').style.display = 'none'; }
-
-export async function confirmDsAction() {
-  if (!pendingAction) return;
-  const action = pendingAction; pendingAction = null;
-  qs('ds-confirm-overlay').style.display = 'none';
-
-  if (action.kind === 'bulk_activate_sources') {
-    const result = await activateAllDraftSources();
-    showMessage(result.status, result.message);
-    if (result.status === 'success') await loadSources();
-    return;
-  }
-
-  const source = state.sourceItems.find(function(s) { return s.id === state.selectedSourceId; });
-
-  if (action.kind === 'source_status') {
-    const result = await changeDocumentSourceStatus(source, action.newStatus);
-    showMessage(result.status, result.message);
-    if (result.status === 'success') await selectSource(state.selectedSourceId);
-    return;
-  }
-  if (action.kind === 'delete_source') {
-    const result = await deleteDocumentSource(source);
-    showMessage(result.status, result.message);
-    if (result.status === 'success') await selectSource(state.selectedSourceId);
-    return;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Exposition au HTML
@@ -401,5 +385,3 @@ window.saveSourceName = saveSourceName;
 window.saveSourceIcon = saveSourceIcon;
 window.toggleIconPicker = toggleIconPicker;
 window.pickSourceIcon = pickSourceIcon;
-window.cancelDsAction = cancelDsAction;
-window.confirmDsAction = confirmDsAction;

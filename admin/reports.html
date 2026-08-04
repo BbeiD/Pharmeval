@@ -18,7 +18,7 @@
 <div id="qr-loading" class="app-loading"><img class="app-loading-logo" src="../assets/brand/pharmeval-mark.png" alt="" width="64" height="64"></div>
 
 <div id="qr-denied" style="display:none;">
-  <div class="admin-modal" style="max-width:480px;margin:60px auto;">
+  <div class="adm-modal" style="max-width:480px;margin:60px auto;">
     <h2>Accès refusé</h2>
     <p>Les signalements sont réservés aux administrateurs.</p>
     <div class="btn-row"><a class="btn-primary" href="../index.html">Retour à l'accueil</a></div>
@@ -28,22 +28,19 @@
 <div id="site-header-mount"></div>
 
 <div id="qr-view" style="display:none;">
-  <div class="bank-page">
-    <div class="bank-header">
-      <h2><i class="ti ti-flag" aria-hidden="true" style="font-size:22px;vertical-align:-4px;"></i> Signalements</h2>
-      <div class="btn-row" style="margin:0;">
-        <a href="dashboard.html" class="btn-secondary">← Administration</a>
-      </div>
+  <div class="adm-content">
+    <div class="adm-page-header">
+      <h1 class="adm-page-title"><i class="ti ti-flag" aria-hidden="true"></i> Signalements</h1>
     </div>
 
     <p class="admin-users-disclaimer">
       Problèmes signalés par les utilisateurs sur des questions (bouton « Signaler cette question »). Un signalement ne modifie jamais la question elle-même — corrigez-la via une resynchronisation du catalogue, puis marquez le signalement résolu ici.
     </p>
 
-    <div id="qr-message" class="admin-message" style="display:none;"></div>
+    <div id="qr-message" class="adm-message" style="display:none;"></div>
 
-    <div class="bank-toolbar">
-      <div id="qr-tabs" class="btn-row" style="margin:0;"></div>
+    <div class="adm-toolbar">
+      <div id="qr-tabs" class="btn-row" style="margin:0;flex:none;"></div>
     </div>
 
     <div id="qr-list-empty" class="bank-list-empty" style="display:none;"></div>

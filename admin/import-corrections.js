@@ -211,6 +211,6 @@ function showMessage(msg, isError) {
   const el = document.getElementById('ic-message');
   if (!msg) { el.style.display = 'none'; return; }
   el.style.display = '';
-  el.className = 'admin-message' + (isError ? ' admin-message-error' : ' admin-message-success');
+  el.className = 'adm-message' + (isError ? ' adm-message-error' : ' adm-message-success');
   el.textContent = msg;
 }

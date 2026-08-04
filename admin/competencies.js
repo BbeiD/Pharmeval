@@ -28,7 +28,7 @@ import {
   moveCompetencyToTrash, restoreCompetencyFromTrash, permanentlyDeleteCompetency,
   countCompetencyUsage, getCompetencyTimeline, publishAllDraftCompetencies,
 } from "../js/services/competency-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 
 // CORRECTIF (bibliotheque d'icones, remplace les emojis) : `emoji` contient
@@ -49,7 +49,6 @@ let state = {
   page: 0, cursorStack: [null], cursorIndex: 0,
   items: [], hasMore: false, selectedId: null,
 };
-let pendingAction = null; // { kind, competency }
 
 function escapeHtml(str) {
   return (str === null || str === undefined) ? '' : String(str)
@@ -67,7 +66,7 @@ function showCompetenciesMessage(status, message) {
   const el = document.getElementById('competencies-message');
   if (!el) return;
   if (!message) { el.style.display = 'none'; return; }
-  el.className = 'admin-message admin-message-' + status;
+  el.className = 'adm-message adm-message-' + status;
   el.textContent = message;
   el.style.display = 'block';
 }
@@ -350,44 +349,34 @@ const ACTION_LABELS = {
   purge: 'supprimer DÉFINITIVEMENT cette compétence (irréversible)',
 };
 
-export function requestBulkPublishCompetencies() {
-  pendingAction = { kind: 'bulk_publish' };
-  document.getElementById('competencies-confirm-message').textContent = 'Publier toutes les compétences actuellement en brouillon ? Les compétences déjà publiées, archivées ou à la corbeille ne seront pas touchées.';
-  document.getElementById('competencies-confirm-overlay').style.display = 'flex';
+export async function requestBulkPublishCompetencies() {
+  const ok = await showAdminConfirm({
+    message: 'Publier toutes les compétences actuellement en brouillon ? Les compétences déjà publiées, archivées ou à la corbeille ne seront pas touchées.',
+  });
+  if (!ok) return;
+  const bulkResult = await publishAllDraftCompetencies();
+  showCompetenciesMessage(bulkResult.status, bulkResult.message);
+  if (bulkResult.status === 'success') await loadPage();
 }
 
-export function requestCompetencyAction(kind) {
+export async function requestCompetencyAction(kind) {
   const c = state.items.find(function(item) { return item.id === state.selectedId; });
   if (!c) return;
-  pendingAction = { kind: kind, competency: c };
-  document.getElementById('competencies-confirm-message').textContent =
-    'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' « ' + c.name + ' » ?';
-  document.getElementById('competencies-confirm-overlay').style.display = 'flex';
-}
-export function cancelCompetencyAction() {
-  pendingAction = null;
-  document.getElementById('competencies-confirm-overlay').style.display = 'none';
-}
-export async function confirmCompetencyAction() {
-  if (!pendingAction) return;
-  const { kind, competency } = pendingAction;
-  document.getElementById('competencies-confirm-overlay').style.display = 'none';
-  pendingAction = null;
-
-  if (kind === 'bulk_publish') {
-    const bulkResult = await publishAllDraftCompetencies();
-    showCompetenciesMessage(bulkResult.status, bulkResult.message);
-    if (bulkResult.status === 'success') await loadPage();
-    return;
-  }
+  const destructive = (kind === 'trash' || kind === 'purge');
+  const ok = await showAdminConfirm({
+    message: 'Voulez-vous vraiment ' + (ACTION_LABELS[kind] || kind) + ' « ' + c.name + ' » ?',
+    confirmLabel: kind === 'purge' ? 'Supprimer définitivement' : (destructive ? 'Supprimer' : 'Confirmer'),
+    destructive: destructive,
+  });
+  if (!ok) return;
 
   let result;
-  if (kind === 'publish') result = await publishCompetency(competency);
-  else if (kind === 'archive') result = await archiveCompetency(competency);
-  else if (kind === 'draft') result = await revertCompetencyToDraft(competency);
-  else if (kind === 'trash') result = await moveCompetencyToTrash(competency);
-  else if (kind === 'restore') result = await restoreCompetencyFromTrash(competency);
-  else if (kind === 'purge') result = await permanentlyDeleteCompetency(competency);
+  if (kind === 'publish') result = await publishCompetency(c);
+  else if (kind === 'archive') result = await archiveCompetency(c);
+  else if (kind === 'draft') result = await revertCompetencyToDraft(c);
+  else if (kind === 'trash') result = await moveCompetencyToTrash(c);
+  else if (kind === 'restore') result = await restoreCompetencyFromTrash(c);
+  else if (kind === 'purge') result = await permanentlyDeleteCompetency(c);
   else result = { status: 'error', message: 'Action inconnue.' };
 
   showCompetenciesMessage(result.status, result.message);
@@ -403,5 +392,3 @@ window.requestBulkPublishCompetencies = requestBulkPublishCompetencies;
 window.goToCompetenciesPage = goToCompetenciesPage;
 window.selectCompetency = selectCompetency;
 window.requestCompetencyAction = requestCompetencyAction;
-window.cancelCompetencyAction = cancelCompetencyAction;
-window.confirmCompetencyAction = confirmCompetencyAction;
