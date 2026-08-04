@@ -35,6 +35,8 @@
       <h1 class="adm-page-title"><i class="ti ti-route" aria-hidden="true"></i> Parcours</h1>
       <div class="adm-page-actions">
         <button class="btn-secondary" id="parcours-export-btn" onclick="downloadParcoursAuditCSV()">Exporter CSV</button>
+        <button class="btn-secondary" id="lot1-dryrun-btn" onclick="executeLot1Reassignments(true)">Dry-run Lot 1</button>
+        <button class="btn-danger" id="lot1-execute-btn" onclick="executeLot1Reassignments(false)">Exécuter Lot 1</button>
         <button class="btn-primary" onclick="openCreateParcoursForm()">+ Nouveau parcours</button>
       </div>
     </div>

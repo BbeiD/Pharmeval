@@ -3827,4 +3827,152 @@ app.get("/api/admin/export-parcours-questions", requireAuth, async (req, res) =>
   }
 });
 
+// ─── LOT 1 — RÉAFFECTATIONS + RATTACHEMENT NOUVELLES QUESTIONS ─────────────
+// Endpoint one-shot pour le chantier de recomposition Lot 1 (04/08/2026).
+// dryRun:true (défaut) = lecture seule, rapport complet.
+// dryRun:false = écriture réelle dans Firestore.
+app.post("/api/admin/execute-lot1-reassignments", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 29 réaffectations depuis le fichier Pharmeval_Lot1_reaffectations.csv
+    const REASSIGNMENTS = [
+      // Depuis Reflux (PARC-dfd3dba2)
+      { qid: "PHARM-MED-001573", src: "PARC-dfd3dba2", tgt: "PARC-16c6ead8", op: "move" },
+      { qid: "PHARM-MED-001574", src: "PARC-dfd3dba2", tgt: "PARC-2d6d79e4", op: "move" },
+      { qid: "PHARM-MED-001575", src: "PARC-dfd3dba2", tgt: "PARC-2d6d79e4", op: "move" },
+      { qid: "PHARM-MED-001576", src: "PARC-dfd3dba2", tgt: "PARC-3f777035", op: "move" },
+      { qid: "PHARM-MED-001580", src: "PARC-dfd3dba2", tgt: "PARC-74295162", op: "move" },
+      // Depuis Parkinson (PARC-1a819423)
+      { qid: "PHARM-MED-001782", src: "PARC-1a819423", tgt: "PARC-15da76fe", op: "move" },
+      { qid: "PHARM-MED-001783", src: "PARC-1a819423", tgt: "PARC-7fd267b1", op: "move" },
+      { qid: "PHARM-MED-001784", src: "PARC-1a819423", tgt: "PARC-5d51e294", op: "move" },
+      { qid: "PHARM-MED-001785", src: "PARC-1a819423", tgt: "PARC-ea3ac86c", op: "move" },
+      { qid: "PHARM-MED-001787", src: "PARC-1a819423", tgt: "PARC-2b499f41", op: "move" },
+      { qid: "PHARM-MED-001788", src: "PARC-1a819423", tgt: "PARC-079e1eb2", op: "move" },
+      { qid: "PHARM-MED-001790", src: "PARC-1a819423", tgt: "PARC-518cf48c", op: "move" },
+      { qid: "PHARM-MED-001791", src: "PARC-1a819423", tgt: "PARC-518cf48c", op: "move" },
+      { qid: "PHARM-MED-001794", src: "PARC-1a819423", tgt: "PARC-ea3ac86c", op: "move" },
+      { qid: "PHARM-MED-001796", src: "PARC-1a819423", tgt: "PARC-ea3ac86c", op: "move" },
+      // Depuis Antibiotiques (PARC-3f777035)
+      { qid: "PHARM-MED-001707", src: "PARC-3f777035", tgt: "PARC-45a033c3", op: "move" },
+      { qid: "PHARM-MED-001710", src: "PARC-3f777035", tgt: "PARC-2d6d79e4", op: "move" },
+      { qid: "PHARM-MED-001711", src: "PARC-3f777035", tgt: "PARC-8a51e8d5", op: "move" },
+      { qid: "PHARM-MED-001712", src: "PARC-3f777035", tgt: "PARC-976f4c1b", op: "move" },
+      { qid: "PHARM-MED-001715", src: "PARC-3f777035", tgt: "PARC-53201adc", op: "move" },
+      { qid: "PHARM-MED-001717", src: "PARC-3f777035", tgt: "PARC-53201adc", op: "move" },
+      { qid: "PHARM-MED-001718", src: "PARC-3f777035", tgt: "PARC-48df029a", op: "move" },
+      { qid: "PHARM-MED-001719", src: "PARC-3f777035", tgt: "PARC-218ef505", op: "move" },
+      { qid: "PHARM-MED-001721", src: "PARC-3f777035", tgt: "PARC-48df029a", op: "move" },
+      // Depuis Transit → Reflux
+      { qid: "PHARM-MED-001559", src: "PARC-74295162", tgt: "PARC-dfd3dba2", op: "move" },
+      // Ajouter aussi (garder source ET ajouter cible)
+      { qid: "PHARM-MED-001774", src: "PARC-2d6d79e4", tgt: "PARC-1a819423", op: "addAlso" },
+      // Depuis Psychotropes/Lithium → Antibiotiques
+      { qid: "PHARM-MED-001736", src: "PARC-5d51e294", tgt: "PARC-3f777035", op: "move" },
+      { qid: "PHARM-MED-001769", src: "PARC-2d6d79e4", tgt: "PARC-3f777035", op: "move" },
+      { qid: "PHARM-MED-001724", src: "PARC-5d51e294", tgt: "PARC-3f777035", op: "move" },
+    ];
+
+    // 18 nouvelles questions (par ID éditorial → parcours cible)
+    const NEW_LINKS = [
+      { eid: "LEGACY-LOT1_GI-reflux-001", tgt: "PARC-dfd3dba2" },
+      { eid: "LEGACY-LOT1_GI-reflux-002", tgt: "PARC-dfd3dba2" },
+      { eid: "LEGACY-LOT1_GI-reflux-003", tgt: "PARC-dfd3dba2" },
+      { eid: "LEGACY-LOT1_GI-reflux-004", tgt: "PARC-dfd3dba2" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-001", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-002", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-003", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-004", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-005", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-006", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-007", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-008", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_NEURO-parkinson-009", tgt: "PARC-1a819423" },
+      { eid: "LEGACY-LOT1_IATB-atbint-001", tgt: "PARC-3f777035" },
+      { eid: "LEGACY-LOT1_IATB-atbint-002", tgt: "PARC-3f777035" },
+      { eid: "LEGACY-LOT1_IATB-atbint-003", tgt: "PARC-3f777035" },
+      { eid: "LEGACY-LOT1_IATB-atbint-004", tgt: "PARC-3f777035" },
+      { eid: "LEGACY-LOT1_IATB-atbint-005", tgt: "PARC-3f777035" },
+    ];
+
+    // Helper: retire une question d'un parcours (directQuestionIds ou competencies[].questionIds)
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        if (!dryRun) await ref.update({ directQuestionIds: admin.firestore.FieldValue.arrayRemove(questionId) });
+        return { found: true, location: "directQuestionIds" };
+      }
+      const comps = data.competencies || [];
+      let foundComp = null;
+      for (const c of comps) {
+        if ((c.questionIds || []).includes(questionId)) { foundComp = c.name || "(sans nom)"; break; }
+      }
+      if (foundComp !== null) {
+        if (!dryRun) {
+          const updated = comps.map(c =>
+            (c.questionIds || []).includes(questionId)
+              ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+              : c
+          );
+          await ref.update({ competencies: updated });
+        }
+        return { found: true, location: `competencies["${foundComp}"]` };
+      }
+      return { found: false, error: "question non trouvée dans ce parcours" };
+    }
+
+    // Helper: ajoute une question dans directQuestionIds d'un parcours
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, reassignments: [], newLinks: [], errors: [] };
+
+    // 1. Réaffectations
+    for (const r of REASSIGNMENTS) {
+      const entry = { questionId: r.qid, from: r.src, to: r.tgt, op: r.op, status: "ok" };
+      if (r.op === "move") {
+        const rem = await removeFromParcours(r.src, r.qid);
+        entry.removeFrom = rem;
+        if (!rem.found) { entry.status = "warning"; entry.warning = "Question absente du parcours source."; }
+        await addToParcours(r.tgt, r.qid);
+      } else if (r.op === "addAlso") {
+        await addToParcours(r.tgt, r.qid);
+        entry.note = "conservée dans la source, ajoutée à la cible";
+      }
+      report.reassignments.push(entry);
+    }
+
+    // 2. Nouvelles questions
+    for (const link of NEW_LINKS) {
+      const entry = { editorialId: link.eid, targetParcours: link.tgt, status: "ok" };
+      const qSnap = await db.collection("questions")
+        .where("externalIds.editorialCatalog", "==", link.eid).limit(1).get();
+      if (qSnap.empty) {
+        entry.status = "error"; entry.error = "Question introuvable par ID éditorial";
+        report.errors.push(entry);
+      } else {
+        entry.questionId = qSnap.docs[0].id;
+        await addToParcours(link.tgt, entry.questionId);
+      }
+      report.newLinks.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-lot1-reassignments]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);
