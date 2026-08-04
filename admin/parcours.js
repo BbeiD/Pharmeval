@@ -1863,6 +1863,40 @@ async function downloadParcoursAuditCSV() {
 }
 window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
 
+async function executeAuditDoublonsCorrection(dryRun) {
+  const btnId = dryRun ? 'audit-doublons-dryrun-btn' : 'audit-doublons-execute-btn';
+  const btn = document.getElementById(btnId);
+  const label = dryRun ? 'Dry-run Doublons' : 'Exécuter Doublons';
+  if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Analyse…' : 'Exécution…'; }
+  if (!dryRun && !confirm('Retirer les 20 questions doublons (11 exacts + 9 quasi identiques) de leurs parcours ?\nCette action modifie Firestore. Continuer ?')) {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/execute-audit-doublons-correction', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
+    alert(
+      mode + 'Corrections doublons\n\n' +
+      '✓ Retraits : ' + report.retraits.length + (report.warnings > 0 ? ' (⚠ ' + report.warnings + ' absentes)' : '') + '\n' +
+      '\nDétail complet dans la console (F12).'
+    );
+    console.log('[AuditDoublons-correction]', report);
+  } catch (err) {
+    console.error('[audit-doublons-correction]', err);
+    alert('Erreur : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.executeAuditDoublonsCorrection = executeAuditDoublonsCorrection;
+
 async function executeAuditFinalCorrections(dryRun) {
   const btnId = dryRun ? 'audit-final-dryrun-btn' : 'audit-final-execute-btn';
   const btn = document.getElementById(btnId);

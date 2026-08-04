@@ -4806,4 +4806,80 @@ app.post("/api/admin/execute-audit-final-corrections", requireAuth, async (req, 
   }
 });
 
+// ===================== AUDIT FINAL — 20 retraits doublons (exacts + quasi identiques) =====================
+app.post("/api/admin/execute-audit-doublons-correction", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 11 doublons exacts + 9 quasi identiques — retrait de la question redondante uniquement
+    const RETRAITS = [
+      // — Doublons exacts (11) —
+      { qid: "PHARM-CON-000290", src: "PARC-0da80efd", note: "Alcool : risques — doublon sédation/dépression respiratoire" },
+      { qid: "PHARM-MED-002164", src: "PARC-eed443e5", note: "Alcool, digestion — doublon ibuprofène + alcool" },
+      { qid: "PHARM-MED-002237", src: "PARC-6135d803", note: "Tuberculose — doublon coloration orange-rouge rifampicine" },
+      { qid: "PHARM-MED-002281", src: "PARC-6d6a71d0", note: "Sevrage tabagique — doublon substituts nicotiniques post-infarctus" },
+      { qid: "PHARM-CON-000331", src: "PARC-93f80356", note: "Cancer colorectal — doublon comportement réduisant le risque" },
+      { qid: "PHARM-MED-001370", src: "PARC-f40cf133", note: "Pharmacie du voyageur — doublon cauchemars méfloquine" },
+      { qid: "PHARM-MED-001488", src: "PARC-f40cf133", note: "Pharmacie du voyageur — doublon adaptation basal-bolus décalage horaire" },
+      { qid: "PHARM-MED-002073", src: "PARC-518cf48c", note: "Médicaments et troubles cognitifs — doublon rispéridone personne âgée démence" },
+      { qid: "PHARM-MED-002078", src: "PARC-518cf48c", note: "Médicaments et troubles cognitifs — doublon Alzheimer léger sans traitement cognitif" },
+      { qid: "PHARM-MED-002218", src: "PARC-15da76fe", note: "Sommeil — doublon zolpidem 6 mois demande augmentation dose" },
+      { qid: "PHARM-MED-002335", src: "PARC-47e2d2dc", note: "Pédiatrie — doublon ibuprofène enfant déshydraté" },
+      // — Doublons quasi identiques (9) —
+      { qid: "PHARM-FTM-000079", src: "PARC-72d442c7", note: "Préparations magistrales — quasi doublon rappel lot matière première" },
+      { qid: "PHARM-MED-002168", src: "PARC-eed443e5", note: "Alcool, digestion — quasi doublon metformine + alcool" },
+      { qid: "PHARM-MED-002270", src: "PARC-8a51e8d5", note: "Hypertension — quasi doublon ramipril–valsartan double blocage" },
+      { qid: "PHARM-MED-002156", src: "PARC-f4d2be14", note: "BPCO — quasi doublon prednisone long cours GOLD III" },
+      { qid: "PHARM-MED-002098", src: "PARC-2b499f41", note: "Cancer du sein — quasi doublon antidépresseur + tamoxifène" },
+      { qid: "PHARM-BPP-000093", src: "PARC-0967ca1e", note: "BPPO — quasi doublon critères sélection fournisseurs" },
+      { qid: "PHARM-MED-002076", src: "PARC-518cf48c", note: "Médicaments et troubles cognitifs — quasi doublon rispéridone troubles comportementaux démence" },
+      { qid: "PHARM-MED-002122", src: "PARC-ea3ac86c", note: "Psychotropes — quasi doublon lorazépam sans traitement de fond" },
+      { qid: "PHARM-CON-000386", src: "PARC-47e2d2dc", note: "Pédiatrie — quasi doublon nourrisson < 3 mois ≥ 38 °C" },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const updates = {};
+      const locations = [];
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    const report = { dryRun, retraits: [], warnings: 0 };
+
+    for (const r of RETRAITS) {
+      const entry = { questionId: r.qid, parcours: r.src, note: r.note, status: "ok" };
+      const rem = await removeFromParcours(r.src, r.qid);
+      entry.removeFrom = rem;
+      if (!rem.found) { entry.status = "warning"; entry.warning = rem.error; report.warnings++; }
+      report.retraits.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-audit-doublons-correction]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);
