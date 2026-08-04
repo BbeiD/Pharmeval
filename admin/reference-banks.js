@@ -43,8 +43,19 @@ const BANKS = {
   },
 };
 
+// Mappe les clés de banque vers les clés de navigation sidebar
+const NAV_KEY_MAP = {
+  organizations: 'orgs-organizations',
+  profiles:      'orgs-profiles',
+  groups:        'orgs-groups',
+};
+
+// Lecture du ?tab= initial depuis l'URL
+const _urlTab = new URLSearchParams(window.location.search).get('tab');
+const _initialBank = (BANKS[_urlTab] ? _urlTab : 'organizations');
+
 let state = {
-  activeBank: 'organizations',
+  activeBank: _initialBank,
   searchText: '', filters: { status: '' }, sortField: 'createdAt', sortDirection: 'desc',
   page: 0, cursorStack: [null], cursorIndex: 0,
   items: [], hasMore: false, selectedId: null,
@@ -90,7 +101,7 @@ onAuthStateChanged(auth, async function(user) {
   }
   if (deniedEl) deniedEl.style.display = 'none';
   if (viewEl) viewEl.style.display = 'block';
-  renderAdminNav('orgs');
+  renderAdminNav(NAV_KEY_MAP[state.activeBank] || 'orgs-organizations');
 
   updateTabButtons();
   await loadPage();
@@ -107,18 +118,35 @@ export function switchBank(bankKey) {
   document.getElementById('refbanks-detail-placeholder').style.display = 'block';
   document.getElementById('refbanks-detail').style.display = 'none';
   closeCreateForm();
+  // Mettre à jour l'URL sans rechargement + sidebar active
+  history.pushState({}, '', '?tab=' + bankKey);
+  renderAdminNav(NAV_KEY_MAP[bankKey] || 'orgs-organizations');
   updateTabButtons();
   loadPage();
 }
+
+const BANK_SUBTITLES = {
+  organizations: 'Entités clientes ou partenaires utilisant la plateforme.',
+  profiles:      'Rôles et niveaux d\'accès attribués aux utilisateurs.',
+  groups:        'Regroupements d\'utilisateurs pour l\'attribution de parcours.',
+};
+const CREATE_LABELS = {
+  organizations: '+ Nouvelle organisation',
+  profiles:      '+ Nouveau profil',
+  groups:        '+ Nouveau groupe',
+};
+
 function updateTabButtons() {
   Object.keys(BANKS).forEach(function(key) {
     const btn = document.getElementById('refbanks-tab-' + key);
-    if (btn) btn.classList.toggle('bank-row-selected', key === state.activeBank);
+    if (!btn) return;
+    btn.classList.toggle('adm-tab-active', key === state.activeBank);
+    btn.setAttribute('aria-selected', key === state.activeBank ? 'true' : 'false');
   });
-  // CORRECTIF (bibliotheque d'icones, remplace les emojis) : icon() rend du
-  // HTML - .innerHTML desormais (BANKS[...].label est une constante interne,
-  // jamais une saisie utilisateur - aucun risque XSS).
-  document.getElementById('refbanks-title').innerHTML = icon('content-tag-label', { size: 20 }) + ' ' + BANKS[state.activeBank].label;
+  const subtitleEl = document.getElementById('refbanks-subtitle');
+  if (subtitleEl) subtitleEl.textContent = BANK_SUBTITLES[state.activeBank] || '';
+  const createBtn = document.getElementById('refbanks-create-btn');
+  if (createBtn) createBtn.textContent = CREATE_LABELS[state.activeBank] || '+ Nouveau';
 }
 
 // ---------------------------------------------------------------------------
@@ -164,28 +192,54 @@ function renderList() {
   if (state.items.length === 0) {
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
-    emptyEl.textContent = 'Aucun élément ne correspond à ces critères.';
+    const hasActiveFilter = !!(state.searchText.trim() || state.filters.status);
+    if (hasActiveFilter) {
+      emptyEl.innerHTML = 'Aucun résultat pour ces critères. <button class="btn-secondary" style="margin-left:8px;padding:3px 10px;font-size:12px;" onclick="clearFilters()">Réinitialiser les filtres</button>';
+    } else {
+      emptyEl.textContent = 'Aucun ' + currentConfig().titleSingular + ' pour l\'instant. Créez-en un avec le bouton ci-dessus.';
+    }
     return;
   }
   emptyEl.style.display = 'none';
-  listEl.innerHTML = state.items.map(rowHtml).join('');
+
+  const thead = tableHeadHtml();
+  const tbody = state.items.map(rowHtml).join('');
+  listEl.innerHTML = '<table class="adm-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+}
+
+function tableHeadHtml() {
+  if (state.activeBank === 'organizations') {
+    return '<tr><th>Nom</th><th>Type</th><th>Statut</th><th>Modifié le</th></tr>';
+  }
+  if (state.activeBank === 'profiles') {
+    return '<tr><th>Nom</th><th>Statut</th><th>Modifié le</th></tr>';
+  }
+  // groups
+  return '<tr><th>Nom</th><th>Statut</th><th>Modifié le</th></tr>';
 }
 
 function rowHtml(item) {
   const badge = STATUS_BADGES[item.status] || STATUS_BADGES.draft;
-  const selected = item.id === state.selectedId ? ' bank-row-selected' : '';
-  const extra = currentConfig().extraField;
-  return (
-    '<div class="bank-row' + selected + '" onclick="selectItem(\'' + escapeHtml(item.id) + '\')">' +
-      '<div class="bank-row-top">' +
-        '<span class="bank-row-id">' + escapeHtml(item.name) + '</span>' +
-        '<span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span>' +
-      '</div>' +
-      '<div class="bank-row-question">' + escapeHtml((item.description || '').slice(0, 90)) + '</div>' +
-      '<div class="bank-row-meta">' + (extra ? escapeHtml(labelForExtraValue(extra, item[extra.key]) || '—') : escapeHtml(item.id)) + '</div>' +
-    '</div>'
-  );
+  const selected = item.id === state.selectedId ? ' adm-table-row-selected' : '';
+  const modifiedAt = item.updatedAt ? formatDateFr(item.updatedAt) : (item.createdAt ? formatDateFr(item.createdAt) : '—');
+  const nameCellHtml =
+    '<td><div style="font-weight:600;font-size:13px;">' + escapeHtml(item.name) + '</div>' +
+    (item.description ? '<div style="font-size:11px;color:var(--text2);margin-top:2px;">' + escapeHtml(item.description.slice(0, 70)) + '</div>' : '') +
+    '</td>';
+  const statusCellHtml = '<td><span class="bank-badge ' + badge.cls + '">' + badge.emoji + ' ' + badge.label + '</span></td>';
+  const dateCellHtml = '<td style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(modifiedAt) + '</td>';
+
+  let cells = nameCellHtml;
+  if (state.activeBank === 'organizations') {
+    const extra = currentConfig().extraField;
+    const typeLabel = extra ? escapeHtml(labelForExtraValue(extra, item[extra.key]) || '—') : '—';
+    cells += '<td style="font-size:12px;">' + typeLabel + '</td>';
+  }
+  cells += statusCellHtml + dateCellHtml;
+
+  return '<tr class="adm-table-row' + selected + '" onclick="selectItem(\'' + escapeHtml(item.id) + '\')">' + cells + '</tr>';
 }
+
 function labelForExtraValue(extra, value) {
   const found = (extra.options || []).find(function(o) { return o.value === value; });
   return found ? found.label : value;
@@ -193,10 +247,19 @@ function labelForExtraValue(extra, value) {
 
 function renderPagination() {
   const el = document.getElementById('refbanks-pagination');
+  if (!el) return;
+  if (state.page === 0 && !state.hasMore) { el.innerHTML = ''; return; }
   el.innerHTML =
     '<button class="btn-secondary" onclick="goToPage(-1)"' + (state.page === 0 ? ' disabled' : '') + '>← Précédent</button>' +
     '<span class="bank-pagination-label">Page ' + (state.page + 1) + '</span>' +
     '<button class="btn-secondary" onclick="goToPage(1)"' + (!state.hasMore ? ' disabled' : '') + '>Suivant →</button>';
+}
+
+export function clearFilters() {
+  state.searchText = ''; document.getElementById('refbanks-search-input').value = '';
+  state.filters = { status: '' }; document.getElementById('refbanks-filter-status').value = '';
+  state.page = 0; state.cursorIndex = 0; state.cursorStack = [null];
+  loadPage();
 }
 
 export function onSearchInput() {
@@ -414,3 +477,4 @@ window.submitCreate = submitCreate;
 window.selectItem = selectItem;
 window.saveEdit = saveEdit;
 window.requestAction = requestAction;
+window.clearFilters = clearFilters;

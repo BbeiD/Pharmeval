@@ -29,8 +29,15 @@ const NAV = [
   {
     label: 'Utilisateurs',
     items: [
-      { key: 'users',        href: 'users.html',            icon: 'ti-users',            label: 'Utilisateurs' },
-      { key: 'orgs',         href: 'reference-banks.html',  icon: 'ti-building',         label: 'Organisations' },
+      { key: 'users',             href: 'users.html',                                   icon: 'ti-users',       label: 'Utilisateurs' },
+    ]
+  },
+  {
+    label: 'Structure et accès',
+    items: [
+      { key: 'orgs-organizations', href: 'reference-banks.html?tab=organizations',      icon: 'ti-building',    label: 'Organisations' },
+      { key: 'orgs-profiles',      href: 'reference-banks.html?tab=profiles',           icon: 'ti-id-badge',    label: 'Profils' },
+      { key: 'orgs-groups',        href: 'reference-banks.html?tab=groups',             icon: 'ti-users-group', label: 'Groupes' },
     ]
   },
   {
@@ -45,16 +52,25 @@ const NAV = [
 
 // Titres affichés dans le breadcrumb par clé de page
 const PAGE_LABELS = {
-  dashboard:    'Tableau de bord',
-  bank:         'Banque de questions',
-  parcours:     'Parcours',
-  sources:      'Sources documentaires',
-  competencies: 'Compétences',
-  users:        'Utilisateurs',
-  orgs:         'Organisations / Profils / Groupes',
-  'catalog-sync': 'Synchronisation du catalogue',
-  audit:        'Journal d\'audit',
-  reports:      'Signalements',
+  dashboard:           'Tableau de bord',
+  bank:                'Banque de questions',
+  parcours:            'Parcours',
+  sources:             'Sources documentaires',
+  competencies:        'Compétences',
+  users:               'Utilisateurs',
+  'orgs-organizations': 'Organisations',
+  'orgs-profiles':      'Profils',
+  'orgs-groups':        'Groupes',
+  'catalog-sync':      'Synchronisation du catalogue',
+  audit:               'Journal d\'audit',
+  reports:             'Signalements',
+};
+
+// Pages avec un parent pour le fil d'Ariane à 3 niveaux
+const PAGE_PARENTS = {
+  'orgs-organizations': { label: 'Organisations et accès', href: 'reference-banks.html' },
+  'orgs-profiles':      { label: 'Organisations et accès', href: 'reference-banks.html' },
+  'orgs-groups':        { label: 'Organisations et accès', href: 'reference-banks.html' },
 };
 
 function escHtml(str) {
@@ -159,6 +175,17 @@ function _buildSidebar(activeKey, opts) {
 
 function _buildTopbar(activeKey) {
   const label = PAGE_LABELS[activeKey] || activeKey;
+  const parent = PAGE_PARENTS[activeKey];
+  if (parent) {
+    return `
+      <nav class="adm-breadcrumb" aria-label="Fil d'Ariane">
+        <a href="dashboard.html">Administration</a>
+        <span class="adm-breadcrumb-sep" aria-hidden="true">›</span>
+        <a href="${escHtml(parent.href)}">${escHtml(parent.label)}</a>
+        <span class="adm-breadcrumb-sep" aria-hidden="true">›</span>
+        <span class="adm-breadcrumb-current">${escHtml(label)}</span>
+      </nav>`;
+  }
   return `
     <nav class="adm-breadcrumb" aria-label="Fil d'Ariane">
       <a href="dashboard.html">Administration</a>
