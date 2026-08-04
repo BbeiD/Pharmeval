@@ -28,7 +28,7 @@ import { getDocumentSectionById } from "../js/services/document-section-catalog-
 import {
   getReportsForQuestion, getOpenReportCounts, markReportResolved, REPORT_REASON_LABELS,
 } from "../js/services/question-report-service.js";
-import { renderAdminNav } from "./admin-shell.js";
+import { renderAdminNav, showAdminConfirm, showAdminToast } from "./admin-shell.js";
 import { icon } from "../js/icons.js";
 import { API_BASE_URL } from "../js/config.js";
 
@@ -63,7 +63,6 @@ let state = {
   selectedId: null,
   sourceNameMap: new Map(), // resolu par lot a chaque chargement de page (voir loadPage)
 };
-let pendingAction = null; // { kind: 'publish'|'archive'|'draft'|'delete', question }
 
 // ---------------------------------------------------------------------------
 // Controle d'acces
@@ -481,59 +480,51 @@ const ACTION_LABELS = {
   purge: 'supprimer définitivement',
 };
 
-export function requestBankAction(kind) {
+export async function requestBankAction(kind) {
   const q = state.items.find(function(item) { return item.pedagogicalId === state.selectedId; });
   if (!q) return;
-  pendingAction = { kind: kind, question: q };
   const verb = ACTION_LABELS[kind] || kind;
-  let extra = '';
-  if (kind === 'purge') extra = ' Cette action est définitive et ne peut pas être annulée.';
-  else if (kind === 'trash') extra = ' Cette question pourra être restaurée depuis la corbeille, ou supprimée définitivement plus tard.';
-  document.getElementById('bank-confirm-message').textContent = 'Voulez-vous vraiment ' + verb + ' la question « ' + q.pedagogicalId + ' » ?' + extra;
-  document.getElementById('bank-confirm-overlay').style.display = 'flex';
-}
-
-export function requestBulkPublish() {
-  pendingAction = { kind: 'bulk_publish' };
-  document.getElementById('bank-confirm-message').textContent = 'Publier toutes les questions actuellement en brouillon ? Les questions déjà publiées, en relecture, archivées ou à la corbeille ne seront pas touchées.';
-  document.getElementById('bank-confirm-overlay').style.display = 'flex';
-}
-
-export function cancelBankAction() {
-  pendingAction = null;
-  document.getElementById('bank-confirm-overlay').style.display = 'none';
-}
-
-export async function confirmBankAction() {
-  document.getElementById('bank-confirm-overlay').style.display = 'none';
-  if (!pendingAction) return;
-  const action = pendingAction;
-  pendingAction = null;
-
-  if (action.kind === 'bulk_publish') {
-    const result = await publishAllDraftQuestions();
-    showBankMessage(result.status, result.message);
-    if (result.status === 'success') loadPage();
-    return;
-  }
+  let body = 'Voulez-vous vraiment ' + verb + ' la question « ' + q.pedagogicalId + ' » ?';
+  if (kind === 'purge') body += ' Cette action est définitive et ne peut pas être annulée.';
+  else if (kind === 'trash') body += ' Cette question pourra être restaurée depuis la corbeille, ou supprimée définitivement plus tard.';
+  const confirmed = await showAdminConfirm({
+    title: 'Confirmation',
+    body: body,
+    destructive: kind === 'purge',
+    confirmLabel: kind === 'purge' ? 'Supprimer définitivement' : 'Confirmer',
+  });
+  if (!confirmed) return;
 
   let result;
-  if (action.kind === 'publish') result = await publishQuestion(action.question);
-  else if (action.kind === 'archive') result = await archiveQuestion(action.question);
-  else if (action.kind === 'draft') result = await revertQuestionToDraft(action.question);
-  else if (action.kind === 'trash') result = await moveQuestionToTrash(action.question);
-  else if (action.kind === 'restore') result = await restoreQuestionFromTrash(action.question);
-  else if (action.kind === 'purge') result = await permanentlyDeleteQuestion(action.question);
+  if (kind === 'publish') result = await publishQuestion(q);
+  else if (kind === 'archive') result = await archiveQuestion(q);
+  else if (kind === 'draft') result = await revertQuestionToDraft(q);
+  else if (kind === 'trash') result = await moveQuestionToTrash(q);
+  else if (kind === 'restore') result = await restoreQuestionFromTrash(q);
+  else if (kind === 'purge') result = await permanentlyDeleteQuestion(q);
 
+  if (!result) return;
   showBankMessage(result.status, result.message);
   if (result.status === 'success') {
-    if (action.kind === 'purge') {
+    if (kind === 'purge') {
       state.selectedId = null;
       document.getElementById('bank-detail').style.display = 'none';
       document.getElementById('bank-detail-placeholder').style.display = 'block';
     }
     loadPage();
   }
+}
+
+export async function requestBulkPublish() {
+  const confirmed = await showAdminConfirm({
+    title: 'Publier les brouillons',
+    body: 'Publier toutes les questions actuellement en brouillon ? Les questions déjà publiées, en relecture, archivées ou à la corbeille ne seront pas touchées.',
+    confirmLabel: 'Publier',
+  });
+  if (!confirmed) return;
+  const result = await publishAllDraftQuestions();
+  showBankMessage(result.status, result.message);
+  if (result.status === 'success') loadPage();
 }
 
 // ---------------------------------------------------------------------------
@@ -543,7 +534,8 @@ export async function confirmBankAction() {
 function showBankMessage(status, text) {
   const el = document.getElementById('bank-message');
   if (!el) return;
-  el.className = 'admin-message admin-message-' + status;
+  const cls = status === 'success' ? 'success' : status === 'error' ? 'error' : 'warn';
+  el.className = 'adm-message adm-message-' + cls;
   el.textContent = text;
   el.style.display = 'block';
 }
@@ -567,8 +559,6 @@ window.goToBankPage = goToBankPage;
 window.selectBankQuestion = selectBankQuestion;
 window.resolveReport = resolveReport;
 window.requestBankAction = requestBankAction;
-window.cancelBankAction = cancelBankAction;
-window.confirmBankAction = confirmBankAction;
 window.downloadQuestionsCSV = downloadQuestionsCSV;
 
 async function downloadQuestionsCSV() {
