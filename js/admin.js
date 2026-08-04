@@ -5,11 +5,8 @@
 // Ce fichier gere desormais uniquement l'ouverture/fermeture de la zone
 // et l'affichage des informations de contexte (version, email, role).
 
-import { getCurrentRole, ROLE_LABELS, PERMISSIONS, hasPermission } from "./services/authorization-service.js";
-import { getCurrentUserContext } from "./services/app-context.js";
+import { PERMISSIONS, hasPermission } from "./services/authorization-service.js";
 import { renderSiteHeader } from "./site-header.js";
-
-const APP_VERSION = 'Pharmeval v2.12.0';
 
 /**
  * Ouvre la zone d'administration. Double controle d'acces : le bouton est
@@ -22,23 +19,7 @@ export function openAdminZone() {
     console.warn('Acces refuse : la zone d\'administration est reservee aux administrateurs.');
     return;
   }
-
-  var ctx = getCurrentUserContext();
-
-  ['home-view', 'quiz-view', 'results-view', 'history-view'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-  var adminEl = document.getElementById('admin-view');
-  if (adminEl) adminEl.style.display = 'block';
-  renderSiteHeader('administration');
-
-  var versionEl = document.getElementById('admin-version');
-  var userEl = document.getElementById('admin-current-user');
-  var roleEl = document.getElementById('admin-current-role');
-  if (versionEl) versionEl.textContent = APP_VERSION;
-  if (userEl) userEl.textContent = (ctx && ctx.email) || '';
-  if (roleEl) roleEl.textContent = ROLE_LABELS[getCurrentRole()] || getCurrentRole();
+  window.location.href = 'admin/dashboard.html';
 }
 
 /**
