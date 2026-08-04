@@ -3724,4 +3724,34 @@ app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+// TABLEAU DE BORD ADMIN — comptages globaux
+// Remplace les appels getCountFromServer() côté client qui échouent depuis
+// que toutes les collections ont été verrouillées (allow read, write: if false)
+// pour les accès client directs (Étape 13, 24/07/2026). Le SDK Admin SDK
+// (côté serveur) contourne ces règles Firestore et peut compter sans lecture
+// des documents — aucune donnée éditoriale n'est exposée, seul le count().
+app.get("/api/admin/stats", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ error: "Réservé aux administrateurs." });
+    }
+    const db = admin.firestore();
+    const [qTotal, qDraft, pTotal, pDraft, rOpen] = await Promise.all([
+      db.collection("questions").count().get(),
+      db.collection("questions").where("status", "==", "draft").count().get(),
+      db.collection("parcours").count().get(),
+      db.collection("parcours").where("status", "==", "draft").count().get(),
+      db.collection("question_reports").where("status", "==", "open").count().get(),
+    ]);
+    res.json({
+      questions: { total: qTotal.data().count, draft: qDraft.data().count },
+      parcours:  { total: pTotal.data().count,  draft: pDraft.data().count  },
+      reports:   { open:  rOpen.data().count  },
+    });
+  } catch (err) {
+    console.error("[admin/stats]", err && err.code, err);
+    res.status(500).json({ error: "Impossible de charger les statistiques." });
+  }
+});
+
 exports.api = onRequest(app);
