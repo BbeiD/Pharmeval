@@ -4135,4 +4135,133 @@ app.post("/api/admin/execute-lot2-reassignments", requireAuth, async (req, res) 
   }
 });
 
+// ─── Lot 3 : recomposition de 3 parcours (AGE-RISK / HTA / RENAL) ────────────
+app.post("/api/admin/execute-lot3-reassignments", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 28 réaffectations depuis le fichier Pharmeval_Lot3_reaffectations.csv
+    const REASSIGNMENTS = [
+      // ─── Depuis AGE-RISK (PARC-148548ee) — 7 questions retirées ─────────────
+      { qid: "PHARM-MED-001587", src: "PARC-148548ee", tgt: "PARC-16c6ead8", op: "move" },
+      { qid: "PHARM-MED-001588", src: "PARC-148548ee", tgt: "PARC-1c2fbf22", op: "move" },
+      { qid: "PHARM-MED-001589", src: "PARC-148548ee", tgt: "PARC-d0cd45dd", op: "move" },
+      { qid: "PHARM-MED-001590", src: "PARC-148548ee", tgt: "PARC-d0cd45dd", op: "move" },
+      { qid: "PHARM-MED-001592", src: "PARC-148548ee", tgt: "PARC-d94beb97", op: "move" },
+      { qid: "PHARM-MED-001596", src: "PARC-148548ee", tgt: "PARC-7d813ae0", op: "move" },
+      { qid: "PHARM-MED-001601", src: "PARC-148548ee", tgt: "PARC-f64bdabf", op: "move" },
+      // ─── Depuis HTA (PARC-d0cd45dd) — 5 questions retirées ──────────────────
+      { qid: "PHARM-MED-001428", src: "PARC-d0cd45dd", tgt: "PARC-f64bdabf", op: "move" },
+      { qid: "PHARM-MED-001429", src: "PARC-d0cd45dd", tgt: "PARC-31e6e4cf", op: "move" },
+      { qid: "PHARM-MED-001434", src: "PARC-d0cd45dd", tgt: "PARC-31e6e4cf", op: "move" },
+      { qid: "PHARM-MED-001435", src: "PARC-d0cd45dd", tgt: "PARC-123d62aa", op: "move" },
+      { qid: "PHARM-MED-001436", src: "PARC-d0cd45dd", tgt: "PARC-16c6ead8", op: "move" },
+      // ─── Depuis RENAL (PARC-72e1ed10) — 6 questions retirées ────────────────
+      { qid: "PHARM-MED-001632", src: "PARC-72e1ed10", tgt: "PARC-d0cd45dd", op: "move" },
+      { qid: "PHARM-MED-001634", src: "PARC-72e1ed10", tgt: "PARC-5aa8f0d6", op: "move" },
+      { qid: "PHARM-MED-001635", src: "PARC-72e1ed10", tgt: "PARC-148548ee", op: "move" },
+      { qid: "PHARM-MED-001636", src: "PARC-72e1ed10", tgt: "PARC-d0cd45dd", op: "move" },
+      { qid: "PHARM-MED-001639", src: "PARC-72e1ed10", tgt: "PARC-7e183e7c", op: "move" },
+      { qid: "PHARM-MED-001641", src: "PARC-72e1ed10", tgt: "PARC-c8dae3d2", op: "move" },
+      // ─── Vers AGE-RISK — 2 déplacements entrants + 3 "ajouter aussi" ─────────
+      { qid: "PHARM-MED-001612", src: "PARC-1c2fbf22", tgt: "PARC-148548ee", op: "move"    },
+      { qid: "PHARM-MED-001748", src: "PARC-b593f716", tgt: "PARC-148548ee", op: "move"    },
+      { qid: "PHARM-MED-001617", src: "PARC-079e1eb2", tgt: "PARC-148548ee", op: "addAlso" },
+      { qid: "PHARM-MED-001406", src: "PARC-48df029a", tgt: "PARC-148548ee", op: "addAlso" },
+      { qid: "PHARM-MED-002038", src: "PARC-242d66e1", tgt: "PARC-148548ee", op: "addAlso" },
+      // ─── Vers RENAL — 4 "ajouter aussi" ──────────────────────────────────────
+      { qid: "PHARM-MED-001930", src: "PARC-cb994abd", tgt: "PARC-72e1ed10", op: "addAlso" },
+      { qid: "PHARM-MED-001523", src: "PARC-7e183e7c", tgt: "PARC-72e1ed10", op: "addAlso" },
+      { qid: "PHARM-MED-001524", src: "PARC-7e183e7c", tgt: "PARC-72e1ed10", op: "addAlso" },
+      { qid: "PHARM-MED-001617", src: "PARC-079e1eb2", tgt: "PARC-72e1ed10", op: "addAlso" },
+      { qid: "PHARM-MED-001406", src: "PARC-48df029a", tgt: "PARC-72e1ed10", op: "addAlso" },
+    ];
+
+    // 10 nouvelles questions (à lier après import catalog-sync Lot 3)
+    const NEW_LINKS = [
+      { eid: "LEGACY-LOT3_AGE_RISK-risquerenal-001", tgt: "PARC-148548ee" },
+      { eid: "LEGACY-LOT3_AGE_RISK-risquerenal-002", tgt: "PARC-148548ee" },
+      { eid: "LEGACY-LOT3_AGE_RISK-risquerenal-003", tgt: "PARC-148548ee" },
+      { eid: "LEGACY-LOT3_HTA-hta-001",              tgt: "PARC-d0cd45dd"  },
+      { eid: "LEGACY-LOT3_HTA-hta-002",              tgt: "PARC-d0cd45dd"  },
+      { eid: "LEGACY-LOT3_HTA-hta-003",              tgt: "PARC-d0cd45dd"  },
+      { eid: "LEGACY-LOT3_RENAL-renal-001",          tgt: "PARC-72e1ed10"  },
+      { eid: "LEGACY-LOT3_RENAL-renal-002",          tgt: "PARC-72e1ed10"  },
+      { eid: "LEGACY-LOT3_RENAL-renal-003",          tgt: "PARC-72e1ed10"  },
+      { eid: "LEGACY-LOT3_RENAL-renal-004",          tgt: "PARC-72e1ed10"  },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const locations = [];
+      const updates = {};
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, reassignments: [], newLinks: [], errors: [] };
+
+    for (const r of REASSIGNMENTS) {
+      const entry = { questionId: r.qid, from: r.src, to: r.tgt, op: r.op, status: "ok" };
+      if (r.op === "move") {
+        const rem = await removeFromParcours(r.src, r.qid);
+        entry.removeFrom = rem;
+        if (!rem.found) { entry.status = "warning"; entry.warning = "Question absente du parcours source."; }
+        await addToParcours(r.tgt, r.qid);
+      } else if (r.op === "addAlso") {
+        await addToParcours(r.tgt, r.qid);
+        entry.note = "conservée dans la source, ajoutée à la cible";
+      }
+      report.reassignments.push(entry);
+    }
+
+    for (const link of NEW_LINKS) {
+      const entry = { editorialId: link.eid, targetParcours: link.tgt, status: "ok" };
+      const qSnap = await db.collection("questions")
+        .where("externalIds.editorialCatalog", "==", link.eid).limit(1).get();
+      if (qSnap.empty) {
+        entry.status = "error"; entry.error = "Question introuvable par ID éditorial";
+        report.errors.push(entry);
+      } else {
+        entry.questionId = qSnap.docs[0].id;
+        await addToParcours(link.tgt, entry.questionId);
+      }
+      report.newLinks.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-lot3-reassignments]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);

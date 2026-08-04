@@ -81,6 +81,12 @@ export const BANK_TO_THEME = Object.freeze({
   LOT2_DUREE: 'medicaments',   // Bon usage et sécurité — Durées, doses maximales et arrêts
   LOT2_ALERTE: 'medicaments',  // Bon usage et sécurité — Signaux d'alerte : peau, foie, santé mentale
   LOT2_KQT: 'medicaments',     // Système cardio-vasculaire — Potassium, QT et diurétiques
+  // AJOUT (Lot 3 recomposition parcours, 05/08/2026) : nouvelles questions Gold Standard
+  // générées pour les 3 parcours du chantier de recomposition Lot 3 —
+  // traçables, distinctes des banques LOT2_* du lot précédent.
+  LOT3_AGE_RISK: 'medicaments', // Patient âgé — Rein, potassium et prescriptions à risque
+  LOT3_HTA: 'medicaments',      // Système cardio-vasculaire — Hypertension : traitements à surveiller
+  LOT3_RENAL: 'medicaments',    // Patient âgé — Adapter les doses à la fonction rénale
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;
