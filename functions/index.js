@@ -4495,4 +4495,143 @@ app.post("/api/admin/execute-lot5-reassignments", requireAuth, async (req, res) 
   }
 });
 
+// ─── Macro-lot 6 : recomposition de 13 parcours ───────────────────────────────
+app.post("/api/admin/execute-macrolot6-reassignments", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    // 28 réaffectations depuis Pharmeval_MacroLot6_recomposition_13_parcours.xlsx (feuille Réaffectations)
+    const REASSIGNMENTS = [
+      // ─── CYP (PARC-b593f716) ─────────────────────────────────────────────────
+      { qid: "PHARM-MED-001748", src: "PARC-b593f716", tgt: "PARC-123d62aa", op: "move" },
+      // ─── MÉDICAMENTS À RISQUE (PARC-02472517) ────────────────────────────────
+      { qid: "PHARM-MED-001936", src: "PARC-02472517", tgt: "PARC-2b499f41", op: "move" },
+      { qid: "PHARM-MED-001935", src: "PARC-02472517", tgt: "PARC-e7b8e5f7", op: "move" },
+      // ─── SIGNAUX D'ALERTE REIN/IONS (PARC-1c37cd49) ─────────────────────────
+      { qid: "PHARM-MED-001977", src: "PARC-1c37cd49", tgt: "PARC-7e183e7c", op: "move" },
+      { qid: "PHARM-MED-001980", src: "PARC-1c37cd49", tgt: "PARC-7e183e7c", op: "move" },
+      // ─── SÉCURISER LA DÉLIVRANCE (PARC-b8b5e707) ────────────────────────────
+      { qid: "PHARM-BPP-000093", src: "PARC-b8b5e707", tgt: "PARC-0967ca1e", op: "move" },
+      { qid: "PHARM-GAL-000067", src: "PARC-b8b5e707", tgt: "PARC-72d442c7", op: "move" },
+      // ─── FOIE ET MÉDICAMENTS (PARC-cf14b388) ─────────────────────────────────
+      { qid: "PHARM-MED-002315", src: "PARC-cf14b388", tgt: "PARC-27eff0ee", op: "move" },
+      { qid: "PHARM-MED-002316", src: "PARC-cf14b388", tgt: "PARC-218ef505", op: "move" },
+      { qid: "PHARM-MED-002322", src: "PARC-cf14b388", tgt: "PARC-7f7e8849", op: "move" },
+      // ─── ANTIBIOTIQUES BON USAGE (PARC-54c6557a) ────────────────────────────
+      { qid: "PHARM-BPP-000064", src: "PARC-54c6557a", tgt: "PARC-0967ca1e", op: "move" },
+      { qid: "PHARM-BPP-000063", src: "PARC-54c6557a", tgt: "PARC-0967ca1e", op: "move" },
+      // ─── ANTIBIOTIQUES POSOLOGIES (PARC-12bfd424) ───────────────────────────
+      { qid: "PHARM-MED-001368", src: "PARC-12bfd424", tgt: "PARC-6c4a784b", op: "move" },
+      { qid: "PHARM-MED-001370", src: "PARC-12bfd424", tgt: "PARC-f40cf133", op: "move" },
+      // ─── CANCER ET IMMUNOSUPPRESSION (PARC-ca2b6d43) ────────────────────────
+      { qid: "PHARM-MED-001813", src: "PARC-ca2b6d43", tgt: "PARC-2b499f41", op: "move" },
+      { qid: "PHARM-MED-001821", src: "PARC-ca2b6d43", tgt: "PARC-f88ff159", op: "move" },
+      // ─── DÉPISTAGE DES CANCERS (PARC-f88ff159) ──────────────────────────────
+      { qid: "PHARM-CON-000187", src: "PARC-f88ff159", tgt: "PARC-c8dae3d2", op: "move" },
+      { qid: "PHARM-CON-000185", src: "PARC-f88ff159", tgt: "PARC-c8dae3d2", op: "move" },
+      // ─── SANTÉ SEXUELLE (PARC-142924a5) ─────────────────────────────────────
+      { qid: "PHARM-MED-002162", src: "PARC-142924a5", tgt: "PARC-f64bdabf", op: "move" },
+      // ─── NAUSÉES/TRANSIT (PARC-74295162) ────────────────────────────────────
+      { qid: "PHARM-MED-001563", src: "PARC-74295162", tgt: "PARC-976f4c1b", op: "move" },
+      { qid: "PHARM-MED-001565", src: "PARC-74295162", tgt: "PARC-d0f2d36d", op: "move" },
+      // ─── ANTIDÉPRESSEURS (PARC-7fd267b1) ────────────────────────────────────
+      { qid: "PHARM-MED-001755", src: "PARC-7fd267b1", tgt: "PARC-b5c17256", op: "move" },
+      // ─── ANTIÉPILEPTIQUES (PARC-53201adc) ───────────────────────────────────
+      { qid: "PHARM-MED-001800", src: "PARC-53201adc", tgt: "PARC-7fd267b1", op: "move" },
+      { qid: "PHARM-MED-001801", src: "PARC-53201adc", tgt: "PARC-1d6d7bda", op: "move" },
+      // ─── "Ajouter aussi" ─────────────────────────────────────────────────────
+      { qid: "PHARM-MED-001999", src: "PARC-a219d70f", tgt: "PARC-54c6557a", op: "addAlso" },
+      { qid: "PHARM-MED-001545", src: "PARC-663880f0", tgt: "PARC-02472517", op: "addAlso" },
+      { qid: "PHARM-MED-001492", src: "PARC-31e6e4cf", tgt: "PARC-1c37cd49", op: "addAlso" },
+      { qid: "PHARM-MED-001495", src: "PARC-31e6e4cf", tgt: "PARC-1c37cd49", op: "addAlso" },
+    ];
+
+    // 11 nouvelles questions (à lier après import catalog-sync Macro-lot 6)
+    const NEW_LINKS = [
+      { eid: "LEGACY-MACRO6_LIVER-foie-001",        tgt: "PARC-cf14b388" },
+      { eid: "LEGACY-MACRO6_LIVER-foie-002",        tgt: "PARC-cf14b388" },
+      { eid: "LEGACY-MACRO6_LIVER-foie-003",        tgt: "PARC-cf14b388" },
+      { eid: "LEGACY-MACRO6_SCREEN-depistage-001",  tgt: "PARC-f88ff159"  },
+      { eid: "LEGACY-MACRO6_ABXSAFE-abxsafe-001",   tgt: "PARC-54c6557a"  },
+      { eid: "LEGACY-MACRO6_ONCO-onco-001",         tgt: "PARC-ca2b6d43"  },
+      { eid: "LEGACY-MACRO6_ONCO-onco-002",         tgt: "PARC-ca2b6d43"  },
+      { eid: "LEGACY-MACRO6_DISP-delivrance-001",   tgt: "PARC-b8b5e707"  },
+      { eid: "LEGACY-MACRO6_DISP-delivrance-002",   tgt: "PARC-b8b5e707"  },
+      { eid: "LEGACY-MACRO6_WOMEN-sexuelle-001",    tgt: "PARC-142924a5"  },
+      { eid: "LEGACY-MACRO6_CYP-cyp-001",           tgt: "PARC-b593f716"  },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const locations = [];
+      const updates = {};
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, reassignments: [], newLinks: [], errors: [] };
+
+    for (const r of REASSIGNMENTS) {
+      const entry = { questionId: r.qid, from: r.src, to: r.tgt, op: r.op, status: "ok" };
+      if (r.op === "move") {
+        const rem = await removeFromParcours(r.src, r.qid);
+        entry.removeFrom = rem;
+        if (!rem.found) { entry.status = "warning"; entry.warning = "Question absente du parcours source."; }
+        await addToParcours(r.tgt, r.qid);
+      } else if (r.op === "addAlso") {
+        await addToParcours(r.tgt, r.qid);
+        entry.note = "conservée dans la source, ajoutée à la cible";
+      }
+      report.reassignments.push(entry);
+    }
+
+    for (const link of NEW_LINKS) {
+      const entry = { editorialId: link.eid, targetParcours: link.tgt, status: "ok" };
+      const qSnap = await db.collection("questions")
+        .where("externalIds.editorialCatalog", "==", link.eid).limit(1).get();
+      if (qSnap.empty) {
+        entry.status = "error"; entry.error = "Question introuvable par ID éditorial";
+        report.errors.push(entry);
+      } else {
+        entry.questionId = qSnap.docs[0].id;
+        await addToParcours(link.tgt, entry.questionId);
+      }
+      report.newLinks.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-macrolot6-reassignments]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);

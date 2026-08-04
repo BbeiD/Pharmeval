@@ -95,6 +95,14 @@ export const BANK_TO_THEME = Object.freeze({
   LOT5_RESP: 'medicaments',     // Système respiratoire — Prévention respiratoire
   LOT5_PSY: 'medicaments',      // Système nerveux — Psychotropes : sédation et syndrome sérotoninergique
   LOT5_AGE_FALL: 'medicaments', // Patient âgé — Sédation, chutes et charge anticholinergique
+  // AJOUT (Macro-lot 6 recomposition parcours, 05/08/2026) — 13 parcours traités
+  MACRO6_LIVER: 'medicaments',   // Gastro-entérologie — Foie et médicaments
+  MACRO6_SCREEN: 'medicaments',  // Prévention et santé publique — Dépistage des cancers
+  MACRO6_ABXSAFE: 'medicaments', // Infections — Antibiotiques : bon usage et délivrance sécurisée
+  MACRO6_ONCO: 'medicaments',    // Médicaments antitumoraux — Cancer et immunosuppression
+  MACRO6_DISP: 'medicaments',    // Bon usage et sécurité — Sécuriser la délivrance
+  MACRO6_WOMEN: 'medicaments',   // Santé de la femme — Santé sexuelle sans tabou
+  MACRO6_CYP: 'medicaments',     // Bon usage et sécurité — Interactions enzymatiques CYP
 });
 
 const LEGACY_ID_PATTERN = /^LEGACY-([A-Z0-9]+(?:_[A-Z0-9]+)*)-([a-z0-9_]+)-(\d+)$/;

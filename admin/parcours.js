@@ -1863,6 +1863,45 @@ async function downloadParcoursAuditCSV() {
 }
 window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
 
+async function executeMacroLot6Reassignments(dryRun) {
+  const btnId = dryRun ? 'macrolot6-dryrun-btn' : 'macrolot6-execute-btn';
+  const btn = document.getElementById(btnId);
+  const label = dryRun ? 'Dry-run Macro-lot 6' : 'Exécuter Macro-lot 6';
+  if (btn) { btn.disabled = true; btn.textContent = dryRun ? 'Analyse…' : 'Exécution…'; }
+  if (!dryRun && !confirm('Exécuter les 28 réaffectations + rattachement des 11 nouvelles questions ?\nCette action modifie Firestore. Continuer ?')) {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/execute-macrolot6-reassignments', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    const warnings = report.reassignments.filter(r => r.status === 'warning').length;
+    const errors = report.errors.length;
+    const newLinksOk = report.newLinks.filter(l => l.status === 'ok').length;
+    const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
+    alert(
+      mode + 'Rapport Macro-lot 6\n\n' +
+      '✓ Réaffectations : ' + report.reassignments.length + ' (⚠ ' + warnings + ' absentes de la source)\n' +
+      '✓ Nouvelles questions rattachées : ' + newLinksOk + '/11\n' +
+      (errors > 0 ? '✗ Erreurs : ' + errors + ' (voir console)\n' : '') +
+      '\nDétail complet dans la console (F12).'
+    );
+    console.log('[MacroLot6-reassignments]', report);
+  } catch (err) {
+    console.error('[macrolot6-reassignments]', err);
+    alert('Erreur : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+window.executeMacroLot6Reassignments = executeMacroLot6Reassignments;
+
 async function executeLot5Reassignments(dryRun) {
   const btnId = dryRun ? 'lot5-dryrun-btn' : 'lot5-execute-btn';
   const btn = document.getElementById(btnId);
