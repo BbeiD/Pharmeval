@@ -4634,4 +4634,104 @@ app.post("/api/admin/execute-macrolot6-reassignments", requireAuth, async (req, 
   }
 });
 
+// ===================== MACRO-LOT 7 — 12 parcours, 0 nouvelles questions =====================
+app.post("/api/admin/execute-macrolot7-reassignments", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    const REASSIGNMENTS = [
+      // Déplacer (11)
+      { qid: "PHARM-MED-001994", op: "move", src: "PARC-a219d70f", tgt: "PARC-142924a5" },
+      { qid: "PHARM-MED-001877", op: "move", src: "PARC-3f4a7070",  tgt: "PARC-cb85e54b" },
+      { qid: "PHARM-DEO-000107", op: "move", src: "PARC-43217a1e", tgt: "PARC-cf324063" },
+      { qid: "PHARM-BAP-000065", op: "move", src: "PARC-7d813ae0", tgt: "PARC-73cd2233" },
+      { qid: "PHARM-BAP-000092", op: "move", src: "PARC-1a62a13e", tgt: "PARC-73cd2233" },
+      { qid: "PHARM-MED-001297", op: "move", src: "PARC-27eff0ee", tgt: "PARC-7fd267b1" },
+      { qid: "PHARM-MED-001548", op: "move", src: "PARC-663880f0", tgt: "PARC-a14a3328" },
+      { qid: "PHARM-MED-001622", op: "move", src: "PARC-079e1eb2", tgt: "PARC-7e183e7c" },
+      { qid: "PHARM-MED-001488", op: "move", src: "PARC-31e6e4cf", tgt: "PARC-f40cf133" },
+      { qid: "PHARM-CON-000204", op: "move", src: "PARC-8d7e93ee", tgt: "PARC-93f80356" },
+      { qid: "PHARM-MED-001912", op: "move", src: "PARC-cb85e54b", tgt: "PARC-6135d803" },
+      // Ajouter aussi (5)
+      { qid: "PHARM-MED-002050", op: "addAlso", src: "PARC-242d66e1", tgt: "PARC-a219d70f" },
+      { qid: "PHARM-MED-001901", op: "addAlso", src: "PARC-a14a3328", tgt: "PARC-3f4a7070" },
+      { qid: "PHARM-BPP-000092", op: "addAlso", src: "PARC-cf324063", tgt: "PARC-43217a1e" },
+      { qid: "PHARM-BAP-000064", op: "addAlso", src: "PARC-7d813ae0", tgt: "PARC-1a62a13e" },
+      { qid: "PHARM-MED-001459", op: "addAlso", src: "PARC-31e6e4cf", tgt: "PARC-8d7e93ee" },
+    ];
+    const NEW_LINKS = [];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const updates = {};
+      const locations = [];
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    async function addToParcours(parcoursId, questionId) {
+      if (!dryRun) {
+        await db.collection("parcours").doc(parcoursId).update({
+          directQuestionIds: admin.firestore.FieldValue.arrayUnion(questionId),
+        });
+      }
+    }
+
+    const report = { dryRun, reassignments: [], newLinks: [], errors: [] };
+
+    for (const r of REASSIGNMENTS) {
+      const entry = { questionId: r.qid, from: r.src, to: r.tgt, op: r.op, status: "ok" };
+      if (r.op === "move") {
+        const rem = await removeFromParcours(r.src, r.qid);
+        entry.removeFrom = rem;
+        if (!rem.found) { entry.status = "warning"; entry.warning = "Question absente du parcours source."; }
+        await addToParcours(r.tgt, r.qid);
+      } else if (r.op === "addAlso") {
+        await addToParcours(r.tgt, r.qid);
+        entry.note = "conservée dans la source, ajoutée à la cible";
+      }
+      report.reassignments.push(entry);
+    }
+
+    for (const link of NEW_LINKS) {
+      const entry = { editorialId: link.eid, targetParcours: link.tgt, status: "ok" };
+      const qSnap = await db.collection("questions")
+        .where("externalIds.editorialCatalog", "==", link.eid).limit(1).get();
+      if (qSnap.empty) {
+        entry.status = "error"; entry.error = "Question introuvable par ID éditorial";
+        report.errors.push(entry);
+      } else {
+        entry.questionId = qSnap.docs[0].id;
+        await addToParcours(link.tgt, entry.questionId);
+      }
+      report.newLinks.push(entry);
+    }
+
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-macrolot7-reassignments]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);
