@@ -214,3 +214,108 @@ function showMessage(msg, isError) {
   el.className = 'adm-message' + (isError ? ' adm-message-error' : ' adm-message-success');
   el.textContent = msg;
 }
+
+// ── Patch JSON V3 ──────────────────────────────────────────────────────────
+
+let patchItems = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  const fi = document.getElementById('patch-file-input');
+  if (fi) fi.addEventListener('change', function(e) {
+    document.getElementById('patch-analyze-btn').disabled = !e.target.files.length;
+  });
+});
+
+function showPatchMessage(msg, isError) {
+  const el = document.getElementById('patch-message');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.className = 'adm-message' + (isError ? ' adm-message-error' : ' adm-message-success');
+  el.textContent = msg;
+}
+
+window.analyzePatch = async function analyzePatch() {
+  const file = document.getElementById('patch-file-input').files[0];
+  if (!file) return;
+  const btn = document.getElementById('patch-analyze-btn');
+  btn.disabled = true; btn.textContent = 'Analyse…';
+  showPatchMessage('', false);
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    patchItems = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
+    if (!patchItems.length) { showPatchMessage('Fichier JSON invalide ou vide.', true); btn.disabled = false; btn.textContent = 'Analyser'; return; }
+
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/apply-question-patch-v3', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ items: patchItems, dryRun: true }),
+    });
+    const report = await res.json();
+    if (!res.ok) { showPatchMessage('Erreur dry-run : ' + (report.error || res.status), true); btn.disabled = false; btn.textContent = 'Analyser'; return; }
+
+    const conflitsHtml = report.conflits && report.conflits.length
+      ? '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--warning)">' + report.conflits.length + ' conflit(s) — cliquer pour voir</summary>'
+        + '<ul style="font-size:12px;margin-top:8px">' + report.conflits.map(function(c) { return '<li>' + c.pedagogicalId + ' — ' + c.current + '…</li>'; }).join('') + '</ul></details>'
+      : '';
+
+    document.getElementById('patch-preview').innerHTML =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:12px">'
+      + '<div class="ic-stat"><span class="ic-stat-num">' + patchItems.length + '</span><span class="ic-stat-label">Items</span></div>'
+      + '<div class="ic-stat ic-stat-update"><span class="ic-stat-num">' + report.mis_a_jour.length + '</span><span class="ic-stat-label">À mettre à jour</span></div>'
+      + '<div class="ic-stat"><span class="ic-stat-num">' + (report.deja_conforme ? report.deja_conforme.length : 0) + '</span><span class="ic-stat-label">Déjà conformes</span></div>'
+      + '<div class="ic-stat ic-stat-warn"><span class="ic-stat-num">' + (report.conflits ? report.conflits.length : 0) + '</span><span class="ic-stat-label">Conflits</span></div>'
+      + '<div class="ic-stat ic-stat-delete"><span class="ic-stat-num">' + (report.introuvables ? report.introuvables.length : 0) + '</span><span class="ic-stat-label">Introuvables</span></div>'
+      + '</div>' + conflitsHtml;
+
+    document.getElementById('patch-step1').style.display = 'none';
+    document.getElementById('patch-step2').style.display = '';
+  } catch (err) {
+    showPatchMessage('Erreur : ' + err.message, true);
+    btn.disabled = false; btn.textContent = 'Analyser';
+  }
+};
+
+window.applyPatch = async function applyPatch() {
+  if (!confirm('Appliquer le patch sur ' + patchItems.length + ' questions ?\nSeul le champ "question" sera modifié. Continuer ?')) return;
+  const btn = document.getElementById('patch-apply-btn');
+  btn.disabled = true; btn.textContent = 'Application…';
+  showPatchMessage('', false);
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/apply-question-patch-v3', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ items: patchItems, dryRun: false }),
+    });
+    const report = await res.json();
+    if (!res.ok) { showPatchMessage('Erreur : ' + (report.error || res.status), true); btn.disabled = false; btn.textContent = 'Appliquer le patch'; return; }
+
+    document.getElementById('patch-step2').style.display = 'none';
+    document.getElementById('patch-results').innerHTML =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">'
+      + '<div class="ic-stat ic-stat-update"><span class="ic-stat-num">' + report.mis_a_jour.length + '</span><span class="ic-stat-label">Mis à jour</span></div>'
+      + '<div class="ic-stat"><span class="ic-stat-num">' + (report.deja_conforme ? report.deja_conforme.length : 0) + '</span><span class="ic-stat-label">Déjà conformes</span></div>'
+      + '<div class="ic-stat ic-stat-warn"><span class="ic-stat-num">' + (report.conflits ? report.conflits.length : 0) + '</span><span class="ic-stat-label">Conflits</span></div>'
+      + '<div class="ic-stat ic-stat-delete"><span class="ic-stat-num">' + (report.introuvables ? report.introuvables.length : 0) + '</span><span class="ic-stat-label">Introuvables</span></div>'
+      + '</div>'
+      + '<p style="color:var(--green-dark);font-weight:600;margin-top:16px">✓ Patch appliqué.</p>';
+    document.getElementById('patch-step3').style.display = '';
+    console.log('[PatchV3]', report);
+  } catch (err) {
+    showPatchMessage('Erreur : ' + err.message, true);
+    btn.disabled = false; btn.textContent = 'Appliquer le patch';
+  }
+};
+
+window.resetPatch = function resetPatch() {
+  patchItems = [];
+  document.getElementById('patch-file-input').value = '';
+  document.getElementById('patch-analyze-btn').disabled = true;
+  document.getElementById('patch-analyze-btn').textContent = 'Analyser';
+  document.getElementById('patch-step1').style.display = '';
+  document.getElementById('patch-step2').style.display = 'none';
+  document.getElementById('patch-step3').style.display = 'none';
+  showPatchMessage('', false);
+};

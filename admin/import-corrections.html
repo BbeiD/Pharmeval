@@ -72,6 +72,35 @@
       </div>
     </div>
 
+    <!-- PATCH JSON V3 — section indépendante -->
+    <div class="adm-modal" style="max-width:600px;margin:32px 0 0;">
+      <h3 style="margin-top:0"><i class="ti ti-file-code" aria-hidden="true"></i> Patch JSON V3 — énoncés style naturel</h3>
+      <p style="color:var(--text2);margin-bottom:16px;font-size:13px;">
+        Format <code>.json</code> — champs attendus : <code>items[].pedagogicalId</code>, <code>question_finale</code>, <code>valeurs_actuelles_acceptees</code>.<br>
+        Détection de conflits : si l'énoncé en base ne correspond à aucune valeur attendue, la question est signalée sans être modifiée.
+      </p>
+      <div id="patch-step1">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <input type="file" id="patch-file-input" accept=".json" style="flex:1;min-width:200px;">
+          <button id="patch-analyze-btn" class="btn-primary" onclick="analyzePatch()" disabled>Analyser</button>
+        </div>
+      </div>
+      <div id="patch-step2" style="display:none;margin-top:20px;">
+        <div id="patch-preview"></div>
+        <div class="btn-row" style="margin-top:16px;">
+          <button class="btn-secondary" onclick="resetPatch()">Choisir un autre fichier</button>
+          <button id="patch-apply-btn" class="btn-danger" onclick="applyPatch()">Appliquer le patch</button>
+        </div>
+      </div>
+      <div id="patch-step3" style="display:none;margin-top:20px;">
+        <div id="patch-results"></div>
+        <div class="btn-row" style="margin-top:16px;">
+          <button class="btn-primary" onclick="resetPatch()">Nouveau patch</button>
+        </div>
+      </div>
+      <div id="patch-message" class="adm-message" style="display:none;margin-top:12px;"></div>
+    </div>
+
   </div>
 </div>
 
