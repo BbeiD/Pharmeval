@@ -4936,4 +4936,57 @@ app.post("/api/admin/apply-question-patch-v3", requireAuth, async (req, res) => 
   }
 });
 
+// ===================== POST-AUDIT 05/08/2026 — 2 retraits urgents =====================
+app.post("/api/admin/execute-post-audit-corrections", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).send("Accès refusé");
+    const dryRun = req.body.dryRun !== false;
+    const db = admin.firestore();
+
+    const RETRAITS = [
+      { qid: "PHARM-MED-002251", src: "PARC-8290ad3a", note: "Question archivée (clé erronée) — retrait du parcours Parkinson" },
+      { qid: "PHARM-BAP-000092", src: "PARC-73cd2233", note: "Doublon coqueluche — retrait de Grossesse, PHARM-BAP-000065 conservée" },
+    ];
+
+    async function removeFromParcours(parcoursId, questionId) {
+      const ref = db.collection("parcours").doc(parcoursId);
+      const snap = await ref.get();
+      if (!snap.exists) return { found: false, error: "parcours introuvable" };
+      const data = snap.data();
+      const updates = {};
+      const locations = [];
+      if ((data.directQuestionIds || []).includes(questionId)) {
+        locations.push("directQuestionIds");
+        updates.directQuestionIds = admin.firestore.FieldValue.arrayRemove(questionId);
+      }
+      const comps = data.competencies || [];
+      const compNames = comps.filter(c => (c.questionIds || []).includes(questionId)).map(c => c.name || "(sans nom)");
+      if (compNames.length > 0) {
+        locations.push(...compNames.map(n => `competencies["${n}"]`));
+        updates.competencies = comps.map(c =>
+          (c.questionIds || []).includes(questionId)
+            ? { ...c, questionIds: c.questionIds.filter(id => id !== questionId) }
+            : c
+        );
+      }
+      if (locations.length === 0) return { found: false, error: "question non trouvée dans ce parcours" };
+      if (!dryRun) await ref.update(updates);
+      return { found: true, location: locations.join(" + ") };
+    }
+
+    const report = { dryRun, retraits: [] };
+    for (const r of RETRAITS) {
+      const entry = { questionId: r.qid, parcours: r.src, note: r.note, status: "ok" };
+      const rem = await removeFromParcours(r.src, r.qid);
+      entry.removeFrom = rem;
+      if (!rem.found) { entry.status = "warning"; entry.warning = rem.error; }
+      report.retraits.push(entry);
+    }
+    res.json(report);
+  } catch (err) {
+    console.error("[execute-post-audit-corrections]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 exports.api = onRequest(app);

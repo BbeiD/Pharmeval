@@ -2007,3 +2007,65 @@ async function executeLot5Reassignments(dryRun) {
   }
 }
 window.executeLot5Reassignments = executeLot5Reassignments;
+
+// ── Post-audit 05/08/2026 — 2 retraits urgents ────────────────────────────
+async function _callPostAuditCorrections(dryRun) {
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(API_BASE_URL + '/api/admin/execute-post-audit-corrections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ dryRun }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+function _renderPostAuditReport(report) {
+  const el = document.getElementById('post-audit-result');
+  if (!el) return;
+  const mode = report.dryRun ? '[DRY-RUN] ' : '[EXÉCUTÉ] ';
+  let html = '<strong>' + mode + report.retraits.length + ' opération(s)</strong><ul style="margin:8px 0 0;padding-left:16px;">';
+  for (const r of report.retraits) {
+    const loc = r.removeFrom && r.removeFrom.location ? ' — ' + r.removeFrom.location : '';
+    const warn = r.warning ? ' ⚠ ' + r.warning : '';
+    const icon = r.status === 'warning' ? '⚠' : (report.dryRun ? '○' : '✓');
+    html += '<li>' + icon + ' ' + r.questionId + ' ← ' + r.parcours + loc + warn + '</li>';
+  }
+  html += '</ul>';
+  el.innerHTML = html;
+  console.log('[PostAudit]', report);
+}
+
+window.executePostAuditDryRun = async function() {
+  const btn = document.querySelector('#post-audit-section .btn-secondary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyse…'; }
+  try {
+    const report = await _callPostAuditCorrections(true);
+    _renderPostAuditReport(report);
+  } catch (err) {
+    const el = document.getElementById('post-audit-result');
+    if (el) el.textContent = 'Erreur : ' + err.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Dry-run'; }
+  }
+};
+
+window.executePostAuditCorrections = async function() {
+  if (!confirm('Retirer les 2 questions de leurs parcours respectifs ?\nCette opération est définitive.')) return;
+  const btn = document.querySelector('#post-audit-section .btn-danger');
+  if (btn) { btn.disabled = true; btn.textContent = 'Exécution…'; }
+  try {
+    const report = await _callPostAuditCorrections(false);
+    _renderPostAuditReport(report);
+    alert('Post-audit appliqué — 2 retraits effectués.\nSupprimez la section HTML "post-audit-section" quand c\'est confirmé.');
+  } catch (err) {
+    const el = document.getElementById('post-audit-result');
+    if (el) el.textContent = 'Erreur : ' + err.message;
+    alert('Erreur : ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Exécuter'; }
+  }
+};
