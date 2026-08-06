@@ -5029,14 +5029,18 @@ app.post("/api/admin/fix-ftm-questions", requireAuth, async (req, res) => {
       { pedagogicalId: "PHARM-FTM-000082", question: "En l'absence d'une exception documentée, quelle validité maximale retenir pour un gel aqueux contenant un conservateur ?", reponse_A: "Un mois.", reponse_B: "Trois mois.", reponse_C: "Six mois.", reponse_D: "Un an.", bonne_reponse_index: 1, bonne_reponse_texte: "Trois mois.", explication: "Sauf exception documentée, une préparation contenant de l'eau ne dépasse pas deux mois de validité. Cette limite peut être portée à trois mois lorsqu'un agent conservateur est présent." },
     ];
 
-    const FIELDS = ["question","reponse_A","reponse_B","reponse_C","reponse_D","bonne_reponse_index","bonne_reponse_texte","explication"];
     const results = [];
     if (!dryRun) {
-      const batch = db.batch();
+      const batch = admin.firestore().batch();
       for (const row of FTM_CORRECTIONS) {
-        const ref = db.collection("questions").doc(row.pedagogicalId);
-        const update = {};
-        for (const f of FIELDS) { if (row[f] !== undefined) update[f] = row[f]; }
+        const ref = admin.firestore().collection("questions").doc(row.pedagogicalId);
+        const update = {
+          updatedAt: FieldValue.serverTimestamp(),
+          question: row.question,
+          answers: [row.reponse_A, row.reponse_B, row.reponse_C, row.reponse_D],
+          correctAnswer: row.bonne_reponse_index,
+          explanation: row.explication,
+        };
         batch.update(ref, update);
       }
       await batch.commit();
