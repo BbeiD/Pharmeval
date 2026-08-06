@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharmeval — Correction FTM</title>
+<style>
+  body { background: #080F0E; color: #e2e8e6; font-family: system-ui, sans-serif; padding: 40px 24px; max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 8px; color: #1D9E75; }
+  p { color: #8fa89f; margin: 0 0 24px; font-size: .95rem; }
+  .card { background: #111c1a; border: 1px solid #1e2e2b; border-radius: 10px; padding: 24px; margin-bottom: 20px; }
+  .btn { padding: 10px 22px; border: none; border-radius: 8px; cursor: pointer; font-size: .95rem; font-weight: 600; }
+  .btn-primary { background: #1D9E75; color: #fff; }
+  .btn-danger { background: #c0392b; color: #fff; margin-left: 12px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  #status { margin-top: 20px; font-size: .9rem; white-space: pre-wrap; background: #0a1412; border: 1px solid #1e2e2b; border-radius: 8px; padding: 16px; min-height: 80px; }
+  .ok { color: #1D9E75; } .err { color: #e74c3c; } .warn { color: #f39c12; }
+</style>
+</head>
+<body>
+<h1>Correction FTM — 30 questions</h1>
+<p>Outil temporaire pour écraser les données corrompues par l'import CSV buggy.<br>Effectue une correction directe via Cloud Function (sans parser CSV).</p>
+
+<div class="card">
+  <div id="auth-status" class="warn">Vérification de l'authentification…</div>
+  <br>
+  <button id="btn-dry" class="btn btn-primary" disabled onclick="runFix(true)">Dry-run (aperçu)</button>
+  <button id="btn-apply" class="btn btn-danger" disabled onclick="runFix(false)">Appliquer les 30 corrections</button>
+</div>
+
+<div id="status">En attente…</div>
+
+<script type="module">
+import { auth } from "../js/firebase-config.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+const API = "https://europe-west1-pharmeval-ea3d3.cloudfunctions.net/api";
+const log = (msg, cls) => {
+  const el = document.getElementById("status");
+  el.innerHTML += `<span class="${cls||''}">${msg}</span>\n`;
+};
+
+onAuthStateChanged(auth, async (user) => {
+  const authEl = document.getElementById("auth-status");
+  if (!user) {
+    authEl.className = "err";
+    authEl.textContent = "Non connecté — ouvre d'abord une page admin Pharmeval puis reviens ici.";
+    return;
+  }
+  authEl.className = "ok";
+  authEl.textContent = "Connecté : " + user.email;
+  document.getElementById("btn-dry").disabled = false;
+});
+
+window.runFix = async function(dryRun) {
+  document.getElementById("btn-dry").disabled = true;
+  document.getElementById("btn-apply").disabled = true;
+  document.getElementById("status").textContent = "";
+  log(dryRun ? "=== DRY-RUN ===" : "=== APPLICATION ===", "warn");
+
+  try {
+    const token = await auth.currentUser.getIdToken(true);
+    const res = await fetch(API + "/api/admin/fix-ftm-questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ dryRun })
+    });
+    const data = await res.json();
+    if (!res.ok) { log("Erreur : " + (data.error || res.status), "err"); return; }
+    log(`Total : ${data.total} questions | dryRun : ${data.dryRun}`, "ok");
+    data.results.forEach(r => log(`  ${r.pedagogicalId} → ${r.status}`));
+    if (!dryRun) {
+      log("\nCorrections appliquées. Tu peux fermer cette page.", "ok");
+    } else {
+      log("\nDry-run OK. Clique sur 'Appliquer' pour écrire en base.", "warn");
+      document.getElementById("btn-apply").disabled = false;
+    }
+  } catch (e) {
+    log("Erreur réseau : " + e.message, "err");
+  } finally {
+    document.getElementById("btn-dry").disabled = false;
+  }
+};
+</script>
+</body>
+</html>
