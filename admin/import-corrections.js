@@ -73,6 +73,7 @@ function parseCSV(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (ch === '"') {
+      cur += ch;
       if (inQ && text[i + 1] === '"') { cur += '"'; i++; }
       else inQ = !inQ;
     } else if ((ch === '\n' || ch === '\r') && !inQ) {
