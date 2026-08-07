@@ -23,7 +23,27 @@ const app = express();
 // ralentissement sensible de l'auto-sauvegarde des reponses en
 // evaluation, 24/07/2026). Chaque navigateur applique de toute facon son
 // propre plafond si 86400s (24h) le depasse - aucun risque a viser large.
-app.use(cors({ origin: true, maxAge: 86400 }));
+//
+// CORRECTIF SECURITE (M5, audit du 07/08/2026) : `origin: true` refletait
+// n'importe quelle origine - avec des jetons Bearer (jamais de cookie),
+// le risque reel etait qu'un jeton exfiltre soit rejoue depuis un site
+// tiers via une simple requete fetch(). Liste fermee desormais : le site
+// reel (pharmeval.be), l'URL GitHub Pages brute (filet de securite si le
+// domaine personnalise venait a changer), et localhost/127.0.0.1 (tout
+// port - previews locales de dev). `requireAuth` reste la vraie barriere
+// d'autorisation - CORS ne fait ici que reduire la surface de rejeu.
+const ALLOWED_ORIGINS = [
+  "https://pharmeval.be",
+  "https://bbeid.github.io",
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // pas de header Origin (curl, appel serveur-a-serveur) - non concerne par CORS
+    callback(null, ALLOWED_ORIGINS.some((o) => (o instanceof RegExp ? o.test(origin) : o === origin)));
+  },
+  maxAge: 86400,
+}));
 app.use(express.json());
 app.use((req, res, next) => {
   res.on("finish", () => console.log(`${req.method} ${req.path} -> ${res.statusCode}`));
@@ -281,6 +301,79 @@ app.put("/api/daily-challenge/:uid", requireAuth, async (req, res) => {
 
 const LUNDI_LEGI_COLLECTION = "lundi_legi_progress";
 
+// Copie fidele de js/services/lundi-legi-schedule.js (LUNDI_LEGI_SCHEDULE +
+// currentWeekEntry()) - a tenir manuellement synchronisee si le calendrier
+// change, meme principe que les autres copies serveur de ce fichier. Cette
+// donnee n'est PAS sensible (juste "quelle question est prevue quelle
+// semaine"), contrairement a la reponse elle-meme.
+const LUNDI_LEGI_SCHEDULE = [
+  { date: "2026-09-07", id: "PHARM-LEG-000095" },
+  { date: "2026-09-14", id: "PHARM-BPP-000060" },
+  { date: "2026-09-21", id: "PHARM-LEG-000096" },
+  { date: "2026-09-28", id: "PHARM-LEG-000097" },
+  { date: "2026-10-05", id: "PHARM-DEO-000064" },
+  { date: "2026-10-12", id: "PHARM-LEG-000098" },
+  { date: "2026-10-19", id: "PHARM-LEG-000099" },
+  { date: "2026-10-26", id: "PHARM-DEO-000065" },
+  { date: "2026-11-02", id: "PHARM-LEG-000100" },
+  { date: "2026-11-09", id: "PHARM-LEG-000101" },
+  { date: "2026-11-16", id: "PHARM-LEG-000102" },
+  { date: "2026-11-23", id: "PHARM-DEO-000066" },
+  { date: "2026-11-30", id: "PHARM-LEG-000103" },
+  { date: "2026-12-07", id: "PHARM-LEG-000104" },
+  { date: "2026-12-14", id: "PHARM-LEG-000105" },
+  { date: "2026-12-21", id: "PHARM-DEO-000067" },
+  { date: "2026-12-28", id: "PHARM-DEO-000068" },
+  { date: "2027-01-04", id: "PHARM-LEG-000106" },
+  { date: "2027-01-11", id: "PHARM-LEG-000107" },
+  { date: "2027-01-18", id: "PHARM-DEO-000069" },
+  { date: "2027-01-25", id: "PHARM-LEG-000108" },
+  { date: "2027-02-01", id: "PHARM-LEG-000109" },
+  { date: "2027-02-08", id: "PHARM-DEO-000070" },
+  { date: "2027-02-15", id: "PHARM-LEG-000110" },
+  { date: "2027-02-22", id: "PHARM-DEO-000071" },
+  { date: "2027-03-01", id: "PHARM-DEO-000072" },
+  { date: "2027-03-08", id: "PHARM-DEO-000073" },
+  { date: "2027-03-15", id: "PHARM-LEG-000111" },
+  { date: "2027-03-22", id: "PHARM-DEO-000074" },
+  { date: "2027-03-29", id: "PHARM-LEG-000112" },
+  { date: "2027-04-05", id: "PHARM-DEO-000075" },
+  { date: "2027-04-12", id: "PHARM-DEO-000076" },
+  { date: "2027-04-19", id: "PHARM-LEG-000113" },
+  { date: "2027-04-26", id: "PHARM-LEG-000114" },
+  { date: "2027-05-03", id: "PHARM-BPP-000061" },
+  { date: "2027-05-10", id: "PHARM-DEO-000077" },
+  { date: "2027-05-17", id: "PHARM-LEG-000115" },
+  { date: "2027-05-24", id: "PHARM-LEG-000116" },
+  { date: "2027-05-31", id: "PHARM-LEG-000117" },
+  { date: "2027-06-07", id: "PHARM-DEO-000078" },
+  { date: "2027-06-14", id: "PHARM-BPP-000062" },
+  { date: "2027-06-21", id: "PHARM-LEG-000118" },
+  { date: "2027-06-28", id: "PHARM-LEG-000119" },
+  { date: "2027-07-05", id: "PHARM-LEG-000120" },
+  { date: "2027-07-12", id: "PHARM-LEG-000121" },
+  { date: "2027-07-19", id: "PHARM-LEG-000122" },
+  { date: "2027-07-26", id: "PHARM-DEO-000079" },
+  { date: "2027-08-02", id: "PHARM-DEO-000080" },
+  { date: "2027-08-09", id: "PHARM-DEO-000081" },
+  { date: "2027-08-16", id: "PHARM-DEO-000082" },
+];
+
+function currentWeekEntryServer() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + diff);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, "0");
+  const d = String(monday.getDate()).padStart(2, "0");
+  const dateStr = `${y}-${m}-${d}`;
+  const idx = LUNDI_LEGI_SCHEDULE.findIndex((e) => e.date === dateStr);
+  if (idx === -1) return null;
+  return { date: dateStr, id: LUNDI_LEGI_SCHEDULE[idx].id, weekNumber: idx + 1 };
+}
+
 // Reprend getLundiLegiProgress() de
 // js/services/lundi-legi-catalog-service.js. Meme regle d'acces que
 // daily-challenge (match /lundi_legi_progress/{uid}) : le proprietaire
@@ -299,18 +392,109 @@ app.get("/api/lundi-legi/:uid", requireAuth, async (req, res) => {
   }
 });
 
-// Reprend saveLundiLegiProgress() de
-// js/services/lundi-legi-catalog-service.js. Ecriture complete,
-// uniquement en son propre nom (progress.userId == uid).
+// CORRECTIF SECURITE (07/08/2026) : reprend getLundiLegiStateForUser() de
+// js/services/lundi-legi-service.js, mais entierement server-side. AVANT,
+// la question etait lue via /api/questions-by-ids (correctAnswer inclus)
+// et la reponse "correcte" affichee dans l'attribut onclick du bouton -
+// visible directement dans le HTML AVANT meme de repondre. Desormais,
+// `correctAnswer`/`explanation` ne sont inclus dans la reponse QUE si
+// l'utilisateur a REELLEMENT deja repondu cette semaine (verifie ici via
+// sa propre progression) - jamais avant, meme principe que le snapshot de
+// session d'evaluation.
+app.get("/api/lundi-legi/:uid/state", requireAuth, async (req, res) => {
+  const { uid } = req.params;
+  try {
+    if (req.user.uid !== uid && !(await isRequesterAdmin(req.user.uid))) {
+      return res.status(403).json({ data: null, error: true });
+    }
+    const entry = currentWeekEntryServer();
+    if (!entry) {
+      return res.json({
+        data: { outOfSeason: true, weekNumber: null, date: null, pedagogicalId: null, question: null, alreadyAnswered: false, userAnswer: null },
+        error: false,
+      });
+    }
+    const [progressSnap, questionSnap] = await Promise.all([
+      admin.firestore().collection(LUNDI_LEGI_COLLECTION).doc(uid).get(),
+      admin.firestore().collection(QUESTIONS_COLLECTION).doc(entry.id).get(),
+    ]);
+    const progress = progressSnap.exists ? progressSnap.data() : null;
+    const userAnswer = (progress && progress.answers && progress.answers[entry.date]) || null;
+    const alreadyAnswered = !!userAnswer;
+    const questionData = questionSnap.exists ? questionSnap.data() : null;
+    const question = questionData
+      ? (alreadyAnswered ? questionData : Object.assign({}, questionData, { correctAnswer: null, explanation: null }))
+      : null;
+
+    res.json({
+      data: {
+        outOfSeason: false,
+        weekNumber: entry.weekNumber,
+        date: entry.date,
+        pedagogicalId: entry.id,
+        question,
+        alreadyAnswered,
+        userAnswer,
+      },
+      error: false,
+    });
+  } catch (err) {
+    console.error("[lundi-legi/state]", err && err.code, err);
+    res.status(500).json({ data: null, error: true });
+  }
+});
+
+// CORRECTIF SECURITE (07/08/2026) : reprend submitLundiLegiAnswer() de
+// js/services/lundi-legi-service.js. AVANT, le client calculait lui-meme
+// `correct` (a partir d'un correctAnswer deja visible dans le HTML) et le
+// serveur l'ecrivait tel quel, sans aucune verification - un appel API
+// direct pouvait forger n'importe quel resultat. Desormais, le client
+// n'envoie plus que son intention (quelle semaine, quelle question selon
+// lui, quel index choisi) ; le serveur verifie que la question correspond
+// bien au calendrier PUIS calcule lui-meme la reponse a partir de
+// Firestore - jamais fourni par le client.
 app.put("/api/lundi-legi/:uid", requireAuth, async (req, res) => {
   const { uid } = req.params;
-  const progress = req.body || {};
-  if (req.user.uid !== uid || progress.userId !== uid) {
+  const body = req.body || {};
+  if (req.user.uid !== uid) {
     return res.status(403).json({ success: false, error: true });
   }
+  const { weekDate, pedagogicalId, selectedAnswer } = body;
+  if (!weekDate || !pedagogicalId || typeof selectedAnswer !== "number") {
+    return res.status(400).json({ success: false, error: true });
+  }
   try {
-    await admin.firestore().collection(LUNDI_LEGI_COLLECTION).doc(uid).set(progress);
-    res.json({ success: true, error: false });
+    const scheduledEntry = LUNDI_LEGI_SCHEDULE.find((e) => e.date === weekDate);
+    if (!scheduledEntry || scheduledEntry.id !== pedagogicalId) {
+      return res.status(400).json({ success: false, error: true, message: "Question incohérente avec le calendrier." });
+    }
+
+    const ref = admin.firestore().collection(LUNDI_LEGI_COLLECTION).doc(uid);
+    const snap = await ref.get();
+    const existing = snap.exists ? snap.data() : { userId: uid, answers: {} };
+    const answers = existing.answers || {};
+
+    // Idempotent : une semaine deja repondue ne se recalcule jamais - le
+    // premier resultat enregistre fait foi (meme garantie que l'ancien
+    // code client, desormais appliquee cote serveur).
+    if (answers[weekDate]) {
+      const questionSnap = await admin.firestore().collection(QUESTIONS_COLLECTION).doc(pedagogicalId).get();
+      const q = questionSnap.exists ? questionSnap.data() : null;
+      return res.json({
+        success: true, error: false, correct: answers[weekDate].correct,
+        correctAnswer: q ? q.correctAnswer : null, explanation: q ? q.explanation : null,
+      });
+    }
+
+    const questionSnap = await admin.firestore().collection(QUESTIONS_COLLECTION).doc(pedagogicalId).get();
+    if (!questionSnap.exists) return res.status(404).json({ success: false, error: true });
+    const question = questionSnap.data();
+    const correct = selectedAnswer === question.correctAnswer;
+
+    answers[weekDate] = { pedagogicalId, selectedAnswer, correct, answeredAt: new Date().toISOString() };
+    await ref.set({ userId: uid, answers }, { merge: true });
+
+    res.json({ success: true, error: false, correct, correctAnswer: question.correctAnswer, explanation: question.explanation });
   } catch (err) {
     console.error("[lundi-legi:put]", err && err.code, err);
     res.status(500).json({ success: false, error: true });
@@ -818,13 +1002,30 @@ app.get("/api/questions/all-for-source/:sourceId", requireAuth, async (req, res)
 // cas exige isRequesterAdmin() - jamais de fuite d'une question non publiee
 // via un filtre absent ou un autre statut. Enregistree AVANT /search-bounded
 // (methode GET distincte de toute facon, mais gardee ici pour la lisibilite).
+// CORRECTIF SECURITE (M1, audit du 07/08/2026) : jusqu'ici, ces deux
+// endpoints de LISTING/PAGINATION renvoyaient le document question COMPLET
+// - `correctAnswer`/`explanation` inclus - a tout utilisateur authentifie
+// pour toute question publiee. Un utilisateur pouvait donc parcourir
+// (pagination/scan) l'INTEGRALITE de la banque de questions publiees et en
+// obtenir toutes les reponses, independamment de toute evaluation reelle -
+// contrairement a `/api/questions-by-ids` (ID-scope, jamais un navigateur
+// en masse), volontairement laisse inchange car utilise aussi pour relire
+// l'explication d'une evaluation DEJA COMPLETEE (evaluation-result-
+// service.js#resolveExplanations - reveal legitime apres coup, meme
+// principe que le snapshot de session). Un admin continue de tout voir
+// (necessaire pour la Banque de questions).
+function stripAnswerKeyForNonAdmin(data) {
+  return Object.assign({}, data, { correctAnswer: null, explanation: null });
+}
+
 app.get("/api/questions", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
   const pageSize = boundedNumberParam(req.query.pageSize, 25, 100);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
-    if (filters.status !== "published" && !(await isRequesterAdmin(req.user.uid))) {
+    const isAdmin = await isRequesterAdmin(req.user.uid);
+    if (filters.status !== "published" && !isAdmin) {
       return res.status(403).json({ items: [], lastDoc: null, hasMore: false, error: "Accès refusé" });
     }
     let q = admin.firestore().collection(QUESTIONS_COLLECTION);
@@ -836,7 +1037,7 @@ app.get("/api/questions", requireAuth, async (req, res) => {
     const snap = await q.get();
     const docs = snap.docs.slice(0, pageSize);
     res.json({
-      items: docs.map((d) => d.data()),
+      items: docs.map((d) => (isAdmin ? d.data() : stripAnswerKeyForNonAdmin(d.data()))),
       lastCursor: docs.length ? JSON.stringify(docs[docs.length - 1].data()[sortField]) : null,
       hasMore: snap.docs.length > pageSize,
       error: false,
@@ -855,12 +1056,21 @@ app.get("/api/questions", requireAuth, async (req, res) => {
 // (composition du pool "Entrainement libre", question-search-provider.js).
 // Meme regle que firestore.rules (match /questions/{pedagogicalId}) : tout
 // utilisateur authentifie peut lire une question publiee.
+//
+// CORRECTIF (M1) : ajoute aussi le gate de statut qui manquait ici (un non-
+// admin pouvait jusqu'ici filtrer sur n'importe quel statut, y compris
+// "draft"/"trash" - jamais exploite cote client existant, mais jamais
+// verifie non plus, contrairement a /api/questions ci-dessus).
 app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
   const filters = parseFiltersParam(req.query.filters);
   const scanLimit = boundedNumberParam(req.query.maxScan, DEFAULT_SEARCH_SCAN_LIMIT, 2000);
   const sortField = req.query.sortField || "createdAt";
   const sortDirection = req.query.sortDirection || "desc";
   try {
+    const isAdmin = await isRequesterAdmin(req.user.uid);
+    if (filters.status !== "published" && !isAdmin) {
+      return res.status(403).json({ items: [], truncated: false, error: "Accès refusé", scanLimit });
+    }
     let q = admin.firestore().collection(QUESTIONS_COLLECTION);
     buildQuestionFilterDescriptors(filters).forEach((d) => {
       q = q.where(d.field, d.op, d.value);
@@ -868,7 +1078,7 @@ app.get("/api/questions/search-bounded", requireAuth, async (req, res) => {
     q = q.orderBy(sortField, sortDirection).limit(scanLimit + 1);
 
     const snap = await q.get();
-    const all = snap.docs.map((d) => d.data());
+    const all = snap.docs.map((d) => (isAdmin ? d.data() : stripAnswerKeyForNonAdmin(d.data())));
     const truncated = all.length > scanLimit;
 
     res.json({ items: all.slice(0, scanLimit), truncated, error: false, scanLimit });

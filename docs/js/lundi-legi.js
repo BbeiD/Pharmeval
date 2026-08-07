@@ -117,7 +117,7 @@ function renderQuestion(el, state, weekLabel, diffColor) {
   let optionsHtml = '<div class="ll-options">';
   answers.forEach(function(text, i) {
     optionsHtml +=
-      '<button class="ll-option" onclick="submitAnswer(' + i + ',' + q.correctAnswer + ')">' +
+      '<button class="ll-option" onclick="submitAnswer(' + i + ')">' +
         '<span class="ll-option-letter">' + escapeHtml(LETTERS[i]) + '</span>' +
         '<span class="ll-option-text">' + escapeHtml(text) + '</span>' +
       '</button>';
@@ -181,20 +181,31 @@ function renderResult(el, q, selectedIdx, correct, weekLabel, diffColor) {
     '<a href="index.html" class="ll-archive-link"><i class="ti ti-arrow-left" aria-hidden="true"></i> Retour à l\'accueil</a>';
 }
 
-// Appelee depuis les boutons onclick generees par renderQuestion()
-export async function submitAnswer(selectedIdx, correctIdx) {
+// Appelee depuis les boutons onclick generees par renderQuestion(). Le
+// serveur seul decide si c'est correct (CORRECTIF SECURITE 07/08/2026) -
+// jamais calcule ici : la question affichee jusqu'ici n'a meme pas
+// `correctAnswer` renseigne (voir lundi-legi-service.js).
+export async function submitAnswer(selectedIdx) {
   const buttons = document.querySelectorAll('.ll-option');
   buttons.forEach(function(b) { b.disabled = true; });
 
-  const correct = selectedIdx === correctIdx;
   const state = await getLundiLegiStateForUser();
   if (!state || !state.date || !state.pedagogicalId) return;
 
-  await submitLundiLegiAnswer(state.date, state.pedagogicalId, selectedIdx, correct);
+  const result = await submitLundiLegiAnswer(state.date, state.pedagogicalId, selectedIdx);
+  if (!result || !result.success) {
+    showMessage('error', 'La soumission a échoué. Réessayez plus tard.');
+    buttons.forEach(function(b) { b.disabled = false; });
+    return;
+  }
 
   const el = qs('ll-card');
   const weekLabel = 'Semaine ' + state.weekNumber + ' · ' + formatDateFr(state.date + 'T00:00:00');
   const diffColor = state.question && state.question.difficulty === 'Expert' ? 'var(--accent-purple)' : state.question && state.question.difficulty === 'Approfondi' ? 'var(--accent-yellow)' : 'var(--accent-blue)';
-  renderResult(el, state.question, selectedIdx, correct, weekLabel, diffColor);
+  const revealedQuestion = Object.assign({}, state.question, {
+    correctAnswer: result.correctAnswer,
+    explanation: result.explanation,
+  });
+  renderResult(el, revealedQuestion, selectedIdx, result.correct, weekLabel, diffColor);
 }
 window.submitAnswer = submitAnswer;
