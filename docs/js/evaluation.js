@@ -38,12 +38,20 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function qs(id) { return document.getElementById(id); }
+// CORRECTIF (08/08/2026) : ne reconnaissait que le marqueur exact
+// "Source :" - les explications issues de l'audit global recent utilisent
+// "Source principale :" (jamais detecte, idx=-1 -> plus aucune mise en
+// forme petite/italique) et "verifiee le" au lieu de "consulte le". Les
+// deux formulations (ancienne ET issue de l'audit) sont desormais
+// reconnues, sans toucher aux donnees Firestore elles-memes.
 function splitExplanationSource(text) {
-  const idx = text.lastIndexOf('Source :');
-  if (idx <= 0) return { main: text, source: null };
-  const raw = text.slice(idx + 'Source :'.length).trim();
-  const source = raw.replace(/,?\s*consulté le \d{2}\/\d{2}\/\d{4}/gi, '').trim();
-  return { main: text.slice(0, idx).trim(), source: source };
+  const markerRe = /Source(?:\s+principale)?\s*:/gi;
+  let match, lastMatch = null;
+  while ((match = markerRe.exec(text)) !== null) lastMatch = match;
+  if (!lastMatch || lastMatch.index <= 0) return { main: text, source: null };
+  const raw = text.slice(lastMatch.index + lastMatch[0].length).trim();
+  const source = raw.replace(/,?\s*(?:consult[ée]e?|v[ée]rifi[ée]e?)\s+le\s+\d{2}\/\d{2}\/\d{4}/gi, '').trim();
+  return { main: text.slice(0, lastMatch.index).trim(), source: source };
 }
 function showOnly(id) {
   ['ev-loading', 'ev-denied', 'ev-session-dialog', 'ev-taking'].forEach(function(v) {
