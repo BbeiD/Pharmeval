@@ -1,0 +1,43 @@
+{
+  "hosting": {
+    "site": "pharmeval-1",
+    "public": ".",
+    "ignore": [
+      "firebase.json", ".firebaserc", ".git",
+      "functions/**", "node_modules/**",
+      "**/*.local", "*.log",
+      "**/*.md", "**/*.rules",
+      "**/*.mjs", "**/*.cjs",
+      "scripts/**", "tests/**", ".claude/**", ".firebase/**", "data/**",
+      "firestore.indexes.json", "package*.json"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ],
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "auth": { "port": 9099 },
+    "storage": { "port": 9199 },
+    "ui": { "enabled": true, "port": 4000 }
+  }
+}

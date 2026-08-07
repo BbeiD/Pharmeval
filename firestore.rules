@@ -1,0 +1,802 @@
+// =============================================================================
+// REGLES FIRESTORE PROPOSEES — CONSOLIDEES (jusqu'au Sprint 22 + Phase B0, Sprint 21.5)
+// =============================================================================
+// Ce fichier est une PROPOSITION CONSOLIDEE. Il n'a pas ete deploye
+// automatiquement sur le projet Firebase (conformement a la consigne "les
+// regles Firestore restent la seule source de securite" + pratique deja
+// etablie depuis le Sprint 3 : proposer, documenter, ne jamais appliquer
+// automatiquement). A relire humainement avant toute publication,
+// conformement a CHARTE_DEVELOPPEMENT_PHARMEVAL.md, section 14.2.
+//
+// ⚠️ CE FICHIER DOIT ETRE (RE)PUBLIE MANUELLEMENT s'il n'est pas deja a
+// jour en production, en particulier pour les corrections/ajouts suivants :
+//   - CORRECTIF URGENT (22/07/2026, PRIORITAIRE) : la version deployee le
+//     22/07/2026 (correctif organizationId/profileId/groupIds ci-dessous)
+//     bloquait la connexion de TOUT compte cree avant le Sprint 14 (erreur
+//     d'evaluation sur un champ absent, voir la regle "Mise a jour par le
+//     PROPRIETAIRE" - match /users/{userId}). Ce fichier corrige ce bug
+//     (acces via .get(champ, null) plutot qu'un acces direct) - A REPUBLIER
+//     IMMEDIATEMENT pour retablir l'acces a l'application.
+//   - Sprint 8 puis resserree au correctif v1.9.1 : mise a jour
+//     administrative de users/{userId} strictement limitee aux champs
+//     role/status (voir RAPPORT_CORRECTIF_1.9.1.md).
+//   - Correctif post-Sprint 10 : isRequesterAdmin() verifie desormais
+//     AUSSI le statut actif - un administrateur suspendu perd
+//     immediatement tous ses droits sur TOUTES les collections de ce
+//     fichier, pas seulement une regle isolee.
+//   - Sprint 11 : questions/{pedagogicalId} accepte desormais aussi une
+//     transition de statut et une edition limitee (explanation/tags/
+//     source). Nouvelle collection question_audit_logs/.
+//   - CORRECTIF (avant validation du Sprint 11) : suppression securisee.
+//     La suppression definitive (allow delete) n'est plus ouverte a tout
+//     administrateur depuis n'importe quel statut - elle exige desormais
+//     que la question soit DEJA a la corbeille (status == 'trash'),
+//     dernier maillon du workflow Question -> Archivee -> Corbeille ->
+//     Suppression definitive. Nouvelle regle de transition dediee et
+//     strictement bornee pour archived <-> trash.
+//
+// Historique cumule de ce fichier (voir chaque rapport pour le detail) :
+//   - Sprints 3 et 4 : users/{userId} et ses evaluations.
+//   - Sprint 8 (+ correctif v1.9.1) : mise a jour administrative resserree
+//     de users/{userId}, audit_logs/ (journal des actions administrateur).
+//   - Sprint 10 (+ correctif post-Sprint 10) : questions/ (catalogue
+//     global, identifiant = pedagogicalId), importLogs/ (journal des
+//     imports), isRequesterAdmin() renforcee (role ET statut actif).
+//   - Sprint 11 : questions/ etendue (transition de statut, edition
+//     limitee) ; question_audit_logs/ (journal des actions de gestion de
+//     la Banque de questions).
+//   - Correctif (avant validation du Sprint 11) : suppression securisee
+//     (Question -> Archivee -> Corbeille -> Suppression definitive),
+//     regle de transition archived<->trash dediee, suppression contrainte
+//     au statut "trash" uniquement.
+// =============================================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // CORRECTIF (post-Sprint 10) : verifie desormais SIMULTANEMENT le role
+    // ET le statut. Un administrateur SUSPENDU (statut "suspended", voir
+    // Sprint 8) ne doit conserver AUCUN droit administratif, meme si son
+    // champ `role` vaut toujours "admin" - la suspension d'un compte doit
+    // etre immediatement effective cote regles de securite, pas seulement
+    // cote interface (js/admin.js masque deja les actions pour un compte
+    // suspendu, mais cette regle est la protection reelle, independante
+    // de toute discipline du code client).
+    function isRequesterAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // CORRECTIF (Sprint 20.2, "Catalogue documentaire global") : mirroir,
+    // au niveau des règles, de la permission JS MANAGE_GLOBAL_CATALOG
+    // (js/services/authorization-service.js) - accordée aujourd'hui aux
+    // rôles 'admin' et 'super_admin' uniquement, JAMAIS à 'editor' ni
+    // 'teacher' (un futur "administrateur d'organisation" ne doit jamais
+    // pouvoir modifier automatiquement le catalogue global, cadrage
+    // "Administration et permissions"). Les règles Firestore ne pouvant
+    // pas lire la matrice JS, cette fonction doit être tenue à jour
+    // manuellement si cette matrice change - documenté ici et dans
+    // RAPPORT_CORRECTIF_SPRINT20_2.md.
+    function isRequesterCatalogAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin') &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // -------------------------------------------------------------------
+    // NOTE IMPORTANTE (garantie "toujours au moins un administrateur actif") :
+    // CLOTUREE (audit "mauvais utilisateur", 27/07/2026). Le changement de
+    // role/statut d'un tiers passe desormais EXCLUSIVEMENT par PATCH
+    // /api/users/:uid/role et /status (functions/index.js), qui verifient
+    // cette garantie dans une TRANSACTION Firestore (voir "Phase C.1",
+    // countActiveAdmins()). L'ecriture DIRECTE des champs role/status par
+    // un administrateur (qui contournait cette transaction) est desormais
+    // refusee ci-dessous - voir la regle n°2 (`allow update: if false`,
+    // remplace l'ancienne regle qui autorisait ce contournement).
+    // -------------------------------------------------------------------
+
+    match /users/{userId} {
+
+      // --- Lecture (Sprint 3, inchangee + Sprint 8) ---
+      // Un utilisateur lit son propre document, OU un administrateur lit
+      // n'importe quel document (necessaire pour le tableau du Centre
+      // d'administration).
+      allow read: if request.auth != null &&
+                    (request.auth.uid == userId || isRequesterAdmin());
+
+      // --- Creation (Sprint 3, inchangee) ---
+      // Uniquement son propre document, avec les valeurs par defaut
+      // attendues (aucune auto-promotion possible des la creation du compte).
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == userId
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.status == 'active'
+                    && request.resource.data.profileCompleted == false;
+
+      // --- Mise a jour par le PROPRIETAIRE lui-meme (Sprint 3, inchangee) ---
+      // role/status/uid/createdAt restent strictement proteges : un
+      // utilisateur ne peut jamais modifier ces champs sur son propre
+      // document, meme s'il est administrateur (voir plus bas, regle
+      // separee et plus restrictive pour l'auto-modification).
+      //
+      // CORRECTIF SECURITE (audit du 22/07/2026, signalement IT) :
+      // organizationId/profileId/groupIds etaient jusqu'ici absents de
+      // cette liste de champs proteges - un utilisateur pouvait donc
+      // s'attribuer LUI-MEME n'importe quel profileId/groupIds via une
+      // ecriture Firestore directe (hors interface), et ainsi se rendre
+      // visible des attributions/parcours cibles sur ce profil/groupe
+      // (voir match /assignments/{assignmentId} ci-dessous, qui verifie
+      // precisement ces champs pour decider ce qu'un utilisateur standard
+      // peut lire). Ces trois champs restent reserves a la regle
+      // ADMINISTRATEUR dediee (Sprint 14, plus bas), jamais a l'utilisateur
+      // lui-meme, exactement comme role/status/uid/createdAt.
+      // CORRECTIF URGENT (22/07/2026, casse constatee en production juste
+      // apres le deploiement du correctif de securite ci-dessus) : un acces
+      // direct par point (`resource.data.organizationId`) leve une ERREUR
+      // D'EVALUATION - traitee comme un refus - si le champ n'existe pas du
+      // tout sur le document, plutot que de renvoyer `null`. Ces trois
+      // champs n'existent que depuis le Sprint 14 (voir
+      // completeUserBusinessFields(), user-profile-metadata-service.js) et
+      // ne sont JAMAIS retro-remplis sur les comptes crees avant - `.get(...,
+      // null)` (au lieu d'un acces direct) resout ce cas en renvoyant `null`
+      // pour un champ absent, des deux cotes de la comparaison, exactement
+      // comme le fait deja `get()` au niveau document (isRequesterAdmin())
+      // plus haut dans ce fichier. Sans ce correctif, TOUT compte cree avant
+      // le Sprint 14 perdait purement et simplement l'acces a Pharmeval a
+      // chaque connexion (ensureUserDocument() echouant systematiquement).
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                    && request.resource.data.get('profileId', null) == resource.data.get('profileId', null)
+                    && request.resource.data.get('groupIds', null) == resource.data.get('groupIds', null);
+
+      // --- Mise a jour n°2 : role/status — VERROUILLEE (audit "mauvais
+      // utilisateur", 27/07/2026) ---
+      //
+      // Autorisait auparavant un administrateur a modifier role/status d'un
+      // tiers directement via le SDK client, en CONTOURNANT la transaction
+      // "toujours au moins un administrateur actif" (voir note en-tete de
+      // /users/{userId} ci-dessus). Desormais refuse sans exception : ce
+      // changement passe exclusivement par PATCH /api/users/:uid/role et
+      // /status (functions/index.js, SDK Admin, hors regles Firestore).
+      allow update: if false;
+
+      // --- Mise a jour n°3 (Sprint 14) : champs METIER du module
+      // Utilisateurs (firstName/lastName/organizationId/profileId/
+      // groupIds) par un ADMINISTRATEUR, sur N'IMPORTE QUEL document (y
+      // compris le sien - contrairement a la regle n°2 ci-dessus, aucune
+      // incidence sur les permissions ou la securite de la plateforme,
+      // donc aucune restriction "jamais sur soi-meme" ici, voir
+      // js/services/admin-service.js, updateUserBusinessProfile()). Aucun
+      // autre champ ne peut etre modifie par cette regle - en particulier
+      // jamais role/status, qui restent strictement reserves a la regle
+      // n°2 ci-dessus. ---
+      allow update: if request.auth != null
+                    && isRequesterAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'organizationId', 'profileId', 'groupIds']);
+
+      // --- Suppression (Sprint 3, inchangee) ---
+      allow delete: if false;
+
+      // --- Evaluations (Sprint 4, inchangees) ---
+      match /evaluations/{evaluationId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.userId == userId
+                      && request.resource.data.id == evaluationId;
+
+        allow update: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.id == resource.data.id
+                      && request.resource.data.userId == resource.data.userId
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && request.resource.data.completedAt == resource.data.completedAt
+                      && request.resource.data.score == resource.data.score
+                      && request.resource.data.questions == resource.data.questions
+                      && request.resource.data.selection == resource.data.selection;
+
+        allow delete: if false;
+
+        // Piste pour un futur acces administrateur en lecture aux
+        // evaluations d'un utilisateur (ex. support, statistiques
+        // agregees globales) - NON activee ici, meme logique que ci-dessus :
+        // allow read: if request.auth != null && (request.auth.uid == userId || isRequesterAdmin());
+      }
+    }
+
+    // --- NOUVEAU (Sprint 8) : journal d'audit des actions administrateur ---
+    match /audit_logs/{logId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/audit-logs) ET
+      // ecriture (/api/audit-logs) entierement migrees vers les Cloud
+      // Functions - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // catalogue global de questions (Sprint 10 : import JSON ; Sprint 11 : Banque de questions)
+    // =========================================================================
+    // Collection GLOBALE, jamais sous users/{uid} - les questions sont
+    // communes a tous les utilisateurs (voir RAPPORT_SPRINT10.md,
+    // "Architecture"). L'IDENTIFIANT DE DOCUMENT est directement
+    // l'identifiant pedagogique (ex. "PHARM-BAP-000124"), jamais un
+    // identifiant Firestore genere aleatoirement.
+    //
+    // Acces ADMINISTRATEUR : libre (gestion de la Banque de questions).
+    //
+    // AJOUT (Sprint 17, "Moteur de session d'évaluation") : c'est
+    // exactement le moment anticipé par la note ci-dessus - un utilisateur
+    // authentifié STANDARD peut désormais lire une question dont le statut
+    // est "published", nécessaire pour construire le snapshot d'une
+    // session d'évaluation (voir js/services/parcours-evaluation-
+    // service.js). Une question en brouillon/relecture/archivée/à la
+    // corbeille reste strictement invisible pour tout non-administrateur.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT17.md) :
+    // le champ `correctAnswer` est un champ ORDINAIRE du document, non
+    // séparé ni chiffré - un utilisateur techniquement capable
+    // d'inspecter les requêtes réseau de son propre navigateur PEUT lire
+    // la bonne réponse d'une question avant d'y répondre. Cette limite est
+    // INHÉRENTE à toute architecture 100% cliente (sans fonction serveur)
+    // telle que Pharmeval l'utilise depuis son origine - elle existait
+    // déjà, de façon latente, pour toute personne capable de lire
+    // data/questions.js (le moteur de quiz historique, jamais protégé
+    // techniquement contre la lecture de son propre code source). Ce
+    // sprint ne l'aggrave pas : il rend simplement techniquement possible
+    // ce que l'architecture ne pouvait de toute façon pas empêcher. Une
+    // confidentialité réelle de la clé de correction nécessiterait une
+    // fonction serveur (Cloud Function) de correction - hors périmètre
+    // explicite de ce sprint ("Sprint 18 : corriger et calculer les
+    // résultats").
+    match /questions/{pedagogicalId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (import par
+      // lots, transitions de statut, classification documentaire,
+      // suppression securisee - les 5 regles historiques ci-dessus,
+      // conservees dans git history) entierement migrees vers les Cloud
+      // Functions (/api/questions...) - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 11) : journal des actions sur les questions
+    // =========================================================================
+    // Distinct de audit_logs/ (Sprint 8, actions utilisateurs) et de
+    // importLogs/ (Sprint 10, operations d'import completes) : trace ICI
+    // chaque action individuelle sur UNE question (changement de statut,
+    // modification de champ, suppression) depuis la Banque de questions.
+    // Meme logique d'immuabilite que les autres journaux.
+    match /question_audit_logs/{logId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/question)
+      // ET ecriture (/api/question-audit-logs) entierement migrees vers les
+      // Cloud Functions (SDK Admin, qui contourne ces regles de toute facon)
+      // - plus aucun acces client direct necessaire ni autorise.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 12) : Parcours (fondations)
+    // =========================================================================
+    // Collection GLOBALE, jamais sous users/{uid} - un parcours est commun a
+    // tous les utilisateurs, meme principe que questions/ (Sprint 10).
+    // L'IDENTIFIANT DE DOCUMENT est directement l'identifiant stable du
+    // parcours (ex. "PARC-a1b2c3d4", voir js/services/parcours-metadata-
+    // service.js), genere a la creation - jamais un identifiant Firestore
+    // aleatoire.
+    //
+    // "Workflow identique aux questions" (demande explicite du Sprint 12) :
+    // memes 3 regles de mise a jour (creation/edition complete, transition
+    // de statut generale hors corbeille, transition dediee archived<->trash),
+    // meme suppression contrainte au statut "trash" uniquement. Reprend
+    // fidelement la structure de questions/ ci-dessus, appliquee a ce
+    // nouveau type de contenu.
+    //
+    // Acces ADMINISTRATEUR : libre, quel que soit le statut (ecran
+    // d'administration des parcours).
+    //
+    // AJOUT (Sprint 16, "Consultation d'un parcours") : un utilisateur
+    // authentifie STANDARD peut desormais lire un parcours dont le statut
+    // est "published" - necessaire a parcours-detail.html/js/services/
+    // parcours-view-service.js. Un parcours en brouillon/relecture/
+    // archive/corbeille reste strictement invisible pour tout non-
+    // administrateur, quelle que soit la facon dont son identifiant serait
+    // obtenu.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT16.md) :
+    // cette regle ne verifie PAS que le parcours est reellement ATTRIBUE
+    // au demandeur (Sprint 15, collection `assignments`) - Firestore ne
+    // permet pas d'exprimer une verification "un document correspondant
+    // existe quelque part dans une autre collection" sans connaitre son
+    // identifiant exact (contrairement a `assignments/{id}`, dont
+    // l'identifiant EST connu au moment de la lecture). La garantie
+    // "un utilisateur ne voit que SES parcours attribues" reste donc
+    // appliquee au niveau APPLICATIF (parcours-view-service.js,
+    // getParcoursDetailForUser(), qui revalide l'attribution AVANT
+    // d'afficher quoi que ce soit) - pas au niveau de cette regle, qui ne
+    // protege que la CONFIDENTIALITE du contenu non publie.
+    match /parcours/{parcoursId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (edition,
+      // transitions, suppression securisee) entierement migrees vers les
+      // Cloud Functions (/api/parcours...) - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // Journal des actions de gestion des parcours - meme logique
+    // d'immuabilite que question_audit_logs/ ci-dessus.
+    match /parcours_audit_logs/{logId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/parcours)
+      // ET ecriture (/api/parcours-audit-logs) entierement migrees vers les
+      // Cloud Functions - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 13) : Banque des compétences
+    // =========================================================================
+    // Collection GLOBALE, jamais sous users/{uid} - une fiche de competence
+    // est commune a tous les parcours qui peuvent la referencer, meme
+    // principe que questions/ et parcours/. L'IDENTIFIANT DE DOCUMENT est
+    // directement l'identifiant stable de la competence (ex.
+    // "SKILL-a1b2c3d4", voir js/services/competency-metadata-service.js),
+    // genere a la creation - jamais un identifiant Firestore aleatoire.
+    //
+    // Memes 3 regles de mise a jour, meme suppression securisee que
+    // parcours/ (workflow identique) : reprend fidelement la structure
+    // deja etablie, appliquee a ce nouveau type de contenu.
+    //
+    // AJOUT (Sprint 16) : lecture ouverte a tout utilisateur authentifie
+    // pour une fiche PUBLIEE - meme principe et memes limites que
+    // parcours/ ci-dessus (necessaire pour afficher les competences d'un
+    // parcours consulte, jamais pour une fiche encore en brouillon/
+    // archivee/a la corbeille).
+    match /competencies/{competencyId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (edition,
+      // transitions, suppression securisee) entierement migrees vers les
+      // Cloud Functions (/api/competencies...) - plus aucun acces client
+      // direct.
+      allow read, write: if false;
+    }
+
+    // Journal des actions de gestion de la banque des compétences - meme
+    // logique d'immuabilite que les autres journaux d'audit du projet.
+    match /competency_audit_logs/{logId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture (/api/content-audit-logs/competency)
+      // ET ecriture (/api/competency-audit-logs) entierement migrees vers les
+      // Cloud Functions - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 14) : Banques de référence (Organisations / Profils /
+    // Groupes) - js/services/reference-bank-service.js
+    // =========================================================================
+    // Trois collections STRUCTURELLEMENT IDENTIQUES (id stable prefixe,
+    // nom, description, statut, auteur, dates - + un champ additionnel
+    // propre a chacune, ex. `organizationType`). Memes 3 regles de mise a
+    // jour, meme suppression securisee que competencies/ (Sprint 13) et
+    // parcours/ (Sprint 12) : reprend fidelement la structure deja
+    // etablie. Un seul bloc par collection est neanmoins necessaire (le
+    // langage des regles Firestore ne permet pas de factoriser un `match`
+    // sur plusieurs noms de collection a la fois).
+    // VERROUILLE (Etape 13, 24/07/2026) : les 3 banques de reference et
+    // leur journal d'audit partage sont entierement migres vers les Cloud
+    // Functions (/api/reference-bank/...) - plus aucun acces client direct.
+    match /organizations/{orgId} {
+      allow read, write: if false;
+    }
+
+    match /profiles/{profileId} {
+      allow read, write: if false;
+    }
+
+    match /groups/{groupId} {
+      allow read, write: if false;
+    }
+
+    match /reference_bank_audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 14) : pré-provisionnement des utilisateurs
+    // (js/services/user-invite-service.js)
+    // =========================================================================
+    // Identifiant de document = adresse e-mail normalisée (minuscules).
+    // Un administrateur gère librement cette collection (création,
+    // consultation, annulation). Une personne PAS ENCORE administratrice -
+    // y compris avant même la création de son propre document `users/{uid}`
+    // (voir user-service.js, ensureUserDocument()) - peut UNIQUEMENT lire
+    // et marquer comme consommée la pré-provision correspondant à SA
+    // PROPRE adresse e-mail authentifiée (jamais celle de quelqu'un
+    // d'autre, jamais aucun autre champ que consumedAt/consumedByUid).
+    match /pending_user_invites/{email} {
+      allow read: if isRequesterAdmin()
+                  || (request.auth != null && request.auth.token.email != null && request.auth.token.email.lower() == email);
+
+      allow create: if isRequesterAdmin() && request.resource.data.email == email;
+      allow delete: if isRequesterAdmin();
+
+      // Mise a jour par un administrateur (tout champ, ex. avant
+      // consommation) - identique a create en granularité de contrôle.
+      allow update: if isRequesterAdmin();
+
+      // Mise a jour de "consommation" par la personne invitée elle-même,
+      // au moment exact de la création réelle de son compte - jamais
+      // aucun autre champ que consumedAt/consumedByUid, jamais pour une
+      // pré-provision déjà consommée.
+      allow update: if request.auth != null
+                    && request.auth.token.email != null && request.auth.token.email.lower() == email
+                    && resource.data.consumedAt == null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumedAt', 'consumedByUid'])
+                    && request.resource.data.consumedByUid == request.auth.uid;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 15) : moteur d'attribution des parcours
+    // =========================================================================
+    // Collection GLOBALE `assignments` (jamais un champ imbriqué dans
+    // `parcours/{id}` - voir SPRINT15, "Ne pas modifier directement les
+    // documents des parcours"). Chaque document relie UN `parcoursId` à
+    // UNE cible (`type` = 'user'/'group'/'profile' + `targetId`).
+    //
+    // Lecture ADMINISTRATEUR : libre (écran "Attributions" de la fiche
+    // parcours).
+    // Lecture UTILISATEUR STANDARD : UNIQUEMENT les attributions le
+    // concernant réellement - directement (targetId == son propre uid),
+    // via son profil (targetId == son propre `profileId`), ou via l'un de
+    // ses groupes (targetId dans son propre `groupIds`) - jamais les
+    // attributions d'un autre utilisateur, jamais par simple modification
+    // de la requête côté client (vérifié ici via `get()` sur son propre
+    // document `users/{uid}`, même principe que `isRequesterAdmin()` et
+    // que la règle de consommation de `pending_user_invites` ci-dessus).
+    // C'est cette règle qui rend "Mes parcours" (mes-parcours.html)
+    // réellement sûr, indépendamment de toute discipline du code client.
+    //
+    // Écriture : réservée à l'administrateur (aucun workflow de contenu -
+    // brouillon/publication/corbeille - pour une simple attribution ;
+    // "supprimer une attribution" est une suppression Firestore réelle et
+    // immédiate, jamais un statut intermédiaire).
+    match /assignments/{assignmentId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/assignments...,
+      // /api/assigned-parcours) - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 17) : sessions d'évaluation
+    // =========================================================================
+    // Chaque document represente UNE tentative d'UN utilisateur sur UNE
+    // competence d'UN parcours (voir js/services/evaluation-session-
+    // metadata-service.js pour le schema complet). Contient les reponses
+    // de l'utilisateur ET le snapshot immuable des questions (y compris la
+    // cle de correction, voir limite documentee dans la regle
+    // `questions/` ci-dessus) : la confidentialite de ce document est donc
+    // CRITIQUE, bien plus stricte que les autres collections du projet.
+    //
+    // "Un utilisateur ne peut : lire que ses propres sessions ; creer une
+    // session qu'en son propre nom ; modifier uniquement ses sessions
+    // in_progress ; ne plus modifier une session submitted." (SPRINT17,
+    // section 13) - regles ci-dessous, terme a terme.
+    //
+    // "Les administrateurs autorisés peuvent consulter les sessions" =
+    // LECTURE uniquement. AUCUNE regle d'ecriture n'accorde de bypass aux
+    // administrateurs ici (contrairement a presque toutes les autres
+    // collections du projet) : un administrateur ne doit jamais pouvoir
+    // modifier les reponses ou le statut de l'evaluation de quelqu'un
+    // d'autre - integrite de l'evaluation avant tout, choix deliberement
+    // plus strict que le reste de l'application.
+    match /evaluation_sessions/{sessionId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (creation,
+      // les 3 transitions, immuabilite) entierement migrees vers les Cloud
+      // Functions (POST/PATCH/GET /api/sessions...) - plus aucun acces
+      // client direct. Voir git history pour le detail des 3 branches de
+      // mise a jour, reproduites fidelement cote serveur (functions/index.js).
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 18) : résultats d'évaluation (calculés)
+    // =========================================================================
+    // "Elle doit contenir uniquement les résultats calculés. Ne pas
+    // modifier les réponses enregistrées dans evaluation_sessions... Une
+    // session représente ce que l'utilisateur a répondu. Un résultat
+    // représente ce que le système a calculé." (SPRINT18, section 6) :
+    // collection totalement SEPAREE de `evaluation_sessions/` ci-dessus,
+    // jamais lue ni ecrite par les memes regles.
+    //
+    // IDENTIFIANT DE DOCUMENT = IDENTIFIANT DE LA SESSION CORRIGEE (voir
+    // js/services/evaluation-correction-service.js, resultIdForSession())
+    // - un resultat par session, jamais deux, verifiable directement ici
+    // par egalite entre `sessionId` et l'identifiant du document.
+    //
+    // "Le calcul doit être réalisé une seule fois... Ne jamais recalculer"
+    // (SPRINT18, section 12) : ECRITURE UNIQUE, aucune mise a jour
+    // possible une fois cree (`allow update: if false`) - un resultat
+    // erronement calcule ne se corrige jamais sur place, il faudrait une
+    // toute nouvelle logique de recalcul dans un futur sprint, jamais une
+    // modification silencieuse d'un resultat deja rendu a l'utilisateur.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (voir RAPPORT_SPRINT18.md) :
+    // le resultat est CALCULE ET ECRIT PAR LE CLIENT (aucune fonction
+    // serveur dans Pharmeval, meme limite deja documentee pour
+    // `evaluation_sessions`/`questions` au Sprint 17) - la regle
+    // ci-dessous verifie que le resultat est bien rattache a UNE SESSION
+    // REELLEMENT SOUMISE ET APPARTENANT AU DEMANDEUR (via `get()`), ce qui
+    // empeche de fabriquer un resultat pour une session inexistante,
+    // appartenant a quelqu'un d'autre, ou pas encore soumise - mais ne
+    // verifie PAS l'exactitude arithmetique du score lui-meme (reproduire
+    // toute la logique de correction en langage de regles serait fragile
+    // et hors de portee raisonnable). Une garantie complete necessiterait
+    // une fonction serveur de correction (Cloud Function), hors perimetre
+    // explicite de ce sprint.
+    match /evaluation_results/{resultId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/evaluation-results...) -
+      // plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 19) : progression des compétences
+    // =========================================================================
+    // "L'utilisateur ne peut consulter que sa progression. Les
+    // administrateurs conservent leurs droits actuels." (SPRINT19,
+    // "Sécurité"). Un document = un utilisateur + une compétence,
+    // identifiant DETERMINISTE (voir js/services/competency-progress-
+    // metadata-service.js, progressionIdFor() : `${userId}_${competencyId}`)
+    // - permet de verifier directement ici, par simple egalite de chaine,
+    // que l'identifiant du document correspond bien au demandeur et a la
+    // competence declaree, sans requete.
+    //
+    // "La progression est un état. Les résultats restent des
+    // événements." : contrairement a `evaluation_results/` (Sprint 18,
+    // ecriture unique), une progression est MISE A JOUR au fil des
+    // evaluations (`allow update`, en plus de `allow create`) - mais
+    // toujours par le meme utilisateur, jamais par un tiers, jamais avec
+    // un changement de `userId` ou de `competencyId` en cours de route.
+    //
+    // LIMITE CONNUE, ASSUMEE ET DOCUMENTEE (meme famille que
+    // `evaluation_sessions`/`evaluation_results`, Sprints 17-18, voir
+    // RAPPORT_SPRINT19.md) : la progression est calculee ET ECRITE PAR LE
+    // CLIENT (aucune fonction serveur dans Pharmeval) - ces regles
+    // empechent d'ecrire dans la progression de quelqu'un d'autre ou avec
+    // un identifiant de document incoherent, mais ne verifient pas
+    // l'exactitude arithmetique de l'agregation (moyenne, tendance,
+    // niveau, score de confiance) elle-meme.
+    match /competency_progress/{progressId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/competency-progress...) -
+      // plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 20) : classification documentaire
+    // CORRECTIF (Sprint 20.2, "Catalogue documentaire global") : ces
+    // collections sont désormais GLOBALES A LA PLATEFORME, jamais
+    // rattachées à une organisation - "un référentiel comme CBIP 2026 ne
+    // doit pas être recréé pour chaque organisation" (cadrage). Toute
+    // trace d'`organizationId` a été retirée des règles ci-dessous.
+    // =========================================================================
+    // "de quel document ou référentiel provient une question" - couche
+    // ajoutée AU-DESSUS de la Banque de questions existante, jamais a la
+    // place. Deux collections (document_sources/, document_sections/) +
+    // une collection technique de compteurs (document_code_counters/).
+    //
+    // "lecture du catalogue selon les besoins de l'application ; écriture
+    // réservée aux utilisateurs autorisés à gérer le catalogue global"
+    // (cadrage 20.2, "Règles Firestore") : lecture ouverte à tout
+    // utilisateur authentifié pour le contenu ACTIF (jamais un brouillon
+    // ou une source archivée), écriture réservée à isRequesterCatalogAdmin()
+    // - PLUS SPECIFIQUE que isRequesterAdmin() : "les administrateurs
+    // d'organisation ne doivent pas pouvoir modifier automatiquement les
+    // sources globales" (cadrage) - seuls les rôles 'admin'/'super_admin'
+    // (aujourd'hui confondus avec "administrateur du catalogue global",
+    // voir isRequesterCatalogAdmin() ci-dessus) le peuvent.
+    match /document_sources/{sourceId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/document-sources...) - plus
+      // aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    match /document_sections/{sectionId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : idem document_sources.
+      allow read, write: if false;
+    }
+
+    // Compteurs sequentiels des identifiants fonctionnels (voir
+    // js/services/question-code-service.js) - donnee purement technique,
+    // jamais consultee ni utile en dehors de l'administration du catalogue.
+    match /document_code_counters/{scopeKey} {
+      allow read: if isRequesterCatalogAdmin();
+      allow write: if isRequesterCatalogAdmin();
+    }
+
+    // =========================================================================
+    // NOUVEAU (Correctif Sprint 20) : jobs de migration documentaire
+    // CORRECTIF (Sprint 20.2) : jobs désormais GLOBAUX (plus d'organizationId)
+    // =========================================================================
+    // "Pour les migrations importantes, créer ou compléter une notion de
+    // job." Trace l'état d'un lot de migration (prepared -> running ->
+    // completed/completed_with_errors/failed), sa progression et ses
+    // erreurs - strictement réservé à l'administrateur du catalogue global.
+    match /document_migration_jobs/{jobId} {
+      allow read: if isRequesterCatalogAdmin();
+      allow create: if isRequesterCatalogAdmin() && request.resource.data.id == jobId;
+      // Mise a jour reservee a la progression du job lui-meme (statut,
+      // compteurs, erreurs) - jamais sa destination d'origine, qui doit
+      // rester celle decidee a la preparation.
+      allow update: if isRequesterCatalogAdmin()
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.targetSourceId == resource.data.targetSourceId;
+      allow delete: if false;
+    }
+
+
+    // Meme logique d'immuabilite que audit_logs/ (Sprint 8) : trace CHAQUE
+    // import (date, administrateur, fichier, comptages, duree), jamais
+    // modifiable ni supprimable, y compris par un administrateur.
+    match /importLogs/{logId} {
+      allow read: if isRequesterAdmin();
+
+      allow create: if isRequesterAdmin()
+                    && request.resource.data.adminUid == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // AJOUT (audit "mauvais utilisateur", 27/07/2026) : compteur de quota
+    // d'upload d'images (POST /api/images, functions/index.js) - lu et
+    // ecrit EXCLUSIVEMENT par la Cloud Function (SDK Admin, hors regles).
+    // Un acces client direct permettrait de reinitialiser son propre
+    // quota, ce qui viderait la protection de tout son sens.
+    match /image_upload_counters/{uid} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 21.5, Phase B0) : progression par question
+    // =========================================================================
+    // Un document par couple (utilisateur, question). Identifiant deterministe
+    // progressDocIdFor(userId, pedagogicalId) = userId + '_' + pedagogicalId
+    // (voir js/services/question-progress-catalog-service.js) — verifie ici
+    // directement par egalite de chaine, sans requete supplementaire.
+    //
+    // Meme patron que competency_progress/ (Sprint 19) : la progression est
+    // un etat mis a jour au fil des evaluations (allow update), toujours par
+    // le meme utilisateur, jamais avec changement de userId ou de pedagogicalId.
+    //
+    // LIMITE CONNUE, ASSUMEE (meme famille que evaluation_sessions/
+    // evaluation_results/, Sprints 17-18) : la progression est calculee ET
+    // ecrite par le client — ces regles empechent d'ecrire dans la progression
+    // de quelqu'un d'autre ou avec un identifiant incoherent, mais ne
+    // verifient pas l'exactitude du comptage lui-meme.
+    match /question_progress/{progressId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture (transaction
+      // d'idempotence incluse) entierement migrees vers les Cloud Functions
+      // (/api/question-progress...) - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // AJOUT (demande directe de David, 23/07/2026, "bouton signaler la
+    // question") : file de signalements utilisateur (reponse fausse,
+    // incoherence, doublon...) - voir question-report-service.js. Ne
+    // modifie JAMAIS la question elle-meme (le fichier Excel reste
+    // l'unique source authentique du contenu editorial, voir aussi le
+    // retrait de l'edition ponctuelle dans /questions ci-dessus) : cette
+    // collection n'est qu'une file de suivi pour l'administrateur.
+    // VERROUILLE (audit "mauvais utilisateur", 27/07/2026) : la creation
+    // se faisait jusqu'ici en ecriture directe (contournant toute limite
+    // de frequence serveur) - migree vers POST /api/question-reports et
+    // PATCH /api/question-reports/:id/resolve (functions/index.js, SDK
+    // Admin, hors regles), qui appliquent desormais une fenetre glissante
+    // (20/heure/utilisateur) en plus des memes verifications que
+    // l'ancienne regle ci-dessous (userId, status, champs figes a la
+    // resolution).
+    match /question_reports/{reportId} {
+      allow read, write: if false;
+    }
+
+    // AJOUT (audit "mauvais utilisateur", 27/07/2026) : compteur de
+    // frequence des signalements - meme raisonnement que
+    // image_upload_counters/ ci-dessus.
+    match /question_report_counters/{uid} {
+      allow read, write: if false;
+    }
+
+    // Marqueur d'idempotence : un document par EvaluationResult traite, pour
+    // garantir qu'un meme resultat ne soit jamais compte deux fois dans
+    // question_progress. L'identifiant est l'identifiant du resultat
+    // (meme valeur que evaluation_results/{resultId}, Sprint 18).
+    //
+    // ECRITURE UNIQUE par le proprietaire du resultat correspondant —
+    // verifiee via get() sur evaluation_results/ — aucune mise a jour
+    // possible (marqueur immuable, meme principe que evaluation_results/).
+    match /question_progress_applied_results/{resultId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : marqueur d'idempotence pose
+      // exclusivement par la transaction serveur (/api/question-progress/apply)
+      // - plus aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 21.5, Phase B0) : catalogue de tags
+    // =========================================================================
+    // Tags associes aux questions du catalogue. Crees et mis a jour par
+    // l'administration (edition des questions via la Banque, ou synchronisation
+    // du catalogue editorial, Sprint 22) — ecriture reservee a
+    // isRequesterCatalogAdmin(). Lecture ouverte a tout utilisateur authentifie
+    // pour alimenter les filtres de l'Entrainement libre (Phase B1).
+    match /tags/{tagId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/tags/...) - plus aucun acces
+      // client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Sprint 22) : compteurs d'identifiants pedagogiques
+    // =========================================================================
+    // Compteurs sequentiels utilises par le moteur de synchronisation du
+    // catalogue (catalog-sync-firestore-backend.js) pour attribuer des
+    // identifiants pedagogiques stables a chaque question importee depuis
+    // le fichier Excel editorial. Operation strictement administrative,
+    // meme restriction que document_code_counters/ (Sprint 20).
+    match /pedagogical_id_counters/{counterId} {
+      // VERROUILLE (Etape 13, 24/07/2026) : allocation exclusivement via la
+      // transaction serveur /api/catalog-sync/pedagogical-id - plus aucun
+      // acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // AJOUT (22/07/2026) : série du "Défi du jour"
+    // =========================================================================
+    // Un seul document par utilisateur (identifiant de document = uid
+    // DIRECTEMENT - contrairement a question_progress/competency_progress,
+    // il n'y a ici qu'UNE seule progression par utilisateur, jamais une par
+    // question/competence). Memes garanties que competency_progress/
+    // question_progress (Sprints 19 et 21.5, Phase B0) : ecrite ET calculee
+    // PAR LE CLIENT (aucune fonction serveur dans Pharmeval, meme limite
+    // deja documentee ailleurs) - ces regles empechent d'ecrire dans la
+    // serie de quelqu'un d'autre ou avec un identifiant incoherent, mais ne
+    // verifient pas l'exactitude arithmetique de la serie elle-meme (voir
+    // js/services/daily-challenge-logic.js#computeDailyChallengeStreak).
+    match /daily_challenge_progress/{uid} {
+      // VERROUILLE (Etape 13, 24/07/2026) : lecture ET ecriture entierement
+      // migrees vers les Cloud Functions (/api/daily-challenge/:uid) - plus
+      // aucun acces client direct.
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // NOUVEAU (Lundi Légi, 2026-08-02) : progression hebdomadaire Lundi Légi
+    // =========================================================================
+    // Un seul document par utilisateur (identifiant de document = uid
+    // directement - meme patron que daily_challenge_progress/ ci-dessus).
+    // Stocke les reponses indexees par date de lundi ("YYYY-MM-DD") :
+    //   answers: { '2026-09-07': { pedagogicalId, selectedAnswer, correct, answeredAt } }
+    //
+    // Lecture ET ecriture exclusivement via les Cloud Functions
+    // (/api/lundi-legi/:uid - GET et PUT, voir functions/index.js) :
+    // le SDK Admin contourne ces regles, donc `allow read, write: if false`
+    // empeche tout acces client direct sans bloquer les Cloud Functions.
+    match /lundi_legi_progress/{uid} {
+      allow read, write: if false;
+    }
+
+  }
+}

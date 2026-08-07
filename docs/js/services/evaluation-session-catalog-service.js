@@ -25,26 +25,35 @@ function logCatalogError(context, err) {
 }
 
 /**
- * Cree une nouvelle session (jamais pour une mise a jour).
- * @param {object} sessionDocument - deja construit par completeSessionMetadata()
- * @returns {Promise<{success:boolean, error:boolean}>}
+ * Demande la creation d'une nouvelle session A PARTIR D'UNE INTENTION
+ * (jamais un document de session deja construit - CORRECTIF SECURITE
+ * 07/08/2026 : le contenu des questions, y compris `correctAnswer`, est
+ * desormais TOUJOURS reconstruit cote serveur a partir de Firestore, plus
+ * jamais accepte tel quel du client - voir POST /api/sessions,
+ * functions/index.js). En cas de succes, la reponse contient la session
+ * COMPLETE telle que creee par le serveur (`result.session`), ainsi que
+ * `result.parcours`/`result.competency` le cas echeant ; en cas de refus,
+ * `result.reason`/`result.message` expliquent pourquoi.
+ * @param {object} intent - {id, userId, sessionType, parcoursId?, competencyId?, dailyChallengeDate?, pedagogicalIds?, attemptNumber?}
+ * @returns {Promise<{success:boolean, error:boolean, session?:object, parcours?:object, competency?:object, reason?:string, message?:string}>}
  */
-export async function createSessionDocument(sessionDocument) {
+export async function createSessionDocument(intent) {
   try {
     if (!auth.currentUser) return { success: false, error: true };
     const token = await auth.currentUser.getIdToken();
     const res = await fetch(`${API_BASE_URL}/api/sessions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(sessionDocument),
+      body: JSON.stringify(intent),
     });
+    const body = await res.json().catch(function() { return null; });
     if (!res.ok) {
-      logCatalogError('création de la session ' + sessionDocument.id + ' (API ' + res.status + ')', null);
-      return { success: false, error: true };
+      logCatalogError('création de la session ' + intent.id + ' (API ' + res.status + ')', null);
+      return Object.assign({ success: false, error: true }, body || {});
     }
-    return await res.json();
+    return body || { success: false, error: true };
   } catch (err) {
-    logCatalogError('création de la session ' + sessionDocument.id, err);
+    logCatalogError('création de la session ' + intent.id, err);
     return { success: false, error: true };
   }
 }

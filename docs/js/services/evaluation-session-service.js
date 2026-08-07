@@ -6,10 +6,20 @@
 // (la page) - aucune logique métier dans la page elle-même.
 //
 // Coordonne :
-//   - js/services/parcours-evaluation-service.js   (determine les questions + verifie l'eligibilite)
-//   - js/services/evaluation-session-catalog-service.js (lecture/ecriture Firestore)
+//   - js/services/evaluation-session-catalog-service.js (appel POST /api/sessions)
 //   - js/services/evaluation-session-metadata-service.js (modele de donnees)
-//   - js/services/user-management-service.js        (organizationId a snapshoter, Sprint 14)
+//
+// CORRECTIF SECURITE (07/08/2026) : la determination des questions ET la
+// verification d'eligibilite (attribution, competence, statut publie) ont
+// ete DEPLACEES COTE SERVEUR (POST /api/sessions, functions/index.js) - ce
+// fichier n'envoie plus qu'une INTENTION (parcoursId/competencyId, ou une
+// liste de pedagogicalId pour l'entrainement libre) et reagit a la reponse
+// du serveur (session complete si succes, reason/message si refus). Avant
+// ce correctif, js/services/parcours-evaluation-service.js construisait le
+// snapshot COTE CLIENT (y compris `correctAnswer`) et ce fichier l'envoyait
+// tel quel au serveur, qui ne verifiait que userId/id/status - un
+// utilisateur pouvait donc forger un snapshot et obtenir un score parfait
+// certifie serveur. Ce fichier (desormais mort) a ete supprime.
 //
 // CHOIX D'ARCHITECTURE — AUDIT (a documenter clairement, comme demande) :
 // le journal d'audit centralise existant (js/services/audit-service.js,
@@ -34,10 +44,8 @@
 // pour ces 4 evenements ponctuels (jamais un evenement par reponse).
 
 import { getCurrentUserContext } from "./app-context.js";
-import { getUserByUid } from "./user-management-service.js";
-import { prepareEvaluation, prepareParcoursMixedEvaluation, buildOrderedQuestionSnapshots } from "./parcours-evaluation-service.js";
 import {
-  SESSION_STATUSES, completeSessionMetadata, completeAnswerEntry, validateSessionMetadata,
+  SESSION_STATUSES, completeAnswerEntry, generateSessionId,
 } from "./evaluation-session-metadata-service.js";
 import {
   createSessionDocument, getSessionById, findActiveSession, countPreviousAttempts, updateSessionFields,
@@ -99,14 +107,17 @@ export async function getActiveDailyChallengeSession(dateStr) {
 
 /**
  * SPRINT 21.5, PHASE B1 : démarre une session d'ENTRAÎNEMENT LIBRE - à
- * partir d'une liste de `pedagogicalId` DÉJÀ résolue et bornée par
- * free-training-service.js (filtres source/section/tags/difficulté/
- * jamais-vue/jamais-réussie, voir ce fichier - jamais recalculée ici).
- * Aucune vérification d'attribution de parcours (il n'y en a pas) - seule
- * l'authentification est requise. Réutilise buildOrderedQuestionSnapshots()
- * (partie générique déjà utilisée par prepareEvaluation(), voir
- * parcours-evaluation-service.js) pour la construction des snapshots -
- * AUCUNE logique de sélection/mélange de questions dupliquée ici.
+ * partir d'une liste de `pedagogicalId` DÉJÀ résolue par free-training-
+ * service.js (filtres source/section/tags/difficulté/jamais-vue/jamais-
+ * réussie, voir ce fichier). Aucune vérification d'attribution de parcours
+ * (il n'y en a pas) - seule l'authentification est requise.
+ *
+ * CORRECTIF SECURITE (07/08/2026) : cette liste n'est plus qu'une
+ * PROPOSITION - le contenu réel de chaque question (énoncé, options,
+ * `correctAnswer`) est désormais reconstruit côté serveur à partir de
+ * Firestore, jamais accepté tel quel du client (voir POST /api/sessions,
+ * functions/index.js). `generateSessionId()` reste généré ici (simple
+ * identifiant opaque, sans incidence de sécurité).
  *
  * @param {Array<string>} pedagogicalIds
  * @returns {Promise<object>}
@@ -115,42 +126,20 @@ export async function startNewFreeTrainingSession(pedagogicalIds) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour démarrer un entraînement.', 'not_authenticated');
 
-  const snapshots = await buildOrderedQuestionSnapshots(pedagogicalIds);
-  if (snapshots.error) return errorResult('Impossible de charger les questions pour le moment. Réessayez plus tard.');
-  if (snapshots.orderedQuestionIds.length === 0) return denied('Aucune question disponible pour cette sélection.', 'no_questions');
+  const previousAttempts = await countPreviousFreeTrainingAttempts(ctx.uid);
 
-  const [user, previousAttempts] = await Promise.all([
-    getUserByUid(ctx.uid),
-    countPreviousFreeTrainingAttempts(ctx.uid),
-  ]);
-
-  const now = nowIso();
-  const session = completeSessionMetadata({
+  const result = await createSessionDocument({
+    id: generateSessionId(),
     userId: ctx.uid,
-    organizationId: (user && user.organizationId) || null,
     sessionType: 'free_training',
-    parcoursId: null,
-    competencyId: null,
-    assignmentId: null,
-    status: SESSION_STATUSES.IN_PROGRESS,
-    startedAt: now,
-    updatedAt: now,
-    questionIds: snapshots.orderedQuestionIds,
-    currentQuestionIndex: 0,
-    answers: {},
-    questionSnapshot: snapshots.questionSnapshots,
-    createdBy: ctx.uid,
+    pedagogicalIds: pedagogicalIds,
     attemptNumber: previousAttempts + 1,
   });
-  session.events = [{ type: 'evaluation_started', at: now }];
+  if (!result.success) {
+    return denied(result.message || 'Le démarrage de l\'entraînement a échoué. Veuillez réessayer.', result.reason);
+  }
 
-  const validation = validateSessionMetadata(session);
-  if (!validation.valid) return errorResult(validation.errors.join(' '));
-
-  const result = await createSessionDocument(session);
-  if (!result.success) return errorResult('Le démarrage de l\'entraînement a échoué. Veuillez réessayer.');
-
-  return success('Entraînement démarré.', { session: session });
+  return success('Entraînement démarré.', { session: result.session });
 }
 
 /**
@@ -172,50 +161,28 @@ export async function startDailyChallengeSession(pedagogicalIds, dailyChallengeD
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour relever le défi du jour.', 'not_authenticated');
 
-  const snapshots = await buildOrderedQuestionSnapshots(pedagogicalIds);
-  if (snapshots.error) return errorResult('Impossible de charger les questions pour le moment. Réessayez plus tard.');
-  if (snapshots.orderedQuestionIds.length === 0) return denied('Aucune question disponible pour le défi du jour.', 'no_questions');
+  const previousAttempts = await countPreviousFreeTrainingAttempts(ctx.uid);
 
-  const [user, previousAttempts] = await Promise.all([
-    getUserByUid(ctx.uid),
-    countPreviousFreeTrainingAttempts(ctx.uid),
-  ]);
-
-  const now = nowIso();
-  const session = completeSessionMetadata({
+  const result = await createSessionDocument({
+    id: generateSessionId(),
     userId: ctx.uid,
-    organizationId: (user && user.organizationId) || null,
     sessionType: 'free_training',
-    parcoursId: null,
-    competencyId: null,
-    assignmentId: null,
     dailyChallengeDate: dailyChallengeDate,
-    status: SESSION_STATUSES.IN_PROGRESS,
-    startedAt: now,
-    updatedAt: now,
-    questionIds: snapshots.orderedQuestionIds,
-    currentQuestionIndex: 0,
-    answers: {},
-    questionSnapshot: snapshots.questionSnapshots,
-    createdBy: ctx.uid,
+    pedagogicalIds: pedagogicalIds,
     attemptNumber: previousAttempts + 1,
   });
-  session.events = [{ type: 'evaluation_started', at: now }];
+  if (!result.success) {
+    return denied(result.message || 'Le démarrage du défi du jour a échoué. Veuillez réessayer.', result.reason);
+  }
 
-  const validation = validateSessionMetadata(session);
-  if (!validation.valid) return errorResult(validation.errors.join(' '));
-
-  const result = await createSessionDocument(session);
-  if (!result.success) return errorResult('Le démarrage du défi du jour a échoué. Veuillez réessayer.');
-
-  return success('Défi du jour démarré.', { session: session });
+  return success('Défi du jour démarré.', { session: result.session });
 }
 
 /**
  * Démarre une TOUTE NOUVELLE session (aucune verification de session
  * active existante ici - a l'appelant de l'avoir deja fait via
  * getActiveSession(), voir evaluation.js). Ne cree JAMAIS une session
- * vide : si prepareEvaluation() ne trouve aucune question disponible, rien
+ * vide : si le serveur ne trouve aucune question disponible/eligible, rien
  * n'est ecrit dans Firestore (SPRINT17, section 5 : "Ne pas creer de
  * session vide").
  *
@@ -227,53 +194,32 @@ export async function startNewSession(parcoursId, competencyId) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour démarrer une évaluation.', 'not_authenticated');
 
-  const prepared = await prepareEvaluation(ctx.uid, parcoursId, competencyId);
-  if (!prepared.authorized) {
-    return denied(prepared.message, prepared.reason);
-  }
+  const previousAttempts = await countPreviousAttempts(ctx.uid, parcoursId, competencyId);
 
-  const [user, previousAttempts] = await Promise.all([
-    getUserByUid(ctx.uid),
-    countPreviousAttempts(ctx.uid, parcoursId, competencyId),
-  ]);
-
-  const now = nowIso();
-  const session = completeSessionMetadata({
+  const result = await createSessionDocument({
+    id: generateSessionId(),
     userId: ctx.uid,
-    organizationId: (user && user.organizationId) || null,
+    sessionType: 'parcours',
     parcoursId: parcoursId,
     competencyId: competencyId,
-    assignmentId: prepared.assignmentId,
-    status: SESSION_STATUSES.IN_PROGRESS,
-    startedAt: now,
-    updatedAt: now,
-    questionIds: prepared.orderedQuestionIds,
-    currentQuestionIndex: 0,
-    answers: {},
-    questionSnapshot: prepared.questionSnapshots,
-    createdBy: ctx.uid,
     attemptNumber: previousAttempts + 1,
   });
-  session.events = [{ type: 'evaluation_started', at: now }];
+  if (!result.success) {
+    return denied(result.message || 'Le démarrage de l\'évaluation a échoué. Veuillez réessayer.', result.reason);
+  }
 
-  const validation = validateSessionMetadata(session);
-  if (!validation.valid) return errorResult(validation.errors.join(' '));
-
-  const result = await createSessionDocument(session);
-  if (!result.success) return errorResult('Le démarrage de l\'évaluation a échoué. Veuillez réessayer.');
-
-  return success('Évaluation démarrée.', { session: session, parcours: prepared.parcours, competency: prepared.competency });
+  return success('Évaluation démarrée.', { session: result.session, parcours: result.parcours, competency: result.competency });
 }
 
 /**
  * AJOUT : demarre une evaluation couvrant TOUT le contenu d'un parcours
- * (competences + sources + questions directement liees, voir
- * prepareParcoursMixedEvaluation() ci-dessus) - UN SEUL bouton "Commencer"
- * par parcours, plus un par competence. Reutilise `sessionType:
- * 'free_training'` (aucune competence unique exigee par
- * validateSessionMetadata pour ce type) tout en renseignant `parcoursId`
- * (contrairement a une vraie session d'entrainement libre) - ce qui
- * permet a `findActiveSession()`/`countPreviousAttempts()` deja existantes
+ * (competences + sources + questions directement liees - resolu cote
+ * serveur, voir POST /api/sessions, functions/index.js) - UN SEUL bouton
+ * "Commencer" par parcours, plus un par competence. Reutilise
+ * `sessionType: 'free_training'` (aucune competence unique exigee pour ce
+ * type) tout en renseignant `parcoursId` (contrairement a une vraie
+ * session d'entrainement libre) - ce qui permet a `findActiveSession()`/
+ * `countPreviousAttempts()` deja existantes
  * (parametrees par parcoursId+competencyId) de continuer a fonctionner
  * telles quelles avec `competencyId: null`, sans nouvelle fonction de
  * comptage. Meme garantie que startNewSession() : ne cree jamais de
@@ -285,43 +231,20 @@ export async function startParcoursMixedSession(parcoursId) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return denied('Vous devez être connecté pour démarrer une évaluation.', 'not_authenticated');
 
-  const prepared = await prepareParcoursMixedEvaluation(ctx.uid, parcoursId);
-  if (!prepared.authorized) {
-    return denied(prepared.message, prepared.reason);
-  }
+  const previousAttempts = await countPreviousAttempts(ctx.uid, parcoursId, null);
 
-  const [user, previousAttempts] = await Promise.all([
-    getUserByUid(ctx.uid),
-    countPreviousAttempts(ctx.uid, parcoursId, null),
-  ]);
-
-  const now = nowIso();
-  const session = completeSessionMetadata({
+  const result = await createSessionDocument({
+    id: generateSessionId(),
     userId: ctx.uid,
-    organizationId: (user && user.organizationId) || null,
     sessionType: 'free_training',
     parcoursId: parcoursId,
-    competencyId: null,
-    assignmentId: prepared.assignmentId,
-    status: SESSION_STATUSES.IN_PROGRESS,
-    startedAt: now,
-    updatedAt: now,
-    questionIds: prepared.orderedQuestionIds,
-    currentQuestionIndex: 0,
-    answers: {},
-    questionSnapshot: prepared.questionSnapshots,
-    createdBy: ctx.uid,
     attemptNumber: previousAttempts + 1,
   });
-  session.events = [{ type: 'evaluation_started', at: now }];
+  if (!result.success) {
+    return denied(result.message || 'Le démarrage de l\'évaluation a échoué. Veuillez réessayer.', result.reason);
+  }
 
-  const validation = validateSessionMetadata(session);
-  if (!validation.valid) return errorResult(validation.errors.join(' '));
-
-  const result = await createSessionDocument(session);
-  if (!result.success) return errorResult('Le démarrage de l\'évaluation a échoué. Veuillez réessayer.');
-
-  return success('Évaluation démarrée.', { session: session, parcours: prepared.parcours });
+  return success('Évaluation démarrée.', { session: result.session, parcours: result.parcours });
 }
 
 /**
