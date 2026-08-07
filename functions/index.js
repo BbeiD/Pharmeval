@@ -7,6 +7,8 @@ const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { correctEvaluationSession } = require("./lib/evaluation-correction-service");
 const { validateQuestion } = require("./lib/question-import-validator");
 const XLSX = require("xlsx");
+const Busboy = require("busboy");
+const { Readable } = require("stream");
 
 admin.initializeApp();
 // europe-west1 : co-localise le calcul avec Firestore (deja en europe-west1)
@@ -4099,7 +4101,43 @@ app.get("/api/admin/export-questions-csv", requireAuth, async (req, res) => {
 // retarder l'effet. Utilise SheetJS (deja eprouve cote client cette semaine
 // pour le xlsx) pour le xlsx ET le csv - plus aucun parseur CSV artisanal
 // dans ce projet.
-const uploadImportFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// CORRECTIF (constate en test reel, 08/08/2026) : `multer` (base sur un
+// flux `req.pipe(...)`) echoue systematiquement ici avec "Unexpected end
+// of form" - le wrapper `onRequest()` de firebase-functions consomme deja
+// entierement le corps de la requete pour peupler `req.rawBody` (Buffer)
+// AVANT qu'Express ne s'execute, laissant le flux `req` lui-meme deja vide
+// au moment ou multer tente de le lire. Solution etablie pour Firebase
+// Functions + upload multipart : parser directement `req.rawBody` avec
+// busboy (dependance de multer, ajoutee ici en direct), jamais via le flux
+// `req`. Reproduit sur /api/images (endpoint preexistant, non modifie) -
+// a corriger la aussi si un besoin similaire s'y presente.
+function parseMultipartUpload(req, { fieldName = "file", maxFileSize = 10 * 1024 * 1024 } = {}) {
+  return new Promise((resolve, reject) => {
+    const busboy = Busboy({ headers: req.headers, limits: { fileSize: maxFileSize } });
+    let fileBuffer = null;
+    let originalname = null;
+    let truncated = false;
+    const fields = {};
+
+    busboy.on("file", (name, fileStream, info) => {
+      if (name !== fieldName) { fileStream.resume(); return; }
+      const chunks = [];
+      originalname = info.filename;
+      fileStream.on("data", (chunk) => chunks.push(chunk));
+      fileStream.on("limit", () => { truncated = true; });
+      fileStream.on("end", () => { fileBuffer = Buffer.concat(chunks); });
+    });
+    busboy.on("field", (name, value) => { fields[name] = value; });
+    busboy.on("error", reject);
+    busboy.on("finish", () => {
+      if (truncated) return reject(new Error("FILE_TOO_LARGE"));
+      resolve({ buffer: fileBuffer, originalname, fields });
+    });
+
+    const source = req.rawBody ? Readable.from(req.rawBody) : req;
+    source.pipe(busboy);
+  });
+}
 
 // Colonnes reellement exploitees par la mise a jour ci-dessous, + les
 // colonnes purement informatives deja presentes dans les fichiers generes
@@ -4128,15 +4166,26 @@ function parseImportFileBuffer(buffer, originalname) {
     .filter((r) => r.pedagogicalId);
 }
 
-app.post("/api/admin/import-corrections-file", requireAuth, uploadImportFile.single("file"), async (req, res) => {
+app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => {
   try {
     if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
-    if (!req.file) return res.status(400).json({ error: "Fichier manquant." });
-    const dryRun = req.body.dryRun !== "false";
+
+    let upload;
+    try {
+      upload = await parseMultipartUpload(req);
+    } catch (uploadErr) {
+      if (uploadErr && uploadErr.message === "FILE_TOO_LARGE") {
+        return res.status(400).json({ error: "Fichier trop volumineux (max 10 Mo)." });
+      }
+      console.error("[import-corrections-file:upload]", uploadErr);
+      return res.status(400).json({ error: "Envoi du fichier illisible." });
+    }
+    if (!upload.buffer) return res.status(400).json({ error: "Fichier manquant." });
+    const dryRun = upload.fields.dryRun !== "false";
 
     let rows;
     try {
-      rows = parseImportFileBuffer(req.file.buffer, req.file.originalname);
+      rows = parseImportFileBuffer(upload.buffer, upload.originalname);
     } catch (parseErr) {
       console.error("[import-corrections-file:parse]", parseErr);
       return res.status(400).json({ error: "Fichier illisible - vérifiez le format (.xlsx ou .csv)." });
