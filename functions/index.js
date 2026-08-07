@@ -65,8 +65,17 @@ app.use((req, res, next) => {
 // alourdir chaque requete d'une transaction supplementaire. Les limiteurs
 // dedies (images, signalements) restent inchanges et plus stricts sur leur
 // perimetre specifique.
+//
+// INCIDENT (08/08/2026, quelques minutes apres le premier deploiement) :
+// 120/minute a casse "Mes competences"/"Mes parcours" en usage reel - ces
+// pages font des dizaines de requetes INDIVIDUELLES (une par competence/
+// parcours/question, jamais groupees) en rafale au chargement, jamais
+// etalees sur une minute. Relevé immediatement (429 en cascade dans la
+// console). Plafond relevé tres largement pour ne plus jamais gener un
+// usage normal, meme avec ce pattern de requetes individuelles - reste
+// largement suffisant pour arreter un flot scripté soutenu.
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 120;
+const RATE_LIMIT_MAX_REQUESTS = 1000;
 const rateLimitBuckets = new Map();
 
 setInterval(() => {
