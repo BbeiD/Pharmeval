@@ -6,6 +6,7 @@ const admin = require("firebase-admin");
 const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { correctEvaluationSession } = require("./lib/evaluation-correction-service");
 const { validateQuestion } = require("./lib/question-import-validator");
+const XLSX = require("xlsx");
 
 admin.initializeApp();
 // europe-west1 : co-localise le calcul avec Firestore (deja en europe-west1)
@@ -4085,16 +4086,71 @@ app.get("/api/admin/export-questions-csv", requireAuth, async (req, res) => {
   }
 });
 
-// OUTIL ADMIN — import corrections CSV par pedagogicalId
-// Reçoit un tableau JSON de lignes (parsing fait côté client).
-// Chaque ligne identifiée par pedagogicalId : mise à jour des champs
-// présents, ou suppression si status === 'deleted'.
-app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
+// CORRECTIF SECURITE/FIABILITE (M3, audit du 07/08/2026) : import corrections
+// PAR FICHIER, parse COTE SERVEUR - remplace l'ancien /api/admin/import-
+// corrections-csv (JSON de lignes deja parsees par le navigateur). Avant ce
+// correctif, un bug dans le parseur CSV cote client (js/... desormais
+// docs/admin/import-corrections.js) a corrompu des dizaines de questions -
+// la correction du parseur, une fois deployee, n'a mis effet qu'apres
+// plusieurs heures a cause du service worker qui continuait a servir
+// l'ancien JS (voir MEMORY, feedback_no_escalation_without_verification).
+// Un bug de PARSING SERVEUR, lui, est corrige des le prochain `firebase
+// deploy --only functions` - aucun cache client ne peut plus jamais en
+// retarder l'effet. Utilise SheetJS (deja eprouve cote client cette semaine
+// pour le xlsx) pour le xlsx ET le csv - plus aucun parseur CSV artisanal
+// dans ce projet.
+const uploadImportFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Colonnes reellement exploitees par la mise a jour ci-dessous, + les
+// colonnes purement informatives deja presentes dans les fichiers generes
+// jusqu'ici (bonne_reponse_texte : jamais lue, juste un repere humain).
+// Toute AUTRE colonne fait echouer l'import explicitement (jamais une
+// colonne renommee/mal orthographiee silencieusement ignoree, cause
+// racine du 2e correctif M3 demande dans l'audit).
+const IMPORT_RECOGNIZED_COLUMNS = new Set([
+  "pedagogicalId", "question", "reponse_A", "reponse_B", "reponse_C", "reponse_D",
+  "bonne_reponse_index", "bonne_reponse_texte", "explication", "status", "difficulty",
+]);
+
+function parseImportFileBuffer(buffer, originalname) {
+  const isCsv = /\.csv$/i.test(originalname || "");
+  const wb = isCsv
+    ? XLSX.read(buffer, { type: "buffer", codepage: 65001, raw: false })
+    : XLSX.read(buffer, { type: "buffer" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  return raw
+    .map((r) => {
+      const o = {};
+      Object.keys(r).forEach((k) => { o[String(k).trim()] = String(r[k] != null ? r[k] : "").trim(); });
+      return o;
+    })
+    .filter((r) => r.pedagogicalId);
+}
+
+app.post("/api/admin/import-corrections-file", requireAuth, uploadImportFile.single("file"), async (req, res) => {
   try {
     if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
-    const { rows, dryRun } = req.body || {};
-    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: "Aucune ligne fournie" });
+    if (!req.file) return res.status(400).json({ error: "Fichier manquant." });
+    const dryRun = req.body.dryRun !== "false";
+
+    let rows;
+    try {
+      rows = parseImportFileBuffer(req.file.buffer, req.file.originalname);
+    } catch (parseErr) {
+      console.error("[import-corrections-file:parse]", parseErr);
+      return res.status(400).json({ error: "Fichier illisible - vérifiez le format (.xlsx ou .csv)." });
+    }
+    if (rows.length === 0) return res.status(400).json({ error: "Aucune ligne exploitable (colonne pedagogicalId manquante ou fichier vide)." });
     if (rows.length > 1200) return res.status(400).json({ error: "Trop de lignes (max 1200)" });
+
+    const unknownColumns = new Set();
+    rows.forEach((r) => { Object.keys(r).forEach((k) => { if (!IMPORT_RECOGNIZED_COLUMNS.has(k)) unknownColumns.add(k); }); });
+    if (unknownColumns.size > 0) {
+      return res.status(400).json({
+        error: "Colonne(s) non reconnue(s) : " + Array.from(unknownColumns).join(", ") + ". Colonnes attendues : " + Array.from(IMPORT_RECOGNIZED_COLUMNS).join(", ") + ".",
+      });
+    }
 
     const db = admin.firestore();
     let updated = 0, deleted = 0, skipped = 0;
@@ -4153,9 +4209,9 @@ app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
     }
 
     if (!dryRun) { flushBatch(); await Promise.all(commitQueue); }
-    res.json({ updated, deleted, skipped, notFound, dryRun: !!dryRun });
+    res.json({ updated, deleted, skipped, notFound, dryRun: !!dryRun, totalRows: rows.length });
   } catch (err) {
-    console.error("[import-corrections-csv]", err && err.code, err);
+    console.error("[import-corrections-file]", err && err.code, err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

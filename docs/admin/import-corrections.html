@@ -8,7 +8,6 @@
 <link rel="icon" type="image/png" href="../assets/icons/pwa/favicon-32.png">
 <link rel="apple-touch-icon" href="../assets/icons/pwa/apple-touch-icon.png">
 <title>Pharmeval — Import corrections</title>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>body{background:#080F0E}</style>
 <link rel="stylesheet" href="../css/styles.css">
 <link rel="stylesheet" href="../css/admin.css">
@@ -39,7 +38,7 @@
     <div id="ic-step1" class="adm-modal" style="max-width:600px;margin:0 0 24px;">
       <h3 style="margin-top:0">1. Choisir le fichier</h3>
       <p style="color:var(--text2);margin-bottom:16px;">
-        Format accepté : <strong>Excel (.xlsx)</strong> ou CSV — colonnes : <code>pedagogicalId, question, reponse_A…D, bonne_reponse_index, explication, status, difficulty</code><br>
+        Format accepté : <strong>Excel (.xlsx)</strong> ou CSV, 10 Mo max — colonnes reconnues : <code>pedagogicalId, question, reponse_A…D, bonne_reponse_index, bonne_reponse_texte, explication, status, difficulty</code>. Toute autre colonne fait échouer l'import (vérifiez l'orthographe).<br>
         Utilisez <strong>status = deleted</strong> pour supprimer une question.
       </p>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">

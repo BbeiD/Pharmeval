@@ -6,7 +6,15 @@ import { hasPermission, PERMISSIONS } from "../js/services/authorization-service
 import { renderAdminNav } from "./admin-shell.js";
 import { API_BASE_URL } from "../js/config.js";
 
-let parsedRows = [];
+// CORRECTIF SECURITE/FIABILITE (M3, 07/08/2026) : le fichier n'est plus
+// parse ici - il est envoye BRUT au serveur (voir POST /api/admin/import-
+// corrections-file, functions/index.js), qui parse desormais avec SheetJS
+// cote Node. Un bug de parsing se corrige donc au prochain `firebase
+// deploy --only functions`, plus jamais retarde par le cache du service
+// worker (voir MEMORY, feedback_no_escalation_without_verification -
+// c'est exactement ce qui a transforme un bug d'une ligne en incident de
+// plusieurs heures cette semaine).
+let selectedFile = null;
 
 onAuthStateChanged(auth, async function(user) {
   const loadingEl = document.getElementById('ic-loading');
@@ -41,102 +49,40 @@ onAuthStateChanged(auth, async function(user) {
 });
 
 function onFileChange(e) {
-  document.getElementById('ic-analyze-btn').disabled = !e.target.files.length;
+  selectedFile = e.target.files[0] || null;
+  document.getElementById('ic-analyze-btn').disabled = !selectedFile;
 }
 
-async function parseFile(file) {
-  const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
-  if (isXlsx) {
-    const XLSX = window.XLSX;
-    if (!XLSX) throw new Error('Librairie SheetJS non chargée — rechargez la page.');
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
-    return raw
-      .map(function(r) {
-        const o = {};
-        Object.keys(r).forEach(function(k) { o[k.trim()] = String(r[k] != null ? r[k] : '').trim(); });
-        return o;
-      })
-      .filter(function(r) { return r.pedagogicalId; });
-  }
-  const text = await file.text();
-  return parseCSV(text);
-}
-
-function parseCSV(text) {
-  text = text.replace(/^﻿/, '');
-  const lines = [];
-  let cur = '';
-  let inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '"') {
-      cur += ch;
-      if (inQ && text[i + 1] === '"') { cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if ((ch === '\n' || ch === '\r') && !inQ) {
-      if (ch === '\r' && text[i + 1] === '\n') i++;
-      lines.push(cur); cur = '';
-    } else { cur += ch; }
-  }
-  if (cur) lines.push(cur);
-
-  function splitLine(line) {
-    const fields = []; let f = ''; let q = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { if (q && line[i+1] === '"') { f += '"'; i++; } else q = !q; }
-      else if (ch === ',' && !q) { fields.push(f); f = ''; }
-      else f += ch;
-    }
-    fields.push(f);
-    return fields;
-  }
-
-  const headers = splitLine(lines[0] || '');
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-    const vals = splitLine(lines[i]);
-    const obj = {};
-    headers.forEach(function(h, j) { obj[h.trim()] = (vals[j] || '').trim(); });
-    if (obj.pedagogicalId) rows.push(obj);
-  }
-  return rows;
+async function uploadImportFile(file, dryRun) {
+  const token = await auth.currentUser.getIdToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('dryRun', dryRun ? 'true' : 'false');
+  const res = await fetch(API_BASE_URL + '/api/admin/import-corrections-file', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token },
+    body: formData,
+  });
+  const data = await res.json().catch(function() { return {}; });
+  return { ok: res.ok, status: res.status, data: data };
 }
 
 window.analyzeFile = async function analyzeFile() {
-  const file = document.getElementById('ic-file-input').files[0];
-  if (!file) return;
+  if (!selectedFile) return;
   const btn = document.getElementById('ic-analyze-btn');
   btn.disabled = true;
   btn.textContent = 'Analyse…';
   showMessage('', false);
 
   try {
-    parsedRows = await parseFile(file);
-    if (!parsedRows.length) {
-      showMessage('Le fichier est vide ou mal formaté.', true);
+    const result = await uploadImportFile(selectedFile, true);
+    if (!result.ok) {
+      showMessage('Erreur dry-run : ' + (result.data.error || result.status), true);
       btn.textContent = 'Analyser'; btn.disabled = false;
       return;
     }
 
-    const token = await auth.currentUser.getIdToken();
-    const res = await fetch(API_BASE_URL + '/api/admin/import-corrections-csv', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ rows: parsedRows, dryRun: true }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showMessage('Erreur dry-run : ' + (data.error || res.status), true);
-      btn.textContent = 'Analyser'; btn.disabled = false;
-      return;
-    }
-
-    renderPreview(data, parsedRows.length);
+    renderPreview(result.data, result.data.totalRows);
     document.getElementById('ic-step2').style.display = '';
     document.getElementById('ic-step1').style.display = 'none';
   } catch (err) {
@@ -163,21 +109,17 @@ function renderPreview(data, total) {
 }
 
 window.confirmImport = async function confirmImport() {
+  if (!selectedFile) return;
   const btn = document.getElementById('ic-import-btn');
   btn.disabled = true;
   btn.textContent = 'Import en cours…';
   showMessage('', false);
 
   try {
-    const token = await auth.currentUser.getIdToken();
-    const res = await fetch(API_BASE_URL + '/api/admin/import-corrections-csv', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ rows: parsedRows, dryRun: false }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showMessage('Erreur import : ' + (data.error || res.status), true);
+    const result = await uploadImportFile(selectedFile, false);
+    const data = result.data;
+    if (!result.ok) {
+      showMessage('Erreur import : ' + (data.error || result.status), true);
       btn.textContent = 'Confirmer l\'import'; btn.disabled = false;
       return;
     }
@@ -198,7 +140,7 @@ window.confirmImport = async function confirmImport() {
 };
 
 window.resetForm = function resetForm() {
-  parsedRows = [];
+  selectedFile = null;
   document.getElementById('ic-file-input').value = '';
   document.getElementById('ic-analyze-btn').disabled = true;
   document.getElementById('ic-analyze-btn').textContent = 'Analyser';
