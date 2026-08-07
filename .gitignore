@@ -9,3 +9,25 @@ node_modules/
 # Pages, qui sert tout le depot tel quel) - voir data/catalogue-review/.
 data/catalogue-review/*
 !data/catalogue-review/.gitkeep
+
+# CORRECTIF SECURITE (07/08/2026) : GitHub Pages sert TOUT le depot main
+# tel quel, sans mecanisme d'exclusion equivalent a firebase.json "ignore" -
+# ces fichiers etaient donc publiquement accessibles sur pharmeval.be/...
+# (constate en direct : functions/index.js, firestore.rules et l'audit de
+# securite AUDIT_MAUVAIS_UTILISATEUR_RESULTATS.md etaient tous fetchables).
+# Retires du suivi Git (git rm --cached) - restent en local, jamais
+# supprimes. Cette liste empeche un futur "git add ." de les re-suivre par
+# erreur.
+*.md
+!README.md
+.claude/
+firebase.json
+firestore.indexes.json
+firestore.rules
+storage.rules
+functions/
+scripts/
+tests/
+*.mjs
+package.json
+package-lock.json
