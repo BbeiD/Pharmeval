@@ -53,10 +53,47 @@ app.use((req, res, next) => {
   next();
 });
 
+// CORRECTIF (F3, audit du 07/08/2026) : seuls /api/images et
+// /api/question-reports avaient une limite de frequence (transactions
+// Firestore dediees, ajoutees lors de l'audit "mauvais utilisateur" du
+// 27/07/2026) - tout le reste de l'API (~120 endpoints) n'avait pour seule
+// protection que `maxInstances: 10`. Limite generique GLOBALE ici (en
+// memoire, PAR INSTANCE - pas de nouvelle ecriture Firestore par requete,
+// contrairement aux limiteurs dedies existants) : un attaquant repartissant
+// ses requetes sur les 10 instances max pourrait obtenir jusqu'a 10x cette
+// limite - largement suffisant pour arreter un abus non distribue, sans
+// alourdir chaque requete d'une transaction supplementaire. Les limiteurs
+// dedies (images, signalements) restent inchanges et plus stricts sur leur
+// perimetre specifique.
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 120;
+const rateLimitBuckets = new Map();
+
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  for (const [uid, bucket] of rateLimitBuckets) {
+    if (bucket.windowStart < cutoff) rateLimitBuckets.delete(uid);
+  }
+}, 10 * 60 * 1000).unref();
+
+function checkRateLimit(uid) {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(uid);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitBuckets.set(uid, { windowStart: now, count: 1 });
+    return true;
+  }
+  bucket.count++;
+  return bucket.count <= RATE_LIMIT_MAX_REQUESTS;
+}
+
 async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
   try {
     req.user = await admin.auth().verifyIdToken(token);
+    if (!checkRateLimit(req.user.uid)) {
+      return res.status(429).json({ error: "Trop de requêtes. Réessayez dans un instant." });
+    }
     next();
   } catch {
     res.status(401).json({ error: "Non authentifié" });
@@ -106,19 +143,53 @@ async function checkAndIncrementUploadQuota(uid) {
   });
 }
 
-app.post("/api/images", requireAuth, upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Fichier manquant." });
-  if (!isLikelyImage(req.file.buffer) || !req.file.mimetype.startsWith("image/")) {
+// CORRECTIF (F2, audit du 07/08/2026 + bug multer/busboy constate le
+// 08/08/2026, voir POST /api/admin/import-corrections-file) : cet endpoint
+// utilisait encore `upload.single("file")` (multer base sur un flux) -
+// meme defaut que l'import de corrections, probablement jamais fonctionnel
+// en production (le flux req est deja vide au moment ou multer tente de
+// le lire, voir parseMultipartUpload plus haut). Reecrit avec le meme
+// mecanisme busboy+req.rawBody. Profite du meme correctif pour :
+// - normaliser le nom de fichier (jamais le nom fourni par le client tel
+//   quel - un nom fantaisiste/tres long/avec caracteres exotiques finissait
+//   directement dans la cle de l'objet GCS) ;
+// - reduire l'expiration de l'URL signee (2030 -> 2 ans) - une fuite reste
+//   possible pendant cette fenetre (aucun controle d'acces reel sur cette
+//   URL, LIMITE CONNUE), mais "eternelle" n'apportait aucun benefice
+//   fonctionnel reel face a ce risque.
+function safeUploadFilename(originalname, mimetype) {
+  const extFromMime = { "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp" }[mimetype] || "bin";
+  const base = String(originalname || "").split(/[\\/]/).pop() || "";
+  const stem = base.replace(/\.[^.]*$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "image";
+  return `${stem}.${extFromMime}`;
+}
+
+app.post("/api/images", requireAuth, async (req, res) => {
+  let upload;
+  try {
+    upload = await parseMultipartUpload(req, { maxFileSize: 5 * 1024 * 1024 });
+  } catch (uploadErr) {
+    if (uploadErr && uploadErr.message === "FILE_TOO_LARGE") {
+      return res.status(400).json({ error: "Fichier trop volumineux (max 5 Mo)." });
+    }
+    console.error("[images:upload]", uploadErr);
+    return res.status(400).json({ error: "Envoi du fichier illisible." });
+  }
+  if (!upload.buffer) return res.status(400).json({ error: "Fichier manquant." });
+  if (!isLikelyImage(upload.buffer)) {
     return res.status(400).json({ error: "Le fichier envoyé n'est pas une image reconnue." });
   }
   const allowed = await checkAndIncrementUploadQuota(req.user.uid);
   if (!allowed) {
     return res.status(429).json({ error: "Trop d'envois d'images en une heure. Réessayez plus tard." });
   }
+  const detectedMime = upload.mimeType || "application/octet-stream";
   const bucket = admin.storage().bucket();
-  const blob = bucket.file(`justifications/${Date.now()}-${req.file.originalname}`);
-  await blob.save(req.file.buffer, { contentType: req.file.mimetype });
-  const [url] = await blob.getSignedUrl({ action: "read", expires: "2030-01-01" });
+  const safeName = safeUploadFilename(upload.originalname, detectedMime);
+  const blob = bucket.file(`justifications/${req.user.uid}/${Date.now()}-${safeName}`);
+  await blob.save(upload.buffer, { contentType: detectedMime });
+  const twoYearsFromNow = new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000);
+  const [url] = await blob.getSignedUrl({ action: "read", expires: twoYearsFromNow });
   res.json({ url });
 });
 
@@ -4116,6 +4187,7 @@ function parseMultipartUpload(req, { fieldName = "file", maxFileSize = 10 * 1024
     const busboy = Busboy({ headers: req.headers, limits: { fileSize: maxFileSize } });
     let fileBuffer = null;
     let originalname = null;
+    let mimeType = null;
     let truncated = false;
     const fields = {};
 
@@ -4123,6 +4195,7 @@ function parseMultipartUpload(req, { fieldName = "file", maxFileSize = 10 * 1024
       if (name !== fieldName) { fileStream.resume(); return; }
       const chunks = [];
       originalname = info.filename;
+      mimeType = info.mimeType;
       fileStream.on("data", (chunk) => chunks.push(chunk));
       fileStream.on("limit", () => { truncated = true; });
       fileStream.on("end", () => { fileBuffer = Buffer.concat(chunks); });
@@ -4131,7 +4204,7 @@ function parseMultipartUpload(req, { fieldName = "file", maxFileSize = 10 * 1024
     busboy.on("error", reject);
     busboy.on("finish", () => {
       if (truncated) return reject(new Error("FILE_TOO_LARGE"));
-      resolve({ buffer: fileBuffer, originalname, fields });
+      resolve({ buffer: fileBuffer, originalname, mimeType, fields });
     });
 
     const source = req.rawBody ? Readable.from(req.rawBody) : req;
