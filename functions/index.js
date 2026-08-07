@@ -4159,6 +4159,66 @@ app.post("/api/admin/import-corrections-csv", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+
+// ===================== PATCH ÉNONCÉS V3 — conflit-aware =====================
+// RESTAURE (07/08/2026) : supprime par erreur pendant le nettoyage M4 (confondu
+// avec les endpoints one-shot deja executes) - c'est en realite un outil admin
+// reutilisable, encore avec sa propre section permanente dans import-
+// corrections.html ("Patch JSON V3"), jamais un script ponctuel. Code
+// identique a l'original (commit fd95d69).
+app.post("/api/admin/apply-question-patch-v3", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
+    const { items, dryRun } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "items manquants" });
+    if (items.length > 1000) return res.status(400).json({ error: "Trop d'items (max 1000)" });
+
+    const db = admin.firestore();
+    const ids = [...new Set(items.map((it) => it.pedagogicalId).filter(Boolean))];
+    const docMap = {};
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50);
+      const snaps = await Promise.all(chunk.map((id) => db.collection(QUESTIONS_COLLECTION).doc(id).get()));
+      chunk.forEach((id, j) => { docMap[id] = snaps[j]; });
+    }
+
+    const report = { dryRun: !!dryRun, mis_a_jour: [], deja_conforme: [], conflits: [], introuvables: [] };
+    let writeBatch = db.batch(), writeCount = 0;
+    const commitQueue = [];
+
+    function flushBatch() {
+      if (writeCount > 0) { commitQueue.push(writeBatch.commit()); writeBatch = db.batch(); writeCount = 0; }
+    }
+
+    for (const item of items) {
+      const { pedagogicalId: pid, question_finale, valeurs_actuelles_acceptees } = item;
+      if (!pid || !question_finale) continue;
+      const snap = docMap[pid];
+      if (!snap || !snap.exists) { report.introuvables.push(pid); continue; }
+      const current = snap.data().question || "";
+      if (current === question_finale) { report.deja_conforme.push(pid); continue; }
+      const accepted = Array.isArray(valeurs_actuelles_acceptees) ? valeurs_actuelles_acceptees : [];
+      if (accepted.length > 0 && !accepted.includes(current)) {
+        report.conflits.push({ pedagogicalId: pid, current: current.slice(0, 80) });
+        continue;
+      }
+      report.mis_a_jour.push(pid);
+      if (!dryRun) {
+        const ref = db.collection(QUESTIONS_COLLECTION).doc(pid);
+        writeBatch.update(ref, { question: question_finale, updatedAt: FieldValue.serverTimestamp() });
+        writeCount++;
+        if (writeCount >= 499) flushBatch();
+      }
+    }
+
+    if (!dryRun) { flushBatch(); await Promise.all(commitQueue); }
+    res.json(report);
+  } catch (err) {
+    console.error("[apply-question-patch-v3]", err && err.code, err);
+    res.status(500).json({ error: err.message || "Erreur serveur" });
+  }
+});
+
 // TABLEAU DE BORD ADMIN — comptages globaux
 // Remplace les appels getCountFromServer() côté client qui échouent depuis
 // que toutes les collections ont été verrouillées (allow read, write: if false)
