@@ -1661,6 +1661,27 @@ export async function confirmParcoursAction() {
     return;
   }
 
+  // AJOUT (MJ1, audit fable du 08/08/2026) : execution reelle apres le
+  // dry-run declenche par purgeArchivedParcoursRefs() ci-dessous.
+  if (action.kind === 'purge_archived_refs') {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch(API_BASE_URL + '/api/admin/purge-archived-parcours-refs', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const report = await res.json();
+      showParcoursMessage('success', report.totalReferencesRetirees + ' référence(s) retirée(s) dans ' + report.parcoursTouches + ' parcours.');
+      await loadPage();
+    } catch (err) {
+      console.error('[purge-archived-parcours-refs:execute]', err);
+      showParcoursMessage('error', 'Erreur lors du nettoyage : ' + (err.message || 'inconnue'));
+    }
+    return;
+  }
+
   // NOUVEAU (Sprint 15) : suppression d'une attribution - cas distinct des
   // transitions de statut du parcours ci-dessous (ne concerne jamais le
   // parcours lui-même, seulement le lien assignments/{id}).
@@ -1862,3 +1883,41 @@ async function downloadParcoursAuditCSV() {
   }
 }
 window.downloadParcoursAuditCSV = downloadParcoursAuditCSV;
+
+// AJOUT (MJ1, audit fable du 08/08/2026) : les archivages massifs de
+// questions laissent des references orphelines dans directQuestionIds/
+// competencies[].questionIds (voir POST /api/admin/purge-archived-
+// parcours-refs, functions/index.js). Clic -> dry-run immediat pour
+// afficher un compte reel avant confirmation, meme logique que les
+// actions groupees existantes (requestBulkParcoursAction) : jamais
+// d'ecriture sans passer par la modale de confirmation generique.
+async function purgeArchivedParcoursRefs() {
+  const btn = document.getElementById('parcours-purge-refs-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyse en cours…'; }
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(API_BASE_URL + '/api/admin/purge-archived-parcours-refs', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    if (!report.totalReferencesRetirees) {
+      showParcoursMessage('success', 'Rien à nettoyer : aucune référence à une question archivée ou introuvable.');
+      return;
+    }
+    pendingAction = { kind: 'purge_archived_refs' };
+    document.getElementById('parcours-confirm-message').textContent =
+      report.totalReferencesRetirees + ' référence(s) à des questions archivées/introuvables seront retirées dans ' +
+      report.parcoursTouches + ' parcours. Aucune question n\'est supprimée, seulement leur lien au(x) parcours concerné(s). Confirmer ?';
+    showFeaturedDatesFields(false);
+    document.getElementById('parcours-confirm-overlay').style.display = 'flex';
+  } catch (err) {
+    console.error('[purge-archived-parcours-refs:dry-run]', err);
+    alert('Erreur lors de l\'analyse : ' + (err.message || 'inconnue'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Nettoyer réf. archivées'; }
+  }
+}
+window.purgeArchivedParcoursRefs = purgeArchivedParcoursRefs;
