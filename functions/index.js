@@ -6,6 +6,7 @@ const admin = require("firebase-admin");
 const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { correctEvaluationSession } = require("./lib/evaluation-correction-service");
 const { validateQuestion } = require("./lib/question-import-validator");
+const { isRecognizedDifficultyInput } = require("./lib/question-metadata-validation");
 const XLSX = require("xlsx");
 const Busboy = require("busboy");
 const { Readable } = require("stream");
@@ -4283,6 +4284,28 @@ app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => 
       });
     }
 
+    // CORRECTIF (MJ2, audit fable du 08/08/2026) : jusqu'ici toute chaine
+    // dans "status"/"difficulty" etait ecrite telle quelle en base, sans
+    // controle - un statut mal orthographie (ex. "publishd") ou une
+    // difficulte inventee passait silencieusement. Meme philosophie que
+    // le controle de colonnes ci-dessus (M3) : rejet explicite du fichier
+    // ENTIER si une seule ligne est suspecte, jamais un import partiel de
+    // donnees incoherentes. "deleted" est un statut valide ici (branche
+    // dediee plus bas, jamais ecrit tel quel en base).
+    const VALID_IMPORT_STATUSES = new Set([...QUESTION_STATUS_GENERAL_TARGETS, "deleted"]);
+    const badStatus = [];
+    const badDifficulty = [];
+    rows.forEach((r) => {
+      if (r.status && !VALID_IMPORT_STATUSES.has(r.status)) badStatus.push(r.pedagogicalId + " (\"" + r.status + "\")");
+      if (r.difficulty && !isRecognizedDifficultyInput(r.difficulty)) badDifficulty.push(r.pedagogicalId + " (\"" + r.difficulty + "\")");
+    });
+    if (badStatus.length > 0 || badDifficulty.length > 0) {
+      const parts = [];
+      if (badStatus.length > 0) parts.push("status invalide (" + Array.from(VALID_IMPORT_STATUSES).join(", ") + " attendus) : " + badStatus.slice(0, 20).join(", "));
+      if (badDifficulty.length > 0) parts.push("difficulty non reconnue : " + badDifficulty.slice(0, 20).join(", "));
+      return res.status(400).json({ error: parts.join(" | ") });
+    }
+
     const db = admin.firestore();
     let updated = 0, deleted = 0, skipped = 0;
     const notFound = [];
@@ -4506,6 +4529,94 @@ app.get("/api/admin/export-parcours-questions", requireAuth, async (req, res) =>
   } catch (err) {
     console.error("[export-parcours-questions]", err && err.code, err);
     res.status(500).send("Erreur serveur");
+  }
+});
+
+// CORRECTIF (MJ1, audit fable du 08/08/2026) : les archivages massifs de
+// la nuit du 07-08/08/2026 laissent des references orphelines dans les
+// parcours (directQuestionIds ET competencies[].questionIds - meme piege
+// "dual-location" que le Lot 1 du 05/08/2026 : les deux emplacements
+// doivent etre corriges dans le MEME update, sinon la question reste
+// visible dans le parcours source via l'autre emplacement). Les etudiants
+// sont deja proteges (buildOrderedQuestionSnapshotsServer filtre
+// status=='published' a la construction de session), mais les comptages
+// de parcours et le calcul de progression restent fausses tant que ces
+// references trainent. PAS un endpoint one-shot (contrairement a ceux
+// retires en M4) : un archivage futur laissera le meme residu, cet outil
+// de maintenance a vocation a etre rejoue. Dry-run par defaut (comme
+// import-corrections-file) - explicitement dryRun:false pour ecrire.
+app.post("/api/admin/purge-archived-parcours-refs", requireAuth, async (req, res) => {
+  try {
+    if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
+    const dryRun = !(req.body && req.body.dryRun === false);
+
+    const db = admin.firestore();
+    const parcoursSnap = await db.collection(PARCOURS_COLLECTION).get();
+
+    // 1. Rassemble tous les questionIds references, tous parcours confondus
+    const allQuestionIds = new Set();
+    parcoursSnap.forEach((doc) => {
+      const p = doc.data();
+      (p.directQuestionIds || []).forEach((qid) => allQuestionIds.add(qid));
+      (p.competencies || []).forEach((c) => (c.questionIds || []).forEach((qid) => allQuestionIds.add(qid)));
+    });
+
+    // 2. Resout leur statut reel - archivee OU disparue = a purger
+    const ids = Array.from(allQuestionIds);
+    const statusMap = {};
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const refs = chunk.map((id) => db.collection(QUESTIONS_COLLECTION).doc(id));
+      const snaps = await db.getAll(...refs);
+      snaps.forEach((snap, j) => { statusMap[chunk[j]] = snap.exists ? snap.data().status : "introuvable"; });
+    }
+    const toRemove = new Set(ids.filter((id) => statusMap[id] === "archived" || statusMap[id] === "introuvable"));
+
+    // 3. Pour chaque parcours touche, retire ces IDs des DEUX emplacements
+    //    en un seul update()
+    const report = [];
+    let writeBatch = db.batch();
+    let writeCount = 0;
+    const commitQueue = [];
+    function flushBatch() {
+      if (writeCount > 0) { commitQueue.push(writeBatch.commit()); writeBatch = db.batch(); writeCount = 0; }
+    }
+
+    parcoursSnap.forEach((doc) => {
+      const p = doc.data();
+      const directBefore = Array.isArray(p.directQuestionIds) ? p.directQuestionIds : [];
+      const directAfter = directBefore.filter((qid) => !toRemove.has(qid));
+      const competenciesBefore = Array.isArray(p.competencies) ? p.competencies : [];
+      const competenciesAfter = competenciesBefore.map((c) => {
+        const before = Array.isArray(c.questionIds) ? c.questionIds : [];
+        const after = before.filter((qid) => !toRemove.has(qid));
+        return after.length !== before.length ? Object.assign({}, c, { questionIds: after }) : c;
+      });
+      const removedFromCompetencies = competenciesBefore.reduce(
+        (sum, c, i) => sum + ((c.questionIds || []).length - (competenciesAfter[i].questionIds || []).length), 0
+      );
+      const removedCount = (directBefore.length - directAfter.length) + removedFromCompetencies;
+      if (removedCount === 0) return;
+
+      report.push({ parcoursId: doc.id, name: p.name || "", removed: removedCount });
+      if (!dryRun) {
+        writeBatch.update(doc.ref, { directQuestionIds: directAfter, competencies: competenciesAfter });
+        writeCount++;
+        if (writeCount >= 499) flushBatch();
+      }
+    });
+
+    if (!dryRun) { flushBatch(); await Promise.all(commitQueue); }
+    res.json({
+      dryRun,
+      questionsArchiveesOuIntrouvablesReferencees: toRemove.size,
+      parcoursTouches: report.length,
+      totalReferencesRetirees: report.reduce((s, r) => s + r.removed, 0),
+      detail: report,
+    });
+  } catch (err) {
+    console.error("[purge-archived-parcours-refs]", err && err.code, err);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
