@@ -5,6 +5,8 @@ import { setCurrentUserContext, clearCurrentUserContext } from "../js/services/a
 import { hasPermission, PERMISSIONS } from "../js/services/authorization-service.js";
 import { renderAdminNav } from "./admin-shell.js";
 import { API_BASE_URL } from "../js/config.js";
+import { getRecentImportLogs } from "../js/services/import-log-service.js";
+import { escapeHtml } from "./catalog-sync-helpers.js";
 
 // CORRECTIF SECURITE/FIABILITE (M3, 07/08/2026) : le fichier n'est plus
 // parse ici - il est envoye BRUT au serveur (voir POST /api/admin/import-
@@ -46,7 +48,38 @@ onAuthStateChanged(auth, async function(user) {
   renderAdminNav('bank');
 
   document.getElementById('ic-file-input').addEventListener('change', onFileChange);
+  loadHistory();
 });
+
+// AJOUT (MN4, audit fable du 08/08/2026) : reutilise le journal existant
+// (importLogs, Sprint 10 - voir functions/index.js) plutot que d'en creer
+// un second. logImport() est appele cote serveur directement dans POST
+// /api/admin/import-corrections-file (jamais ici - contrairement a
+// catalog-sync.js qui journalise cote client apres coup).
+async function loadHistory() {
+  const result = await getRecentImportLogs({ limit: 10 });
+  const items = (result && result.items) || [];
+  const wrap = document.getElementById('ic-history-wrap');
+  const body = document.getElementById('ic-history-body');
+  const empty = document.getElementById('ic-history-empty');
+  if (items.length === 0) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  wrap.style.display = 'block';
+  body.innerHTML = items.map(function(entry) {
+    return '<tr>' +
+      '<td>' + escapeHtml(new Date(entry.date).toLocaleString('fr-BE')) + '</td>' +
+      '<td>' + escapeHtml(entry.fileName) + '</td>' +
+      '<td>' + (entry.updatedCount || 0) + '</td>' +
+      '<td>' + (entry.deletedCount || 0) + '</td>' +
+      '<td>' + (entry.errorCount || 0) + '</td>' +
+      '<td>' + escapeHtml(entry.adminEmail || '—') + '</td>' +
+      '</tr>';
+  }).join('');
+}
 
 function onFileChange(e) {
   selectedFile = e.target.files[0] || null;
@@ -133,6 +166,7 @@ window.confirmImport = async function confirmImport() {
       + '</div>'
       + '<p style="color:var(--green-dark);font-weight:600;margin-top:16px">✓ Import terminé avec succès.</p>';
     document.getElementById('ic-step3').style.display = '';
+    loadHistory();
   } catch (err) {
     showMessage('Erreur : ' + err.message, true);
     btn.textContent = 'Confirmer l\'import'; btn.disabled = false;

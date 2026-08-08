@@ -412,9 +412,10 @@ export async function archiveQuestionsBySource(documentSourceId) {
 /**
  * Resout les identifiants pedagogiques de toutes les questions PUBLIEES
  * rattachees a un LOT de sources documentaires (utilise pour construire le
- * pool d'une evaluation de parcours mixte ainsi que pour le calcul de
- * progression - voir parcours-evaluation-service.js et parcours-completion-
- * service.js, un seul point de verite pour cette resolution). Decoupe par
+ * pool d'une evaluation de parcours mixte - resolvePooledQuestionIds() dans
+ * parcours-service.js - ainsi que pour le calcul de progression dans
+ * parcours-completion-service.js, un seul point de verite pour cette
+ * resolution). Decoupe par
  * lots de 30 (limite Firestore d'une clause `in`, meme limite deja
  * documentee et appliquee dans assignment-catalog-service.js).
  * @param {Array<string>} sourceIds

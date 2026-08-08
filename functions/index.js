@@ -79,22 +79,54 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 1000;
 const rateLimitBuckets = new Map();
 
+// CORRECTIF (MJ3, audit fable du 08/08/2026) : le seuil global ci-dessus
+// protege bien le trafic de lecture ordinaire (y compris le pattern N+1 de
+// l'incident ci-dessus), mais reparti sur les 10 instances max il tolere
+// jusqu'a ~10000 req/min - largement suffisant pour ignorer un abus
+// VOLONTAIRE cible sur un endpoint couteux (creation de session, import de
+// masse). Second bucket, SEPARE et beaucoup plus strict, pose en plus (pas
+// a la place) du seuil global sur ces endpoints precis - ne resout pas le
+// pattern N+1 des pages Mes competences/parcours (refonte en endpoints
+// groupes explicitement hors perimetre ce soir, voir l'audit) donc reste
+// sur le seuil global genereux partout ailleurs.
+const STRICT_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const STRICT_RATE_LIMIT_MAX_REQUESTS = 30;
+const strictRateLimitBuckets = new Map();
+
+function checkBucket(buckets, uid, windowMs, maxRequests) {
+  const now = Date.now();
+  const bucket = buckets.get(uid);
+  if (!bucket || now - bucket.windowStart >= windowMs) {
+    buckets.set(uid, { windowStart: now, count: 1 });
+    return true;
+  }
+  bucket.count++;
+  return bucket.count <= maxRequests;
+}
+
 setInterval(() => {
   const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
   for (const [uid, bucket] of rateLimitBuckets) {
     if (bucket.windowStart < cutoff) rateLimitBuckets.delete(uid);
   }
+  const strictCutoff = Date.now() - STRICT_RATE_LIMIT_WINDOW_MS;
+  for (const [uid, bucket] of strictRateLimitBuckets) {
+    if (bucket.windowStart < strictCutoff) strictRateLimitBuckets.delete(uid);
+  }
 }, 10 * 60 * 1000).unref();
 
 function checkRateLimit(uid) {
-  const now = Date.now();
-  const bucket = rateLimitBuckets.get(uid);
-  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    rateLimitBuckets.set(uid, { windowStart: now, count: 1 });
-    return true;
+  return checkBucket(rateLimitBuckets, uid, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
+}
+
+// A poser APRES requireAuth (utilise req.user.uid) - uniquement sur les
+// endpoints couteux/sensibles identifies par l'audit : creation de
+// session, imports/patchs admin, purge parcours, lundi-legi.
+function requireStrictRateLimit(req, res, next) {
+  if (!checkBucket(strictRateLimitBuckets, req.user.uid, STRICT_RATE_LIMIT_WINDOW_MS, STRICT_RATE_LIMIT_MAX_REQUESTS)) {
+    return res.status(429).json({ error: "Trop de requêtes sur cette action. Réessayez dans un instant." });
   }
-  bucket.count++;
-  return bucket.count <= RATE_LIMIT_MAX_REQUESTS;
+  next();
 }
 
 async function requireAuth(req, res, next) {
@@ -111,9 +143,6 @@ async function requireAuth(req, res, next) {
 }
 
 app.get("/health", (req, res) => res.send("OK"));
-
-const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Signatures ("magic bytes") des formats d'image reellement acceptes -
 // CORRECTIF (audit "mauvais utilisateur", 27/07/2026) : `req.file.mimetype`
@@ -537,7 +566,7 @@ app.get("/api/lundi-legi/:uid/state", requireAuth, async (req, res) => {
 // lui, quel index choisi) ; le serveur verifie que la question correspond
 // bien au calendrier PUIS calcule lui-meme la reponse a partir de
 // Firestore - jamais fourni par le client.
-app.put("/api/lundi-legi/:uid", requireAuth, async (req, res) => {
+app.put("/api/lundi-legi/:uid", requireAuth, requireStrictRateLimit, async (req, res) => {
   const { uid } = req.params;
   const body = req.body || {};
   if (req.user.uid !== uid) {
@@ -3082,7 +3111,7 @@ const NO_QUESTIONS_AVAILABLE_MESSAGE_SERVER = "Aucune question n'est actuellemen
 // "create" que firestore.rules : uniquement en son propre nom, identifiant
 // du document == `id` fourni, refuse si un document existe deja (jamais un
 // ecrasement silencieux).
-app.post("/api/sessions", requireAuth, async (req, res) => {
+app.post("/api/sessions", requireAuth, requireStrictRateLimit, async (req, res) => {
   const body = req.body || {};
   const uid = req.user.uid;
   if (body.userId !== uid || !body.id) {
@@ -4190,8 +4219,8 @@ app.get("/api/admin/export-questions-csv", requireAuth, async (req, res) => {
 // au moment ou multer tente de le lire. Solution etablie pour Firebase
 // Functions + upload multipart : parser directement `req.rawBody` avec
 // busboy (dependance de multer, ajoutee ici en direct), jamais via le flux
-// `req`. Reproduit sur /api/images (endpoint preexistant, non modifie) -
-// a corriger la aussi si un besoin similaire s'y presente.
+// `req`. Meme bug reproduit et corrige sur /api/images (F2, meme nuit) -
+// cette fonction y est reutilisee telle quelle.
 function parseMultipartUpload(req, { fieldName = "file", maxFileSize = 10 * 1024 * 1024 } = {}) {
   return new Promise((resolve, reject) => {
     const busboy = Busboy({ headers: req.headers, limits: { fileSize: maxFileSize } });
@@ -4249,7 +4278,7 @@ function parseImportFileBuffer(buffer, originalname) {
     .filter((r) => r.pedagogicalId);
 }
 
-app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => {
+app.post("/api/admin/import-corrections-file", requireAuth, requireStrictRateLimit, async (req, res) => {
   try {
     if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
 
@@ -4304,6 +4333,25 @@ app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => 
       if (badStatus.length > 0) parts.push("status invalide (" + Array.from(VALID_IMPORT_STATUSES).join(", ") + " attendus) : " + badStatus.slice(0, 20).join(", "));
       if (badDifficulty.length > 0) parts.push("difficulty non reconnue : " + badDifficulty.slice(0, 20).join(", "));
       return res.status(400).json({ error: parts.join(" | ") });
+    }
+
+    // CORRECTIF (MN3, audit fable du 08/08/2026) : un pedagogicalId en
+    // double dans le fichier enchainait deux update() sur le meme document
+    // sans avertissement (le second ecrasait silencieusement le premier) et
+    // faussait le compte "updated" affiche a l'administrateur. Le pipeline
+    // JSON (question-import-validator.js#validateImportPayload) rejette
+    // deja ce cas - meme garde-fou ici, meme philosophie que ci-dessus :
+    // rejet du fichier entier plutot qu'une deduplication silencieuse.
+    const seenIds = new Map();
+    const duplicateIds = new Set();
+    rows.forEach((r, i) => {
+      if (seenIds.has(r.pedagogicalId)) duplicateIds.add(r.pedagogicalId);
+      else seenIds.set(r.pedagogicalId, i);
+    });
+    if (duplicateIds.size > 0) {
+      return res.status(400).json({
+        error: "pedagogicalId en double dans le fichier : " + Array.from(duplicateIds).slice(0, 20).join(", "),
+      });
     }
 
     const db = admin.firestore();
@@ -4363,6 +4411,35 @@ app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => 
     }
 
     if (!dryRun) { flushBatch(); await Promise.all(commitQueue); }
+
+    // CORRECTIF (MN4, audit fable du 08/08/2026) : ce pipeline (le seul
+    // chemin d'ecriture pour le contenu editorial desormais, voir M3)
+    // n'ecrivait jusqu'ici aucune trace. Reutilise le journal EXISTANT
+    // (importLogs, cree Sprint 10 pour admin/catalog-sync.js - meme
+    // collection, meme lecture via GET /api/import-logs) plutot que d'en
+    // creer un second. Best-effort : une panne de journalisation ne doit
+    // jamais faire echouer un import deja effectue. Uniquement sur une
+    // execution reelle (dryRun n'ecrit rien, rien a tracer).
+    if (!dryRun) {
+      try {
+        await db.collection(IMPORT_LOGS_COLLECTION).add({
+          date: new Date().toISOString(),
+          adminUid: req.user.uid,
+          adminEmail: req.user.email || "",
+          fileName: upload.originalname || "",
+          createdCount: 0,
+          updatedCount: updated,
+          deletedCount: deleted,
+          errorCount: notFound.length,
+          durationMs: 0,
+          simulated: false,
+          schemaVersion: "corrections-v1",
+        });
+      } catch (logErr) {
+        console.error("[import-corrections-file:log]", logErr && logErr.code, logErr);
+      }
+    }
+
     res.json({ updated, deleted, skipped, notFound, dryRun: !!dryRun, totalRows: rows.length });
   } catch (err) {
     console.error("[import-corrections-file]", err && err.code, err);
@@ -4376,7 +4453,7 @@ app.post("/api/admin/import-corrections-file", requireAuth, async (req, res) => 
 // reutilisable, encore avec sa propre section permanente dans import-
 // corrections.html ("Patch JSON V3"), jamais un script ponctuel. Code
 // identique a l'original (commit fd95d69).
-app.post("/api/admin/apply-question-patch-v3", requireAuth, async (req, res) => {
+app.post("/api/admin/apply-question-patch-v3", requireAuth, requireStrictRateLimit, async (req, res) => {
   try {
     if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
     const { items, dryRun } = req.body || {};
@@ -4545,7 +4622,7 @@ app.get("/api/admin/export-parcours-questions", requireAuth, async (req, res) =>
 // retires en M4) : un archivage futur laissera le meme residu, cet outil
 // de maintenance a vocation a etre rejoue. Dry-run par defaut (comme
 // import-corrections-file) - explicitement dryRun:false pour ecrire.
-app.post("/api/admin/purge-archived-parcours-refs", requireAuth, async (req, res) => {
+app.post("/api/admin/purge-archived-parcours-refs", requireAuth, requireStrictRateLimit, async (req, res) => {
   try {
     if (!(await isRequesterAdmin(req.user.uid))) return res.status(403).json({ error: "Accès refusé" });
     const dryRun = !(req.body && req.body.dryRun === false);

@@ -204,11 +204,13 @@ export async function getOrganizationParcours() {
 // sur un parcours accessible par défaut) : parcours-view-service.js#getParcoursDetailForUser()
 // autorisait deja la CONSULTATION d'un parcours self-service (organizationId
 // null/absent) ou de l'organisation de l'utilisateur, meme sans attribution
-// formelle - mais parcours-evaluation-service.js#prepareEvaluation()/
-// prepareParcoursMixedEvaluation() ne verifiaient QUE getAssignedParcoursForUser(),
-// donc refusaient de DEMARRER l'evaluation d'un parcours pourtant ouvrable.
-// Centralise ici (SEULE source de verite, reutilisee par les deux fichiers)
-// pour ne plus jamais desynchroniser "peut consulter" et "peut demarrer".
+// formelle - mais l'ancien chemin client de demarrage d'evaluation (avant le
+// portage serveur du 07/08/2026, correctif C2) ne verifiait QUE
+// getAssignedParcoursForUser(), donc refusait de DEMARRER l'evaluation d'un
+// parcours pourtant ouvrable. Centralise ici (SEULE source de verite) pour
+// ne plus jamais desynchroniser "peut consulter" et "peut demarrer" - la
+// meme logique est reprise cote serveur par resolveAccessibleParcoursEntryServer
+// (functions/index.js).
 //
 // AJOUT (demande directe de David, 29/07/2026, "un vrai blocage" pour le
 // palier premium) : jusqu'ici `accessTier` n'etait qu'une indication
@@ -687,14 +689,15 @@ export async function resolveDerivedCompetenciesFromPool(parcours, pooledQuestio
  * union des questions nichees sous une competence (competencies[].questionIds),
  * des questions directement liees (directQuestionIds) et des questions
  * PUBLIEES des sources documentaires liees (sourceIds, resolues via
- * getPublishedQuestionIdsBySourceIds()). SEULE source de verite pour ce
- * calcul - reutilisee a la fois par l'affichage (parcours-view-service.js,
- * "X question(s)") et par le demarrage reel de l'evaluation
- * (parcours-evaluation-service.js#prepareParcoursMixedEvaluation) : avant
- * cette extraction, les deux endroits dupliquaient la meme union et
- * avaient fini par diverger (l'affichage ignorait les questions de source,
- * cf. le parcours "Retours" teste par David - le bouton "Commencer"
- * restait cache alors que l'evaluation aurait fonctionne).
+ * getPublishedQuestionIdsBySourceIds()). SEULE source de verite cote client
+ * pour ce calcul - utilisee par l'affichage (parcours-view-service.js,
+ * "X question(s)") ; portee fidelement cote serveur par
+ * resolvePooledQuestionIdsServer (functions/index.js) pour le demarrage
+ * reel de l'evaluation depuis le correctif C2 du 07/08/2026 (avant cette
+ * extraction cote client, l'affichage et le demarrage dupliquaient chacun
+ * leur propre union et avaient fini par diverger - cf. le parcours
+ * "Retours" teste par David, le bouton "Commencer" restait cache alors que
+ * l'evaluation aurait fonctionne).
  * @param {object} parcours
  * @returns {Promise<Array<string>>}
  */

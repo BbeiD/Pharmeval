@@ -89,8 +89,8 @@ export async function getDailyChallengeStateForUser() {
  * que la session n'est pas créée par evaluation-session-service.js, qui
  * fait le travail réel). Forme de retour ALIGNEE sur celle de
  * startDailyChallengeSession() (evaluation-session-service.js) - `status`
- * ('success'/'denied'/'error'), jamais `authorized` (convention differente
- * utilisee ailleurs, ex. parcours-evaluation-service.js) : cette fonction
+ * ('success'/'denied'/'error'), jamais `authorized` (meme convention que
+ * tous les autres appels serveur d'evaluation) : cette fonction
  * delegue directement a l'autre pour le cas de succes, elles doivent donc
  * partager EXACTEMENT la meme forme, jamais deux conventions melangees
  * pour un seul appelant (js/defi.js).

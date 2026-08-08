@@ -66,9 +66,10 @@ export const SESSION_STATUSES = Object.freeze({
  * modifiee ou supprimee de la Banque de questions :
  *   - pedagogicalId, version, questionType (identite + type de rendu)
  *   - question (enonce - necessaire pour un rendu stable, voir note ci-dessous)
- *   - answers (options, DEJA dans l'ordre de presentation figé - voir
- *     parcours-evaluation-service.js, qui mélange les options AVANT
- *     d'appeler cette fonction, une seule fois, au demarrage de la session)
+ *   - answers (options, DEJA dans l'ordre de presentation figé - le
+ *     melange se fait desormais cote serveur, voir shuffleServer/
+ *     buildShuffledSnapshotServer dans functions/index.js, une seule fois,
+ *     au demarrage de la session)
  *   - correctAnswer (cle de correction, deja remappee sur cet ordre figé)
  *   - points (bareme eventuel - `null` tant qu'aucun systeme de notation
  *     ponderee n'existe reellement, jamais une valeur inventee)
@@ -151,7 +152,7 @@ export function completeSessionMetadata(partial) {
     startedAt: p.startedAt || null,
     updatedAt: p.updatedAt || null,
     submittedAt: p.submittedAt || null,
-    questionIds: Array.isArray(p.questionIds) ? p.questionIds.slice() : [], // ordre FIGE au demarrage (voir parcours-evaluation-service.js)
+    questionIds: Array.isArray(p.questionIds) ? p.questionIds.slice() : [], // ordre FIGE au demarrage (melange cote serveur, voir shuffleServer dans functions/index.js)
     currentQuestionIndex: (typeof p.currentQuestionIndex === 'number') ? p.currentQuestionIndex : 0,
     answers: (p.answers && typeof p.answers === 'object') ? p.answers : {}, // map { [pedagogicalId]: {value, answeredAt} }
     questionSnapshot: (p.questionSnapshot && typeof p.questionSnapshot === 'object') ? p.questionSnapshot : {}, // map { [pedagogicalId]: snapshot }

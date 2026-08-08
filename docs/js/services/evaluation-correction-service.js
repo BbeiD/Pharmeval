@@ -59,9 +59,9 @@ export function resultIdForSession(sessionId) {
 /**
  * Corrige une question "qcm" (choix unique) : compare l'index de reponse
  * de l'utilisateur a l'index de la bonne reponse DEJA REMAPPE dans le
- * snapshot (voir parcours-evaluation-service.js, Sprint 17 - le snapshot
- * reflete deja l'ordre exact presente a l'utilisateur, aucun remappage
- * supplementaire n'est necessaire ici).
+ * snapshot (construit serveur, voir buildShuffledSnapshotServer dans
+ * functions/index.js - le snapshot reflete deja l'ordre exact presente
+ * a l'utilisateur, aucun remappage supplementaire n'est necessaire ici).
  * @param {object} snapshot - session.questionSnapshot[pedagogicalId]
  * @param {*} userAnswerValue - session.answers[pedagogicalId]?.value, ou undefined/null
  * @returns {{status:string, isCorrect:boolean}}

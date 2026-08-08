@@ -1,8 +1,7 @@
 // ===================== CONTROLEUR DE LA PAGE "EVALUATION" (Sprint 17) =====================
 // Aucune logique metier ici : appelle js/services/evaluation-session-
-// service.js (+ parcours-evaluation-service.js, question-renderer-
-// service.js) et affiche/reagit - meme discipline que toutes les autres
-// pages du projet.
+// service.js (+ question-renderer-service.js) et affiche/reagit - meme
+// discipline que toutes les autres pages du projet.
 //
 // "Le contrôle doit également être effectué dans la logique métier..."
 // (SPRINT17, section 14) : cette page ne fait AUCUNE verification de

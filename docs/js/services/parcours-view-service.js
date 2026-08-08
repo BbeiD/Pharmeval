@@ -115,9 +115,8 @@ export async function getParcoursDetailForUser(parcoursId, uid) {
   const parcours = entry.parcours;
   // CORRECTIF (constat fait en testant le parcours "Retours", voir message
   // a David) : le total affiche compte desormais TOUTES les questions
-  // reellement jouables via le bouton "Commencer" (prepareParcoursMixedEvaluation,
-  // parcours-evaluation-service.js), y compris celles des sources
-  // documentaires liees (parcours.sourceIds) - voir resolvePooledQuestionIds()
+  // reellement jouables via le bouton "Commencer", y compris celles des
+  // sources documentaires liees (parcours.sourceIds) - voir resolvePooledQuestionIds()
   // dans parcours-service.js, SEULE source de verite partagee par
   // l'affichage ET le demarrage reel, pour ne plus jamais diverger comme
   // avant ce correctif (l'affichage ignorait les questions de source et
