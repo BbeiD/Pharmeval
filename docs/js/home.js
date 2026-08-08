@@ -21,7 +21,7 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/f
 import { ensureUserDocument } from "./services/user-service.js";
 import { setCurrentUserContext, getCurrentUserContext } from "./services/app-context.js";
 import { getAvailableParcoursForUser } from "./services/assignment-service.js";
-import { getActiveSession } from "./services/evaluation-session-service.js";
+import { getAllActiveSessionsByParcours } from "./services/evaluation-session-service.js";
 import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { getEvaluationsForStatistics } from "./services/history-service.js";
@@ -358,12 +358,9 @@ async function loadHomeParcours() {
 
   const displayed = sorted.slice(0, MAX_HOME_PARCOURS);
 
-  const activeSessionMap = new Map();
-  await Promise.all(displayed.map(function(entry) {
-    return getActiveSession(entry.parcours.id, null)
-      .then(function(active) { if (active) activeSessionMap.set(entry.parcours.id, true); })
-      .catch(function() {});
-  }));
+  // CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-4) : un seul
+  // appel groupe au lieu d'un getActiveSession() par parcours affiche.
+  const activeSessionMap = await getAllActiveSessionsByParcours().catch(function() { return new Map(); });
 
   const hasAnyActive = displayed.some(function(e) { return activeSessionMap.get(e.parcours.id); });
   const allNeverStarted = displayed.every(function(e) {

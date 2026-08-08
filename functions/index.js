@@ -2916,6 +2916,38 @@ app.get("/api/sessions/active", requireAuth, async (req, res) => {
   }
 });
 
+// CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-4) : "Mes
+// parcours" et l'accueil appelaient /api/sessions/active UNE FOIS PAR
+// PARCOURS AFFICHE (jusqu'a 99 appels d'affilee sur "Mes parcours") pour
+// savoir lesquels ont une session en cours - c'est ce pattern qui avait
+// declenche l'incident de rate limit F3 cette nuit. Meme resultat en UN
+// seul appel : toutes les sessions in_progress de l'utilisateur, SCOPE
+// PARCOURS (jamais une session d'entrainement libre/defi/lundi-legi -
+// meme filtre parcoursId+competencyId==null que /api/sessions/active),
+// groupees par parcoursId. Coute IDENTIQUEMENT peu de lectures Firestore
+// que l'ancien pattern (chaque ancien appel ne lisait deja que 0-1
+// document via .limit(1)) - le gain ici est en invocations/latence, pas
+// en documents factures (voir C-4 dans l'audit).
+app.get("/api/sessions/active-by-parcours", requireAuth, async (req, res) => {
+  try {
+    const snap = await admin
+      .firestore()
+      .collection(EVALUATION_SESSIONS_COLLECTION)
+      .where("userId", "==", req.user.uid)
+      .where("status", "==", "in_progress")
+      .get();
+    const byParcoursId = {};
+    snap.forEach((doc) => {
+      const data = doc.data();
+      if (data.parcoursId && !data.competencyId) byParcoursId[data.parcoursId] = data;
+    });
+    res.json({ byParcoursId, error: false });
+  } catch (err) {
+    console.error("[sessions/active-by-parcours]", err && err.code, err);
+    res.status(500).json({ byParcoursId: {}, error: true });
+  }
+});
+
 // Reprend countPreviousAttempts().
 app.get("/api/sessions/attempts-count", requireAuth, async (req, res) => {
   const { parcoursId, competencyId } = req.query;

@@ -16,7 +16,7 @@ import { getAssignedParcoursForUser } from "./services/assignment-service.js";
 import { getSelfServiceCatalogParcours, getOrganizationParcours } from "./services/parcours-service.js";
 import { resolveParcoursColorHex, resolveParcoursIconKey, isParcoursCurrentlyFeatured, ACCESS_TIERS, PREMIUM_REQUIRED_MESSAGE } from "./services/parcours-metadata-service.js";
 import { getParcoursAttemptSummaryForUser } from "./services/evaluation-result-service.js";
-import { getActiveSession } from "./services/evaluation-session-service.js";
+import { getAllActiveSessionsByParcours } from "./services/evaluation-session-service.js";
 import { renderSiteHeader } from "./site-header.js";
 import { icon, renderAnyIcon, ICONS, DOT_ICONS } from "./icons.js";
 import { classificationFromParcoursName } from "./services/parcours-classification-logic.js";
@@ -345,11 +345,11 @@ async function loadMyParcours() {
 
   state.attemptsByParcoursId = attemptResult.error ? new Map() : attemptResult.byParcoursId;
   state.entries = entriesResult.items;
-  state.activeSessionByParcoursId = new Map();
-  await Promise.all(state.entries.map(async function(entry) {
-    const active = await getActiveSession(entry.parcours.id, null).catch(function() { return null; });
-    if (active) state.activeSessionByParcoursId.set(entry.parcours.id, active);
-  }));
+  // CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-4) : un seul
+  // appel groupe au lieu d'un getActiveSession() par parcours affiche
+  // (jusqu'a 99 avant ce correctif - voir functions/index.js#/api/sessions/
+  // active-by-parcours).
+  state.activeSessionByParcoursId = await getAllActiveSessionsByParcours().catch(function() { return new Map(); });
 
   renderStatsGrid();
   renderGrid();

@@ -96,6 +96,29 @@ export async function findActiveSession(userId, parcoursId, competencyId) {
 }
 
 /**
+ * CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-4) : equivalent
+ * de findActiveSession() ci-dessus mais pour TOUS les parcours de
+ * l'utilisateur en UN seul appel, au lieu d'un appel par parcours affiche
+ * (jusqu'a 99 sur "Mes parcours" - c'est ce pattern qui avait declenche
+ * l'incident de rate limit F3 cette nuit). Retourne une Map(parcoursId ->
+ * session), jamais les sessions d'entrainement libre/defi/lundi-legi
+ * (memes filtres serveur que findActiveSession : parcoursId defini,
+ * competencyId absent).
+ * @param {string} userId - non utilise directement (le serveur infere du jeton), garde pour coherence de signature avec findActiveSession()
+ * @returns {Promise<Map<string,object>>}
+ */
+export async function findAllActiveSessionsByParcours(userId) {
+  try {
+    const body = await fetchSessionApi('/api/sessions/active-by-parcours');
+    const byParcoursId = (body && body.byParcoursId) || {};
+    return new Map(Object.entries(byParcoursId));
+  } catch (err) {
+    logCatalogError('recherche groupee des sessions actives par parcours', err);
+    return new Map();
+  }
+}
+
+/**
  * Compte les tentatives déjà existantes (tous statuts confondus) pour un
  * couple (parcours, compétence) - utilisé pour calculer `attemptNumber`
  * (SPRINT17, section 4 : préparé, non exploité fonctionnellement pour

@@ -50,6 +50,7 @@ import {
 import {
   createSessionDocument, getSessionById, findActiveSession, countPreviousAttempts, updateSessionFields,
   findActiveFreeTrainingSession, countPreviousFreeTrainingAttempts, findActiveDailyChallengeSession,
+  findAllActiveSessionsByParcours,
 } from "./evaluation-session-catalog-service.js";
 
 function denied(message, reason) { return { status: 'denied', message: message, reason: reason }; }
@@ -76,6 +77,20 @@ export async function getActiveSession(parcoursId, competencyId) {
   const ctx = getCurrentUserContext();
   if (!ctx || !ctx.uid) return null;
   return findActiveSession(ctx.uid, parcoursId, competencyId);
+}
+
+/**
+ * CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-4) : equivalent
+ * de getActiveSession() ci-dessus pour TOUS les parcours en un seul appel
+ * - a utiliser pour toute grille/liste affichant plusieurs parcours a la
+ * fois (Mes parcours, accueil), jamais une boucle de getActiveSession()
+ * par carte.
+ * @returns {Promise<Map<string,object>>} parcoursId -> session
+ */
+export async function getAllActiveSessionsByParcours() {
+  const ctx = getCurrentUserContext();
+  if (!ctx || !ctx.uid) return new Map();
+  return findAllActiveSessionsByParcours(ctx.uid);
 }
 
 /**
