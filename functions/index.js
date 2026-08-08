@@ -2585,12 +2585,19 @@ const QUESTION_PROGRESS_COLLECTION = "question_progress";
 // de l'accueil, Mes competences, classification du pool Entrainement
 // libre). Toujours le requerant lui-meme (ctx.uid chez tous les
 // appelants reels) - pas de bypass admin necessaire.
+// CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-2) : borne
+// naturellement par le nombre de questions publiees (1 doc par question
+// deja rencontree), mais sans plafond explicite jusqu'ici - protege
+// contre une croissance future du catalogue ou une anomalie de donnees
+// (doublons), jamais atteint en usage normal aujourd'hui.
 app.get("/api/question-progress", requireAuth, async (req, res) => {
+  const max = boundedNumberParam(req.query.limit, 2000, 2000);
   try {
     const snap = await admin
       .firestore()
       .collection(QUESTION_PROGRESS_COLLECTION)
       .where("userId", "==", req.user.uid)
+      .limit(max)
       .get();
     const items = snap.docs.map((d) => d.data());
     res.json({ items, error: false });
@@ -2766,12 +2773,22 @@ app.post("/api/question-progress/rebuild", requireAuth, async (req, res) => {
 // progression, "Activite recente" de l'accueil via recent-activity-
 // service.js). Toujours le requerant lui-meme, documents bruts (pas la
 // normalisation de history-service.js, usage different).
+// CORRECTIF (couts Firestore, audit fable du 08/08/2026, C-2) : aucune
+// limite jusqu'ici - grandit indefiniment avec l'usage (une lecture par
+// evaluation jamais passee), et cet endpoint est appele plusieurs fois
+// par chargement d'accueil (voir getParcoursAttemptSummaryForUser cote
+// client). 500 par defaut : tres largement suffisant pour un usage
+// personnel reel (reconciliation de progression incluse, voir
+// reconcileProgressForUser), protege seulement contre une croissance
+// pathologique/non bornee a tres long terme.
 app.get("/api/evaluation-results", requireAuth, async (req, res) => {
+  const max = boundedNumberParam(req.query.limit, 500, 2000);
   try {
     const snap = await admin
       .firestore()
       .collection(EVALUATION_RESULTS_COLLECTION)
       .where("userId", "==", req.user.uid)
+      .limit(max)
       .get();
     const items = snap.docs.map((d) => d.data());
     res.json({ items, error: false });

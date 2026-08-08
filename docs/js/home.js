@@ -252,6 +252,27 @@ async function loadMasteryDonut() {
 // Parcours ALAUNE actifs (editorialOnly + featured)
 // ---------------------------------------------------------------------------
 
+// CORRECTIF (couts Firestore, audit fable du 08/08/2026) : loadHomeAlaune(),
+// loadHomeParcours() et loadMedals() ci-dessous appellent chacun le meme
+// couple getAvailableParcoursForUser()+getParcoursAttemptSummaryForUser(),
+// tous les trois dans le meme Promise.all racine (voir onAuthStateChanged
+// plus haut) - sans cache, les 3 appels partent reellement en parallele,
+// relisant 3x le catalogue de parcours ET tous les evaluation_results de
+// l'utilisateur (aucune limite cote serveur sur ce dernier). Memoisation
+// simple de la PROMISE (pas juste du resultat, pour que les 3 appelants
+// concurrents partagent le meme appel en vol) - scope a CE chargement de
+// page uniquement, jamais persistee ni partagee entre navigations.
+let cachedAvailableParcoursPromise = null;
+function getAvailableParcoursForUserCached(uid) {
+  if (!cachedAvailableParcoursPromise) cachedAvailableParcoursPromise = getAvailableParcoursForUser(uid);
+  return cachedAvailableParcoursPromise;
+}
+let cachedAttemptSummaryPromise = null;
+function getParcoursAttemptSummaryForUserCached(uid) {
+  if (!cachedAttemptSummaryPromise) cachedAttemptSummaryPromise = getParcoursAttemptSummaryForUser(uid);
+  return cachedAttemptSummaryPromise;
+}
+
 async function loadHomeAlaune() {
   const section = document.getElementById('home-alaune-section');
   const gridEl = document.getElementById('home-alaune-grid');
@@ -260,8 +281,8 @@ async function loadHomeAlaune() {
   const ctx = getCurrentUserContext();
   const todayStr = todayDateStr();
   const [result, attemptResult] = await Promise.all([
-    getAvailableParcoursForUser(ctx && ctx.uid),
-    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+    getAvailableParcoursForUserCached(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUserCached(ctx && ctx.uid),
   ]);
 
   const alauneItems = (result.error ? [] : result.items).filter(function(entry) {
@@ -290,8 +311,8 @@ async function loadHomeParcours() {
   const ctx = getCurrentUserContext();
   const todayStr = todayDateStr();
   const [result, attemptResult] = await Promise.all([
-    getAvailableParcoursForUser(ctx && ctx.uid),
-    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+    getAvailableParcoursForUserCached(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUserCached(ctx && ctx.uid),
   ]);
 
   if (result.error || result.items.length === 0) {
@@ -498,8 +519,8 @@ async function loadMedals() {
   const ctx = getCurrentUserContext();
 
   const [assignedResult, attemptResult] = await Promise.all([
-    getAvailableParcoursForUser(ctx && ctx.uid),
-    getParcoursAttemptSummaryForUser(ctx && ctx.uid),
+    getAvailableParcoursForUserCached(ctx && ctx.uid),
+    getParcoursAttemptSummaryForUserCached(ctx && ctx.uid),
   ]);
 
   if (assignedResult.error || assignedResult.items.length === 0) {
